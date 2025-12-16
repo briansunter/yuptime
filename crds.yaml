@@ -1,0 +1,1019 @@
+# KubeKuma Custom Resource Definitions
+# API Group: monitoring.kubekuma.io/v1
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: monitors.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: Monitor
+    listKind: MonitorList
+    plural: monitors
+    singular: monitor
+    shortNames:
+      - mon
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - type
+                - schedule
+                - target
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                type:
+                  type: string
+                  enum: [http, tcp, ping, dns, keyword, jsonQuery, websocket, push, steam, k8s, docker]
+                schedule:
+                  type: object
+                  required:
+                    - intervalSeconds
+                    - timeoutSeconds
+                  properties:
+                    intervalSeconds:
+                      type: integer
+                      minimum: 1
+                    timeoutSeconds:
+                      type: integer
+                      minimum: 1
+                    retries:
+                      type: object
+                      properties:
+                        maxRetries:
+                          type: integer
+                          minimum: 0
+                        retryIntervalSeconds:
+                          type: integer
+                          minimum: 1
+                    initialDelaySeconds:
+                      type: integer
+                      minimum: 0
+                    graceDownSeconds:
+                      type: integer
+                      minimum: 0
+                    jitterPercent:
+                      type: integer
+                      minimum: 0
+                      maximum: 100
+                target:
+                  type: object
+                  properties:
+                    http:
+                      type: object
+                      required:
+                        - url
+                      properties:
+                        url:
+                          type: string
+                        method:
+                          type: string
+                          enum: [GET, POST, PUT, DELETE, PATCH, HEAD]
+                          default: GET
+                        followRedirects:
+                          type: boolean
+                          default: true
+                        maxRedirects:
+                          type: integer
+                          default: 10
+                        headers:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              name:
+                                type: string
+                              value:
+                                type: string
+                        expectedContentType:
+                          type: string
+                        maxBodyBytes:
+                          type: integer
+                          default: 1048576
+                        tls:
+                          type: object
+                          properties:
+                            verify:
+                              type: boolean
+                              default: true
+                            sni:
+                              type: string
+                            warnBeforeDays:
+                              type: integer
+                    tcp:
+                      type: object
+                      required:
+                        - host
+                        - port
+                      properties:
+                        host:
+                          type: string
+                        port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                        send:
+                          type: string
+                        expect:
+                          type: string
+                        tls:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                            verify:
+                              type: boolean
+                            sni:
+                              type: string
+                    dns:
+                      type: object
+                      required:
+                        - name
+                        - recordType
+                      properties:
+                        name:
+                          type: string
+                        recordType:
+                          type: string
+                          enum: [A, AAAA, CNAME, TXT, MX, SRV]
+                        expected:
+                          type: object
+                          properties:
+                            values:
+                              type: array
+                              items:
+                                type: string
+                    ping:
+                      type: object
+                      required:
+                        - host
+                      properties:
+                        host:
+                          type: string
+                        packetCount:
+                          type: integer
+                          minimum: 1
+                          default: 1
+                successCriteria:
+                  type: object
+                  properties:
+                    http:
+                      type: object
+                      properties:
+                        acceptedStatusCodes:
+                          type: array
+                          items:
+                            type: integer
+                        latencyMsUnder:
+                          type: integer
+                    keyword:
+                      type: object
+                      properties:
+                        contains:
+                          type: array
+                          items:
+                            type: string
+                        notContains:
+                          type: array
+                          items:
+                            type: string
+                alerting:
+                  type: object
+                  properties:
+                    policyRef:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                    resendIntervalMinutes:
+                      type: integer
+                      default: 0
+                    notifyOn:
+                      type: object
+                      properties:
+                        down:
+                          type: boolean
+                          default: true
+                        up:
+                          type: boolean
+                          default: true
+                        flapping:
+                          type: boolean
+                          default: true
+                        certExpiring:
+                          type: boolean
+                          default: true
+                tags:
+                  type: array
+                  items:
+                    type: string
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                lastResult:
+                  type: object
+                  properties:
+                    state:
+                      type: string
+                      enum: [up, down, pending, flapping, paused]
+                    checkedAt:
+                      type: string
+                    latencyMs:
+                      type: number
+                    attempts:
+                      type: integer
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                uptime:
+                  type: object
+                  properties:
+                    last1h:
+                      type: number
+                    last24h:
+                      type: number
+                    last7d:
+                      type: number
+                    last30d:
+                      type: number
+                nextRunAt:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.type
+        - name: Status
+          type: string
+          jsonPath: .status.lastResult.state
+        - name: Last Check
+          type: string
+          jsonPath: .status.lastResult.checkedAt
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: localusers.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: LocalUser
+    listKind: LocalUserList
+    plural: localusers
+    singular: localuser
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - username
+                - role
+                - passwordHashSecretRef
+              properties:
+                username:
+                  type: string
+                  minLength: 1
+                passwordHashSecretRef:
+                  type: object
+                  required:
+                    - name
+                    - key
+                  properties:
+                    name:
+                      type: string
+                    key:
+                      type: string
+                role:
+                  type: string
+                  enum: [admin, editor, viewer]
+                mfa:
+                  type: object
+                  properties:
+                    mode:
+                      type: string
+                      enum: [disabled, optional, required]
+                    totpSecretRef:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        key:
+                          type: string
+                disabled:
+                  type: boolean
+                  default: false
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                lastLoginAt:
+                  type: string
+                mfaEnabled:
+                  type: boolean
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Username
+          type: string
+          jsonPath: .spec.username
+        - name: Role
+          type: string
+          jsonPath: .spec.role
+        - name: Disabled
+          type: boolean
+          jsonPath: .spec.disabled
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: statuspages.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: StatusPage
+    listKind: StatusPageList
+    plural: statuspages
+    singular: statuspage
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - slug
+                - title
+              properties:
+                slug:
+                  type: string
+                title:
+                  type: string
+                published:
+                  type: boolean
+                  default: false
+                content:
+                  type: object
+                  properties:
+                    description:
+                      type: string
+                    branding:
+                      type: object
+                      properties:
+                        logo:
+                          type: string
+                        favicon:
+                          type: string
+                        primaryColor:
+                          type: string
+                groups:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                      description:
+                        type: string
+                      monitors:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - ref
+                          properties:
+                            ref:
+                              type: object
+                              required:
+                                - namespace
+                                - name
+                              properties:
+                                namespace:
+                                  type: string
+                                name:
+                                  type: string
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Slug
+          type: string
+          jsonPath: .spec.slug
+        - name: Published
+          type: boolean
+          jsonPath: .spec.published
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: notificationproviders.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: NotificationProvider
+    listKind: NotificationProviderList
+    plural: notificationproviders
+    singular: notificationprovider
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum: [slack, discord, smtp, webhook, pagerduty, opsgenie]
+                slack:
+                  type: object
+                  properties:
+                    webhookUrlSecretRef:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        key:
+                          type: string
+                discord:
+                  type: object
+                  properties:
+                    webhookUrlSecretRef:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        key:
+                          type: string
+                webhook:
+                  type: object
+                  properties:
+                    url:
+                      type: string
+                    method:
+                      type: string
+                    headers:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: notificationpolicies.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: NotificationPolicy
+    listKind: NotificationPolicyList
+    plural: notificationpolicies
+    singular: notificationpolicy
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              properties:
+                selector:
+                  type: object
+                  properties:
+                    matchNamespaces:
+                      type: array
+                      items:
+                        type: string
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    matchTags:
+                      type: array
+                      items:
+                        type: string
+                providers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ref:
+                        type: object
+                        properties:
+                          namespace:
+                            type: string
+                          name:
+                            type: string
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: maintenancewindows.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: MaintenanceWindow
+    listKind: MaintenanceWindowList
+    plural: maintenancewindows
+    singular: maintenancewindow
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - schedule
+                - durationMinutes
+              properties:
+                schedule:
+                  type: string
+                  description: RRULE format schedule
+                durationMinutes:
+                  type: integer
+                  minimum: 1
+                description:
+                  type: string
+                selector:
+                  type: object
+                  properties:
+                    matchNamespaces:
+                      type: array
+                      items:
+                        type: string
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                nextOccurrenceAt:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: silences.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: Silence
+    listKind: SilenceList
+    plural: silences
+    singular: silence
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - startsAt
+                - endsAt
+              properties:
+                startsAt:
+                  type: string
+                  format: date-time
+                endsAt:
+                  type: string
+                  format: date-time
+                reason:
+                  type: string
+                selector:
+                  type: object
+                  properties:
+                    matchNamespaces:
+                      type: array
+                      items:
+                        type: string
+                    matchLabels:
+                      type: object
+                      additionalProperties:
+                        type: string
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                active:
+                  type: boolean
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: monitorsets.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: MonitorSet
+    listKind: MonitorSetList
+    plural: monitorsets
+    singular: monitorset
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              properties:
+                template:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                targets:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: apikeys.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: ApiKey
+    listKind: ApiKeyList
+    plural: apikeys
+    singular: apikey
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - name
+                - role
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, editor, viewer]
+                keyHashSecretRef:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    key:
+                      type: string
+                expiresAt:
+                  type: string
+                disabled:
+                  type: boolean
+                  default: false
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                lastUsedAt:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kubekumasettings.monitoring.kubekuma.io
+spec:
+  group: monitoring.kubekuma.io
+  names:
+    kind: KubeKumaSettings
+    listKind: KubeKumaSettingsList
+    plural: kubekumasettings
+    singular: kubekumasettings
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                auth:
+                  type: object
+                  properties:
+                    mode:
+                      type: string
+                      enum: [local, oidc, none]
+                    oidc:
+                      type: object
+                      properties:
+                        issuer:
+                          type: string
+                        clientId:
+                          type: string
+                        clientSecretRef:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            key:
+                              type: string
+                retention:
+                  type: object
+                  properties:
+                    heartbeats:
+                      type: object
+                      properties:
+                        days:
+                          type: integer
+                    incidents:
+                      type: object
+                      properties:
+                        days:
+                          type: integer
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}

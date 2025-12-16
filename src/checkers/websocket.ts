@@ -32,7 +32,7 @@ async function connectWebSocket(
       if (ws) {
         try {
           ws.close();
-        } catch (e) {
+        } catch (_e) {
           // Ignore close errors
         }
       }

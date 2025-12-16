@@ -6,7 +6,7 @@ import { logger } from "../lib/logger";
 import { getDatabase } from "../db";
 import { heartbeats, incidents } from "../db/schema";
 import type { AlertEvent, MatchedPolicy, AlertToDeliver } from "./types";
-import { eq, and, desc, limit } from "drizzle-orm";
+import { eq, and, desc, } from "drizzle-orm";
 
 /**
  * Get previous heartbeat for state change detection

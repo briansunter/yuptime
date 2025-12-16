@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { int, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, varchar, numeric, serial, integer } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 // Detect driver based on centralized config
@@ -8,7 +8,7 @@ const isPostgres = config.isPostgres;
 
 export const heartbeats = isPostgres
   ? pgTable("heartbeats", {
-      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+      id: serial("id").primaryKey(),
       monitorNamespace: varchar("monitorNamespace").notNull(),
       monitorName: varchar("monitorName").notNull(),
       monitorId: varchar("monitorId").notNull(), // namespace/name composite

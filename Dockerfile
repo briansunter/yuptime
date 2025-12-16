@@ -45,5 +45,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 EXPOSE 3000
 
-# Run server-only (no controller/scheduler)
-CMD ["bun", "src/server-only.ts"]
+# Run full server with controller and scheduler
+CMD ["bun", "src/index.ts"]

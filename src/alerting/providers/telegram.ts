@@ -56,7 +56,7 @@ export async function sendTelegramNotification(
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json() as { description?: string };
       return {
         success: false,
         error: `Telegram API error: ${errorData.description || response.statusText}`,

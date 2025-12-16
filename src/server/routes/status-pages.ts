@@ -4,7 +4,7 @@
  * Refactored with @fastify/type-provider-zod for type-safe validation
  */
 
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { getDatabase } from "../../db";
 import { heartbeats, incidents, crdCache } from "../../db/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
@@ -176,7 +176,7 @@ export async function registerStatusPageRoutes(
           .from(crdCache)
           .where(eq(crdCache.kind, "StatusPage"));
 
-        let pageRow = null;
+        let pageRow: (typeof pages)[number] | null = null;
         for (const page of pages) {
           const spec = JSON.parse(page.spec || "{}");
           if (spec.slug === slug) {
@@ -205,7 +205,7 @@ export async function registerStatusPageRoutes(
 
         if (pageSpec.groups && Array.isArray(pageSpec.groups)) {
           for (const group of pageSpec.groups) {
-            const monitors = [];
+            const monitors: StatusPageGroup["monitors"] = [];
 
             for (const monitorRef of group.monitors || []) {
               const monitorStatus = await getMonitorStatus(

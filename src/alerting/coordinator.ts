@@ -64,25 +64,3 @@ export async function handleAlertEvent(event: AlertEvent): Promise<void> {
     );
   }
 }
-
-/**
- * Start background delivery processor
- * This runs periodically to send queued notifications
- */
-export function startNotificationDeliveryWorker(): NodeJS.Timer {
-  logger.info("Starting notification delivery worker");
-
-  return setInterval(async () => {
-    try {
-      // This will be implemented in a separate delivery worker
-      // that fetches pending notifications and sends them via providers
-    } catch (error) {
-      logger.error({ error }, "Delivery worker error");
-    }
-  }, 5000); // Check every 5 seconds
-}
-
-export function stopNotificationDeliveryWorker(timer: NodeJS.Timer): void {
-  logger.info("Stopping notification delivery worker");
-  clearInterval(timer);
-}

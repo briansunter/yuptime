@@ -7,7 +7,7 @@ import {
   composeValidators,
   validate,
 } from "./validation";
-import { markValid, markInvalid } from "./status-utils";
+import { scheduler } from "../../scheduler";
 
 /**
  * Monitor-specific validators
@@ -110,14 +110,36 @@ const validateMonitor = composeValidators(
 /**
  * Monitor reconciliation logic
  */
-const reconcileMonitor = async (resource: CRDResource, ctx: ReconcileContext) => {
+const reconcileMonitor = async (resource: CRDResource, _ctx: ReconcileContext) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
+  const spec = resource.spec;
 
-  logger.debug({ namespace, name, type: resource.spec.type }, "Reconciling Monitor");
+  logger.debug({ namespace, name, type: spec.type }, "Reconciling Monitor");
 
-  // TODO: Register with scheduler
-  // This will be implemented in Phase 3 when scheduler is created
+  // Register with scheduler if enabled
+  if (spec.enabled !== false) {
+    const jobId = `${namespace}/${name}`;
+    const intervalSeconds = spec.schedule?.intervalSeconds || 60;
+    const timeoutSeconds = spec.schedule?.timeoutSeconds || 30;
+
+    scheduler.register({
+      id: jobId,
+      namespace,
+      name,
+      nextRunAt: new Date(), // Run immediately
+      intervalSeconds,
+      timeoutSeconds,
+      priority: 0, // Default priority
+    });
+
+    logger.info({ namespace, name, type: spec.type, interval: intervalSeconds }, "Monitor registered with scheduler");
+  } else {
+    // Unregister disabled monitors
+    const jobId = `${namespace}/${name}`;
+    scheduler.unregister(jobId);
+    logger.info({ namespace, name }, "Monitor unregistered from scheduler (disabled)");
+  }
 
   logger.debug({ namespace, name }, "Monitor reconciliation complete");
 };
@@ -125,9 +147,7 @@ const reconcileMonitor = async (resource: CRDResource, ctx: ReconcileContext) =>
 /**
  * Factory function to create monitor reconciler with error handling
  */
-export const createMonitorReconciler = (
-  statusUpdater: typeof markValid
-): ReconcilerConfig => ({
+export const createMonitorReconciler = (): ReconcilerConfig => ({
   kind: "Monitor",
   plural: "monitors",
   zodSchema: MonitorSchema,

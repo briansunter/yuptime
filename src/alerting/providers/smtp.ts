@@ -21,11 +21,11 @@ export async function sendSmtpNotification(
   try {
     const { host, port, useTls, from, to } = config.smtp;
 
-    let username: string | undefined;
-    let password: string | undefined;
+    let _username: string | undefined;
+    let _password: string | undefined;
 
     if (config.smtp.usernameSecretRef) {
-      username = await resolveSecret(
+      _username = await resolveSecret(
         config.smtp.usernameSecretRef.name,
         config.smtp.usernameSecretRef.key,
         config.smtp.usernameSecretRef.namespace || "monitoring"
@@ -33,7 +33,7 @@ export async function sendSmtpNotification(
     }
 
     if (config.smtp.passwordSecretRef) {
-      password = await resolveSecret(
+      _password = await resolveSecret(
         config.smtp.passwordSecretRef.name,
         config.smtp.passwordSecretRef.key,
         config.smtp.passwordSecretRef.namespace || "monitoring"
@@ -44,7 +44,7 @@ export async function sendSmtpNotification(
     // In production, you'd use a library like nodemailer
     // For now, we'll use a simple SMTP implementation
 
-    const emailMessage = `From: ${from}
+    const _emailMessage = `From: ${from}
 To: ${to.join(", ")}
 Subject: ${title}
 Content-Type: text/html; charset=UTF-8

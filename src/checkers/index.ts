@@ -67,7 +67,7 @@ export async function executeCheck(
           message: "Docker checker not yet implemented",
         };
 
-      default:
+      default: {
         const _exhaustive: never = type;
         return {
           state: "down",
@@ -75,6 +75,7 @@ export async function executeCheck(
           reason: "UNKNOWN_TYPE",
           message: `Unknown monitor type: ${type}`,
         };
+      }
     }
   } catch (error) {
     const latencyMs = Date.now() - start;
@@ -92,5 +93,5 @@ export async function executeCheck(
   }
 }
 
-export { type CheckResult };
+export type { CheckResult };
 export { validatePushToken, recordPush } from "./push";

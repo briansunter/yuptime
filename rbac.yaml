@@ -1,0 +1,76 @@
+# KubeKuma RBAC Configuration
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubekuma
+  namespace: kubekuma
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubekuma-controller
+rules:
+  # CRD permissions
+  - apiGroups: ["monitoring.kubekuma.io"]
+    resources:
+      - monitors
+      - monitorsets
+      - notificationproviders
+      - notificationpolicies
+      - statuspages
+      - maintenancewindows
+      - silences
+      - localusers
+      - apikeys
+      - kubekumasettings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Status subresource
+  - apiGroups: ["monitoring.kubekuma.io"]
+    resources:
+      - monitors/status
+      - monitorsets/status
+      - notificationproviders/status
+      - notificationpolicies/status
+      - statuspages/status
+      - maintenancewindows/status
+      - silences/status
+      - localusers/status
+      - apikeys/status
+      - kubekumasettings/status
+    verbs: ["get", "update", "patch"]
+
+  # Secrets for password hashes and webhook URLs
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+
+  # Kubernetes resources for k8s monitor type
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+
+  # Leases for scheduler leader election
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubekuma-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubekuma-controller
+subjects:
+  - kind: ServiceAccount
+    name: kubekuma
+    namespace: kubekuma

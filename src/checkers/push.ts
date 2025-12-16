@@ -14,7 +14,7 @@ import { eq, desc } from "drizzle-orm";
 
 export async function checkPush(
   monitor: Monitor,
-  timeout: number
+  _timeout: number
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.push;
@@ -41,9 +41,9 @@ export async function checkPush(
       .limit(1);
 
     if (!recent || recent.length === 0) {
-      // No push ever received
+      // No push ever received - report as down until first push
       return {
-        state: "pending",
+        state: "down",
         latencyMs: 0,
         reason: "NO_PUSH_RECEIVED",
         message: "Waiting for first push",
@@ -142,7 +142,7 @@ export async function validatePushToken(
     return { valid: true };
   } catch (error) {
     logger.error(
-      { token: token.substring(0, 10) + "...", error },
+      { token: `${token.substring(0, 10)}...`, error },
       "Push token validation failed"
     );
 

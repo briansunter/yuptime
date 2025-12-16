@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SecretRefSchema, StatusBaseSchema, SelectorSchema } from "./common";
+import { SecretRefSchema, StatusBaseSchema, } from "./common";
 
 // Monitor schedule configuration
 export const MonitorScheduleSchema = z.object({
@@ -101,13 +101,8 @@ export const WebSocketTargetSchema = z.object({
       })
     )
     .optional(),
-  expect: z
-    .object({
-      connectOnly: z.boolean().optional(),
-      sendText: z.string().optional(),
-      expectText: z.string().optional(),
-    })
-    .optional(),
+  send: z.string().optional(),
+  expect: z.string().optional(),
 });
 
 export type WebSocketTarget = z.infer<typeof WebSocketTargetSchema>;
@@ -124,6 +119,7 @@ export type PingTarget = z.infer<typeof PingTargetSchema>;
 export const PushTargetSchema = z.object({
   tokenSecretRef: SecretRefSchema,
   expireSeconds: z.number().min(1),
+  gracePeriodSeconds: z.number().min(0).optional(),
 });
 
 export type PushTarget = z.infer<typeof PushTargetSchema>;
@@ -132,6 +128,9 @@ export type PushTarget = z.infer<typeof PushTargetSchema>;
 export const SteamTargetSchema = z.object({
   host: z.string(),
   port: z.number().min(1).max(65535),
+  minPlayers: z.number().min(0).optional(),
+  maxPlayers: z.number().min(0).optional(),
+  expectedMap: z.string().optional(),
 });
 
 export type SteamTarget = z.infer<typeof SteamTargetSchema>;
@@ -213,6 +212,16 @@ export const AlertingSchema = z.object({
 
 export type Alerting = z.infer<typeof AlertingSchema>;
 
+// Kubernetes target configuration (alternate schema for checker)
+export const KubernetesTargetSchema = z.object({
+  namespace: z.string(),
+  name: z.string(),
+  kind: z.enum(["Deployment", "StatefulSet", "DaemonSet", "Pod", "Service"]),
+  minReadyReplicas: z.number().min(0).optional(),
+});
+
+export type KubernetesTarget = z.infer<typeof KubernetesTargetSchema>;
+
 // Monitor target container
 export const MonitorTargetSchema = z.object({
   http: HttpTargetSchema.optional(),
@@ -223,6 +232,7 @@ export const MonitorTargetSchema = z.object({
   push: PushTargetSchema.optional(),
   steam: SteamTargetSchema.optional(),
   k8s: K8sTargetSchema.optional(),
+  kubernetes: KubernetesTargetSchema.optional(),
   keyword: z
     .object({
       target: z.union([HttpTargetSchema, z.object({ url: z.string() })]),

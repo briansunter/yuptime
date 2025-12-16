@@ -1,9 +1,10 @@
 import {
   KubeConfig,
   Watch,
-  makeInformer,
-  ListPromise,
-  ObjectFieldSelector,
+  CustomObjectsApi,
+  CoordinationV1Api,
+  CoreV1Api,
+  AppsV1Api,
 } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
 
@@ -22,12 +23,12 @@ export function initializeK8sClient(): KubeConfig {
     // Try to load from in-cluster config first
     kubeConfig.loadFromCluster();
     logger.info("Kubernetes client: using in-cluster configuration");
-  } catch (error) {
+  } catch (_error) {
     // Fall back to kubeconfig file
     try {
       kubeConfig.loadFromDefault();
       logger.info("Kubernetes client: using kubeconfig file");
-    } catch (error) {
+    } catch (_error) {
       logger.error("Failed to initialize Kubernetes client");
       throw new Error(
         "Kubernetes client initialization failed. Ensure running in cluster or KUBECONFIG is set."
@@ -52,23 +53,51 @@ export function createCRDWatcher(
   group: string,
   version: string,
   plural: string,
-  namespace: string = ""
+  options: { namespace?: string; namespaced?: boolean } = {}
 ) {
   const kc = getK8sClient();
+  const { namespace = "", namespaced = true } = options;
 
   return {
     /**
      * List all CRDs of this type
      */
     async list(): Promise<any[]> {
-      const client = kc.makeApiClient(require("@kubernetes/client-node").CustomObjectsApi);
-
       try {
-        const response = namespace
-          ? await client.listNamespacedCustomObject(group, version, namespace, plural)
-          : await client.listClusterCustomObject(group, version, plural);
+        // Construct the API path
+        const path = namespace
+          ? `/apis/${group}/${version}/namespaces/${namespace}/${plural}`
+          : `/apis/${group}/${version}/${plural}`;
 
-        return (response as any).items || [];
+        // Make a direct request using the KubeConfig
+        const opts: any = {};
+        await kc.applyToHTTPSOptions(opts);
+
+        const cluster = kc.getCurrentCluster();
+        if (!cluster) {
+          throw new Error("No current cluster configured");
+        }
+
+        const url = `${cluster.server}${path}`;
+
+        const response = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json",
+            ...(opts.headers || {}),
+          },
+          // @ts-ignore - Bun supports this
+          tls: {
+            rejectUnauthorized: false, // For self-signed certs in dev
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        return (data as any).items || [];
       } catch (error) {
         logger.error({ group, version, plural, namespace, error }, "Failed to list CRDs");
         throw error;
@@ -79,12 +108,12 @@ export function createCRDWatcher(
      * Get a single CRD
      */
     async get(name: string, ns?: string) {
-      const client = kc.makeApiClient(require("@kubernetes/client-node").CustomObjectsApi);
+      const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
         return ns
-          ? await client.getNamespacedCustomObject(group, version, ns, plural, name)
-          : await client.getClusterCustomObject(group, version, plural, name);
+          ? await client.getNamespacedCustomObject({ group, version, namespace: ns, plural, name })
+          : await client.getClusterCustomObject({ group, version, plural, name });
       } catch (error) {
         logger.error({ group, version, plural, name, namespace: ns, error }, "Failed to get CRD");
         throw error;
@@ -95,12 +124,12 @@ export function createCRDWatcher(
      * Create a CRD
      */
     async create(body: any, ns?: string) {
-      const client = kc.makeApiClient(require("@kubernetes/client-node").CustomObjectsApi);
+      const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
         return ns
-          ? await client.createNamespacedCustomObject(group, version, ns, plural, body)
-          : await client.createClusterCustomObject(group, version, plural, body);
+          ? await client.createNamespacedCustomObject({ group, version, namespace: ns, plural, body })
+          : await client.createClusterCustomObject({ group, version, plural, body });
       } catch (error) {
         logger.error({ group, version, plural, namespace: ns, error }, "Failed to create CRD");
         throw error;
@@ -111,12 +140,12 @@ export function createCRDWatcher(
      * Update a CRD
      */
     async patch(name: string, body: any, ns?: string) {
-      const client = kc.makeApiClient(require("@kubernetes/client-node").CustomObjectsApi);
+      const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
         return ns
-          ? await client.patchNamespacedCustomObject(group, version, ns, plural, name, body)
-          : await client.patchClusterCustomObject(group, version, plural, name, body);
+          ? await client.patchNamespacedCustomObject({ group, version, namespace: ns, plural, name, body })
+          : await client.patchClusterCustomObject({ group, version, plural, name, body });
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
@@ -130,19 +159,19 @@ export function createCRDWatcher(
      * Update status subresource
      */
     async patchStatus(name: string, body: any, ns?: string) {
-      const client = kc.makeApiClient(require("@kubernetes/client-node").CustomObjectsApi);
+      const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
         return ns
-          ? await client.patchNamespacedCustomObjectStatus(
+          ? await client.patchNamespacedCustomObjectStatus({
               group,
               version,
-              ns,
+              namespace: ns,
               plural,
               name,
               body
-            )
-          : await client.patchClusterCustomObjectStatus(group, version, plural, name, body);
+            })
+          : await client.patchClusterCustomObjectStatus({ group, version, plural, name, body });
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
@@ -156,12 +185,12 @@ export function createCRDWatcher(
      * Delete a CRD
      */
     async delete(name: string, ns?: string) {
-      const client = kc.makeApiClient(require("@kubernetes/client-node").CustomObjectsApi);
+      const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
         return ns
-          ? await client.deleteNamespacedCustomObject(group, version, ns, plural, name)
-          : await client.deleteClusterCustomObject(group, version, plural, name);
+          ? await client.deleteNamespacedCustomObject({ group, version, namespace: ns, plural, name })
+          : await client.deleteClusterCustomObject({ group, version, plural, name });
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
@@ -203,7 +232,7 @@ export function createCRDWatcher(
  */
 export function getCoreApiClient() {
   const kc = getK8sClient();
-  return kc.makeApiClient(require("@kubernetes/client-node").CoreV1Api);
+  return kc.makeApiClient(CoreV1Api);
 }
 
 /**
@@ -211,7 +240,7 @@ export function getCoreApiClient() {
  */
 export function getAppsApiClient() {
   const kc = getK8sClient();
-  return kc.makeApiClient(require("@kubernetes/client-node").AppsV1Api);
+  return kc.makeApiClient(AppsV1Api);
 }
 
 /**
@@ -219,5 +248,19 @@ export function getAppsApiClient() {
  */
 export function getCoordinationApiClient() {
   const kc = getK8sClient();
-  return kc.makeApiClient(require("@kubernetes/client-node").CoordinationV1Api);
+  return kc.makeApiClient(CoordinationV1Api);
+}
+
+/**
+ * Get Kubernetes API clients (unified interface)
+ */
+export async function getKubernetesClient() {
+  if (!kubeConfig) {
+    initializeK8sClient();
+  }
+  return {
+    apps: getAppsApiClient(),
+    core: getCoreApiClient(),
+    config: kubeConfig,
+  };
 }

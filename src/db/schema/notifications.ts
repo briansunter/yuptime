@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, integer, json } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, varchar, integer, json, serial } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;
@@ -8,7 +8,7 @@ const isPostgres = config.isPostgres;
 // Notification delivery tracking
 export const notificationDeliveries = isPostgres
   ? pgTable("notification_deliveries", {
-      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+      id: serial("id").primaryKey(),
       incidentId: integer("incidentId").notNull(),
       monitorId: varchar("monitorId").notNull(),
       policyName: varchar("policyName").notNull(),

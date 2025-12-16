@@ -8,7 +8,7 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
-import { createSocket } from "dgram";
+import { createSocket } from "node:dgram";
 
 interface A2SServerInfo {
   name: string;
@@ -53,7 +53,7 @@ async function queryA2SServer(
     const cleanup = () => {
       try {
         socket.close();
-      } catch (e) {
+      } catch (_e) {
         // Ignore
       }
     };
@@ -111,7 +111,7 @@ async function queryA2SServer(
         offset++; // Skip command byte
 
         // Read protocol version
-        const protocol = msg.readUInt8(offset);
+        const _protocol = msg.readUInt8(offset);
         offset++;
 
         // Read strings until null terminator

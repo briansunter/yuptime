@@ -1,0 +1,206 @@
+# Test resources for KubeKuma
+---
+# Secret for admin user password hash
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-password
+  namespace: default
+type: Opaque
+stringData:
+  # Password: test1234 (min 8 chars required)
+  hash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
+
+---
+# LocalUser - admin user
+apiVersion: monitoring.kubekuma.io/v1
+kind: LocalUser
+metadata:
+  name: admin
+  namespace: default
+spec:
+  username: admin
+  role: admin
+  passwordHashSecretRef:
+    name: admin-password
+    key: hash
+
+---
+# Monitor - HTTP check for Google
+apiVersion: monitoring.kubekuma.io/v1
+kind: Monitor
+metadata:
+  name: google-http
+  namespace: default
+  labels:
+    tier: external
+    env: production
+spec:
+  enabled: true
+  type: http
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+    retries:
+      maxRetries: 2
+      retryIntervalSeconds: 5
+  target:
+    http:
+      url: https://www.google.com
+      method: GET
+      followRedirects: true
+  successCriteria:
+    http:
+      acceptedStatusCodes: [200, 301, 302]
+      latencyMsUnder: 5000
+  tags:
+    - search-engine
+    - external
+
+---
+# Monitor - HTTP check for CloudFlare DNS
+apiVersion: monitoring.kubekuma.io/v1
+kind: Monitor
+metadata:
+  name: cloudflare-http
+  namespace: default
+  labels:
+    tier: external
+    env: production
+spec:
+  enabled: true
+  type: http
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+    retries:
+      maxRetries: 2
+      retryIntervalSeconds: 5
+  target:
+    http:
+      url: https://1.1.1.1
+      method: GET
+      tls:
+        verify: true
+  successCriteria:
+    http:
+      acceptedStatusCodes: [200]
+  tags:
+    - dns
+    - external
+
+---
+# Monitor - TCP check for Google DNS
+apiVersion: monitoring.kubekuma.io/v1
+kind: Monitor
+metadata:
+  name: google-dns-tcp
+  namespace: default
+  labels:
+    tier: external
+    service: dns
+spec:
+  enabled: true
+  type: tcp
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 5
+  target:
+    tcp:
+      host: 8.8.8.8
+      port: 53
+  tags:
+    - dns
+    - google
+
+---
+# Monitor - DNS check
+apiVersion: monitoring.kubekuma.io/v1
+kind: Monitor
+metadata:
+  name: google-dns-resolve
+  namespace: default
+  labels:
+    tier: external
+    service: dns
+spec:
+  enabled: true
+  type: dns
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 10
+  target:
+    dns:
+      name: google.com
+      recordType: A
+  tags:
+    - dns
+    - resolution
+
+---
+# Monitor - Local KubeKuma API
+apiVersion: monitoring.kubekuma.io/v1
+kind: Monitor
+metadata:
+  name: kubekuma-api-health
+  namespace: kubekuma
+  labels:
+    tier: internal
+    service: kubekuma
+spec:
+  enabled: true
+  type: http
+  schedule:
+    intervalSeconds: 15
+    timeoutSeconds: 5
+  target:
+    http:
+      url: http://kubekuma-api.kubekuma.svc.cluster.local:3000/health
+      method: GET
+  successCriteria:
+    http:
+      acceptedStatusCodes: [200]
+  tags:
+    - internal
+    - api
+
+---
+# StatusPage - Public status page
+apiVersion: monitoring.kubekuma.io/v1
+kind: StatusPage
+metadata:
+  name: public-status
+  namespace: default
+spec:
+  slug: status
+  title: Service Status
+  published: true
+  content:
+    description: Real-time status of our infrastructure
+    branding:
+      primaryColor: "#10b981"
+  groups:
+    - name: External Services
+      description: Third-party services we depend on
+      monitors:
+        - ref:
+            namespace: default
+            name: google-http
+        - ref:
+            namespace: default
+            name: cloudflare-http
+    - name: DNS
+      description: DNS resolution services
+      monitors:
+        - ref:
+            namespace: default
+            name: google-dns-tcp
+        - ref:
+            namespace: default
+            name: google-dns-resolve
+    - name: Internal
+      description: Internal services
+      monitors:
+        - ref:
+            namespace: kubekuma
+            name: kubekuma-api-health

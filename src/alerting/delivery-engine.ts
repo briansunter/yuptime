@@ -5,20 +5,20 @@
 import { logger } from "../lib/logger";
 import { getDatabase } from "../db";
 import { notificationDeliveries } from "../db/schema";
-import { eq, and, gt, desc } from "drizzle-orm";
+import { eq, and, gt, } from "drizzle-orm";
 import type { AlertToDeliver, NotificationDeliveryQueueItem } from "./types";
 
 /**
  * Check if alert is a duplicate within the dedup window
  */
 export async function isDuplicate(
-  dedupKey: string,
+  _dedupKey: string,
   windowMinutes: number
 ): Promise<boolean> {
   const db = getDatabase();
-  const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
+  const _windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
 
-  const existing = await db
+  const _existing = await db
     .select()
     .from(notificationDeliveries)
     .where(
@@ -73,6 +73,7 @@ async function isSuppressed(
   monitorName: string
 ): Promise<{ suppressed: boolean; reason?: string }> {
   try {
+    const db = getDatabase();
     // Get monitor labels from cache
     const { crdCache } = require("../db/schema");
     const { eq, and } = require("drizzle-orm");

@@ -4,8 +4,8 @@ import { executeCheck } from "../checkers";
 import { handleAlertEvent } from "../alerting";
 import { createPriorityQueue, type PriorityQueue } from "./queue";
 import { calculateJitter, rescheduleJob } from "./jitter";
-import { acquireLock, releaseLock, startLockRenewal, stopLockRenewal, isLocked } from "./lock";
-import type { SchedulerState, ScheduledJob, CheckResultHandler } from "./types";
+import { acquireLock, releaseLock, startLockRenewal, stopLockRenewal, } from "./lock";
+import type { SchedulerState, ScheduledJob, } from "./types";
 import type { AlertEvent } from "../alerting";
 
 /**
@@ -108,12 +108,13 @@ export function createScheduler(): Scheduler {
       }
 
       const monitor = {
-        ...JSON.parse(cached[0].spec || "{}"),
-        kind: "Monitor",
+        apiVersion: "monitoring.kubekuma.io/v1" as const,
+        kind: "Monitor" as const,
         metadata: {
           namespace: job.namespace,
           name: job.name,
         },
+        spec: JSON.parse(cached[0].spec || "{}"),
       };
 
       // Execute the check
@@ -193,24 +194,29 @@ export function createScheduler(): Scheduler {
 
       logger.info("Starting scheduler...");
 
-      // Acquire singleton lock
+      // Acquire singleton lock (optional in dev mode)
       const locked = await acquireLock();
       if (!locked) {
-        logger.warn("Failed to acquire scheduler lock, running in standby mode");
-        return;
+        logger.warn("Failed to acquire scheduler lock, continuing without lock");
+        // Continue anyway in development - skip leader election
+      } else {
+        // Start lock renewal
+        startLockRenewal();
       }
 
       state.isPrimary = true;
       state.running = true;
       queue = createPriorityQueue();
 
-      // Start lock renewal
-      startLockRenewal();
+      // Add any jobs that were registered before scheduler started
+      for (const job of state.jobs.values()) {
+        queue.add(job);
+      }
+
+      logger.info({ jobCount: state.jobs.size }, "Scheduler started with jobs in queue");
 
       // Start scheduler loop
       runSchedulerLoop();
-
-      logger.info("Scheduler started as primary");
     },
 
     async stop() {

@@ -34,22 +34,22 @@ export function parseRRule(rruleString: string): RRuleConfig | null {
           config.freq = value;
           break;
         case "INTERVAL":
-          config.interval = parseInt(value);
+          config.interval = parseInt(value, 10);
           break;
         case "BYDAY":
           config.byDay = value.split(",");
           break;
         case "BYHOUR":
-          config.byHour = value.split(",").map((h) => parseInt(h));
+          config.byHour = value.split(",").map((h) => parseInt(h, 10));
           break;
         case "BYMINUTE":
-          config.byMinute = value.split(",").map((m) => parseInt(m));
+          config.byMinute = value.split(",").map((m) => parseInt(m, 10));
           break;
         case "BYMONTHDAY":
-          config.byMonthDay = value.split(",").map((d) => parseInt(d));
+          config.byMonthDay = value.split(",").map((d) => parseInt(d, 10));
           break;
         case "COUNT":
-          config.count = parseInt(value);
+          config.count = parseInt(value, 10);
           break;
         case "UNTIL":
           config.until = new Date(value);
@@ -62,7 +62,7 @@ export function parseRRule(rruleString: string): RRuleConfig | null {
     }
 
     return config as RRuleConfig;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -85,7 +85,7 @@ export function getNextOccurrence(
   after: Date = new Date()
 ): Date | null {
   const now = new Date(after);
-  let candidate = new Date(now);
+  const candidate = new Date(now);
 
   // Limit iterations to prevent infinite loops
   let iterations = 0;

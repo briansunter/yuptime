@@ -10,6 +10,7 @@ import type { MatchedPolicy } from "./types";
 import type {
   NotificationPolicy,
   NotificationPolicySpec,
+  Selector,
 } from "../types/crd";
 
 /**
@@ -28,26 +29,45 @@ export async function loadAllPolicies(): Promise<NotificationPolicy[]> {
 
 /**
  * Match labels/tags against selector
- * Supports label-key=value syntax
+ * Supports matchLabels, matchNamespaces, matchTags, and matchNames
  */
 function matchesSelector(
   labels: Record<string, string> | undefined,
-  selector: Record<string, string> | undefined
+  selector: Selector | undefined,
+  namespace?: string,
+  name?: string
 ): boolean {
-  if (!selector || Object.keys(selector).length === 0) {
-    // Empty selector matches all
+  if (!selector) {
+    // No selector matches all
     return true;
   }
 
-  if (!labels) {
-    // Non-empty selector but no labels to match
-    return false;
+  // Check namespace matches
+  if (selector.matchNamespaces && selector.matchNamespaces.length > 0) {
+    if (!namespace || !selector.matchNamespaces.includes(namespace)) {
+      return false;
+    }
   }
 
-  // All selector keys must match label values
-  for (const [key, expectedValue] of Object.entries(selector)) {
-    if (labels[key] !== expectedValue) {
+  // Check name matches
+  if (selector.matchNames && selector.matchNames.length > 0) {
+    const nameMatch = selector.matchNames.some(
+      (m) => m.namespace === namespace && m.name === name
+    );
+    if (!nameMatch) {
       return false;
+    }
+  }
+
+  // Check label matches
+  if (selector.matchLabels?.matchLabels) {
+    if (!labels) {
+      return false;
+    }
+    for (const [key, expectedValue] of Object.entries(selector.matchLabels.matchLabels)) {
+      if (labels[key] !== expectedValue) {
+        return false;
+      }
     }
   }
 
@@ -62,7 +82,7 @@ export async function findMatchingPolicies(
   monitorName: string,
   monitorLabels?: Record<string, string>
 ): Promise<MatchedPolicy[]> {
-  const db = getDatabase();
+  const _db = getDatabase();
   const allPolicies = await loadAllPolicies();
   const matched: MatchedPolicy[] = [];
 
@@ -71,7 +91,7 @@ export async function findMatchingPolicies(
 
     // Check if selector matches
     if (spec.match) {
-      const selectorMatches = matchesSelector(monitorLabels, spec.match);
+      const selectorMatches = matchesSelector(monitorLabels, spec.match, monitorNamespace, monitorName);
       if (!selectorMatches) {
         continue;
       }

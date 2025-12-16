@@ -29,6 +29,7 @@ export type Condition = z.infer<typeof ConditionSchema>;
 export const SecretRefSchema = z.object({
   name: z.string(),
   key: z.string(),
+  namespace: z.string().optional(), // Optional - defaults to resource namespace
 });
 
 export type SecretRef = z.infer<typeof SecretRefSchema>;

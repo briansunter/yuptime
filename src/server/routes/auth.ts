@@ -5,7 +5,7 @@
  * GET /api/v1/auth/me - Get current user info
  */
 
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { getDatabase } from "../../db";
 import { crdCache, sessions } from "../../db/schema";
 import { eq } from "drizzle-orm";
@@ -20,26 +20,7 @@ import { config } from "../../lib/config";
 import { LoginRequestSchema } from "../../types/schemas/auth";
 import { requireAuth } from "../middleware/session";
 import type { JwtPayload } from "../middleware/session";
-
-/**
- * LocalUser CRD spec type (minimal subset we need)
- */
-interface LocalUserSpec {
-  username: string;
-  passwordHashSecretRef: {
-    name: string;
-    key: string;
-  };
-  role: "admin" | "editor" | "viewer";
-  disabled?: boolean;
-}
-
-/**
- * LocalUser CRD status type (minimal subset we need)
- */
-interface LocalUserStatus {
-  lastLoginAt?: string;
-}
+import type { LocalUserSpec, LocalUserStatus } from "../../types/crd/local-user";
 
 /**
  * Register authentication routes
@@ -122,10 +103,10 @@ export async function registerAuthRoutes(
         // Step 3: Get password hash - try direct hash first (for testing), then Secret
         let passwordHash: string;
 
-        // Check if passwordHash is directly in spec (for testing/dev)
-        if ('passwordHash' in userSpec && userSpec.passwordHash) {
+        // Check if passwordHash is directly in spec (dev mode only)
+        if (process.env.NODE_ENV === 'development' && 'passwordHash' in userSpec && userSpec.passwordHash) {
           passwordHash = userSpec.passwordHash as string;
-          logger.debug({ username }, "Using passwordHash from spec (test mode)");
+          logger.debug({ username }, "Using passwordHash from spec (dev mode only)");
         } else if (userSpec.passwordHashSecretRef) {
           try {
             passwordHash = await resolveSecretCached(

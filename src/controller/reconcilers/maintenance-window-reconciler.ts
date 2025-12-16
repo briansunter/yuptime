@@ -71,7 +71,7 @@ function parseDuration(duration: string): number {
   const match = duration.match(/^(\d+)([mh])$/);
   if (!match) return 0;
 
-  const value = parseInt(match[1]);
+  const value = parseInt(match[1], 10);
   const unit = match[2];
 
   return unit === "h" ? value * 60 : value;

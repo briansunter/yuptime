@@ -3,7 +3,7 @@
  * Validates API keys from X-API-Key header against ApiKey CRDs
  */
 
-import { FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyRequest, FastifyReply } from "fastify";
 import { getDatabase } from "../../db";
 import { crdCache } from "../../db/schema";
 import { eq } from "drizzle-orm";
@@ -11,6 +11,7 @@ import { logger } from "../../lib/logger";
 import { verifyApiKey } from "../../lib/crypto";
 import { resolveSecretCached } from "../../lib/secrets";
 import type { UserContext } from "./session";
+import type { LocalUserSpec } from "../../types/crd/local-user";
 
 /**
  * ApiKey CRD spec type (minimal subset we need)
@@ -27,15 +28,6 @@ interface ApiKeySpec {
   expiresAt?: string;
   disabled?: boolean;
   scopes?: string[];
-}
-
-/**
- * LocalUser CRD spec type (minimal subset we need)
- */
-interface LocalUserSpec {
-  username: string;
-  role: "admin" | "editor" | "viewer";
-  disabled?: boolean;
 }
 
 /**

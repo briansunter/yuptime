@@ -7,7 +7,7 @@ import { getCoordinationApiClient } from "../controller/k8s-client";
  */
 
 const LOCK_NAME = "kubekuma-scheduler-lock";
-const LOCK_NAMESPACE = process.env.KUBE_NAMESPACE || "monitoring";
+const LOCK_NAMESPACE = process.env.KUBE_NAMESPACE || "kubekuma";
 const LEASE_DURATION_SECONDS = 30;
 const RENEW_INTERVAL_MS = 10000; // Renew every 10 seconds
 
@@ -30,7 +30,7 @@ export async function acquireLock(): Promise<boolean> {
   try {
     const client = getCoordinationApiClient();
     const now = new Date();
-    const expireTime = new Date(now.getTime() + LEASE_DURATION_SECONDS * 1000);
+    const _expireTime = new Date(now.getTime() + LEASE_DURATION_SECONDS * 1000);
 
     const lease = {
       apiVersion: "coordination.k8s.io/v1",
@@ -50,37 +50,34 @@ export async function acquireLock(): Promise<boolean> {
 
     // Try to get existing lease
     try {
-      const existing = await client.readNamespacedLease(LOCK_NAME, LOCK_NAMESPACE);
+      const existing = await client.readNamespacedLease({ name: LOCK_NAME, namespace: LOCK_NAMESPACE });
 
       // Check if lease is still valid
-      const renewTime = new Date(existing.spec.renewTime);
+      const renewTimeStr = existing.spec?.renewTime as unknown as string || "0";
+      const renewTime = new Date(renewTimeStr);
       if (renewTime.getTime() > now.getTime()) {
         logger.warn(
-          { holder: existing.spec.holderIdentity },
+          { holder: existing.spec?.holderIdentity },
           "Lease held by another instance"
         );
         return false;
       }
 
       // Lease expired, take it
-      lease.metadata.resourceVersion = existing.metadata.resourceVersion;
-      const updated = await client.patchNamespacedLease(
-        LOCK_NAME,
-        LOCK_NAMESPACE,
-        lease,
-        undefined,
-        undefined,
-        undefined,
-        { headers: { "Content-Type": "application/merge-patch+json" } }
-      );
+      (lease.metadata as any).resourceVersion = existing.metadata?.resourceVersion;
+      const updated = await client.replaceNamespacedLease({
+        name: LOCK_NAME,
+        namespace: LOCK_NAMESPACE,
+        body: lease as any,
+      });
 
       lockState.lease = updated;
       lockState.held = true;
       logger.info("Acquired scheduler lock");
       return true;
-    } catch (error) {
+    } catch (_error) {
       // Lease doesn't exist, create it
-      const created = await client.createNamespacedLease(LOCK_NAMESPACE, lease);
+      const created = await client.createNamespacedLease({ namespace: LOCK_NAMESPACE, body: lease as any });
       lockState.lease = created;
       lockState.held = true;
       logger.info("Created and acquired scheduler lock");
@@ -106,7 +103,7 @@ export async function releaseLock(): Promise<void> {
 
   try {
     const client = getCoordinationApiClient();
-    await client.deleteNamespacedLease(LOCK_NAME, LOCK_NAMESPACE);
+    await client.deleteNamespacedLease({ name: LOCK_NAME, namespace: LOCK_NAMESPACE });
     lockState.held = false;
     logger.info("Released scheduler lock");
   } catch (error) {
@@ -142,15 +139,11 @@ export function startLockRenewal(): void {
         },
       };
 
-      const lease = await client.patchNamespacedLease(
-        LOCK_NAME,
-        LOCK_NAMESPACE,
-        updated,
-        undefined,
-        undefined,
-        undefined,
-        { headers: { "Content-Type": "application/merge-patch+json" } }
-      );
+      const lease = await client.replaceNamespacedLease({
+        name: LOCK_NAME,
+        namespace: LOCK_NAMESPACE,
+        body: updated as any,
+      });
 
       lockState.lease = lease;
     } catch (error) {

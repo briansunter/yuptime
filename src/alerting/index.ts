@@ -2,7 +2,7 @@
  * Alerting system - complete alert handling pipeline
  */
 
-export { handleAlertEvent, startNotificationDeliveryWorker, stopNotificationDeliveryWorker } from "./coordinator";
+export { handleAlertEvent } from "./coordinator";
 export { startDeliveryWorker, stopDeliveryWorker } from "./delivery-worker";
 export { processAlertEvent, handleIncident, getPreviousHeartbeat, shouldTriggerAlert, formatAlertMessage } from "./alert-engine";
 export { findMatchingPolicies, buildRoutingTable } from "./policy-matcher";

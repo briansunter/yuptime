@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, integer } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, varchar, integer, serial } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;
@@ -8,7 +8,7 @@ const isPostgres = config.isPostgres;
 // Silence represents a temporary suppression of alerts
 export const silences = isPostgres
   ? pgTable("silences", {
-      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+      id: serial("id").primaryKey(),
       silenceNamespace: varchar("silenceNamespace").notNull(),
       silenceName: varchar("silenceName").notNull(),
       startsAt: timestamp("startsAt").notNull(),
@@ -32,7 +32,7 @@ export type NewSilence = typeof silences.$inferInsert;
 // MaintenanceWindow represents scheduled downtime suppression
 export const maintenanceWindows = isPostgres
   ? pgTable("maintenance_windows", {
-      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+      id: serial("id").primaryKey(),
       windowNamespace: varchar("windowNamespace").notNull(),
       windowName: varchar("windowName").notNull(),
       description: varchar("description"),

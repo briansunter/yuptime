@@ -36,9 +36,9 @@ export interface ReconcileContext {
 }
 
 /**
- * Validator function signature
+ * Validator function signature (can be sync or async)
  */
-export type ValidatorFn = (resource: CRDResource) => Promise<ValidationResult>;
+export type ValidatorFn = (resource: CRDResource) => ValidationResult | Promise<ValidationResult>;
 
 /**
  * Reconciler function signature

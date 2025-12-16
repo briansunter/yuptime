@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, json, integer } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, varchar, json, serial } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;
@@ -8,7 +8,7 @@ const isPostgres = config.isPostgres;
 // Audit events for traceability
 export const auditEvents = isPostgres
   ? pgTable("audit_events", {
-      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+      id: serial("id").primaryKey(),
       resourceType: varchar("resourceType").notNull(), // Monitor, NotificationProvider, etc.
       resourceKey: varchar("resourceKey").notNull(), // namespace/name
       eventType: varchar("eventType").notNull(), // created, updated, deleted, reconciled

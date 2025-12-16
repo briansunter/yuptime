@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MonitorSpecSchema, MonitorStatusSchema } from "./monitor";
+import { MonitorSpecSchema, } from "./monitor";
 import { StatusBaseSchema } from "./common";
 
 // MonitorSet is a bulk declarative way to create many monitors

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, varchar, boolean, integer, serial } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;
@@ -8,7 +8,7 @@ const isPostgres = config.isPostgres;
 // Incident represents an open or closed outage event
 export const incidents = isPostgres
   ? pgTable("incidents", {
-      id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+      id: serial("id").primaryKey(),
       monitorNamespace: varchar("monitorNamespace").notNull(),
       monitorName: varchar("monitorName").notNull(),
       monitorId: varchar("monitorId").notNull(),

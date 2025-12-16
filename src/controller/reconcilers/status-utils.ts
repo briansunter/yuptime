@@ -93,7 +93,7 @@ export async function markValid(
 
   try {
     const resource = await watcher.get(name, namespace);
-    const now = new Date().toISOString();
+    const _now = new Date().toISOString();
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition
@@ -142,7 +142,7 @@ export async function markInvalid(
 
   try {
     const resource = await watcher.get(name, namespace);
-    const now = new Date().toISOString();
+    const _now = new Date().toISOString();
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition to False

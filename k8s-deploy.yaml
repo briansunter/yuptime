@@ -14,7 +14,8 @@ metadata:
   namespace: kubekuma
 type: Opaque
 stringData:
-  hash: "$argon2id$v=19$m=65536,t=3,p=4$ZaQHCABm87e4LWXVCDOI3g$mBthek8imn1/6gNNwe3Ts43ovjpobL66PKU257b0wkg"
+  # Password: test1234 (min 8 chars required)
+  hash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
 
 ---
 # ConfigMap for environment variables
@@ -52,10 +53,11 @@ spec:
       annotations:
         description: "KubeKuma API Server"
     spec:
+      serviceAccountName: kubekuma
       containers:
       - name: api-server
         image: kubekuma-api:latest
-        imagePullPolicy: Never
+        imagePullPolicy: IfNotPresent
         ports:
         - name: http
           containerPort: 3000
@@ -80,6 +82,10 @@ spec:
           value: "3000"
         - name: DATABASE_URL
           value: "sqlite:/data/kubekuma.db"
+        - name: KUBE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
 
         # Health checks
         livenessProbe:
@@ -132,7 +138,7 @@ metadata:
     app: kubekuma
     component: api-server
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
   - name: http
     port: 3000

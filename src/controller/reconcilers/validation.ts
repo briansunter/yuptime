@@ -1,4 +1,4 @@
-import { logger } from "../../lib/logger";
+
 import type { ZodSchema } from "zod";
 import type { CRDResource, ValidationResult } from "./types";
 
@@ -42,7 +42,7 @@ export const commonValidations = {
     const errors: string[] = [];
     const date = new Date(dateStr);
 
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       errors.push(`${fieldPath} must be a valid ISO 8601 date`);
     } else if (date <= new Date()) {
       errors.push(`${fieldPath} must be in the future`);
@@ -64,15 +64,15 @@ export const commonValidations = {
     const start = new Date(startStr);
     const end = new Date(endStr);
 
-    if (isNaN(start.getTime())) {
+    if (Number.isNaN(start.getTime())) {
       errors.push(`${startPath} must be a valid ISO 8601 date`);
     }
 
-    if (isNaN(end.getTime())) {
+    if (Number.isNaN(end.getTime())) {
       errors.push(`${endPath} must be a valid ISO 8601 date`);
     }
 
-    if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start >= end) {
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start >= end) {
       errors.push(`${startPath} must be before ${endPath}`);
     }
 
@@ -173,3 +173,11 @@ export const validateRange =
 
     return errors;
   };
+
+/**
+ * Exported directly for convenience
+ */
+export const validateDateRange = commonValidations.validateDateRange;
+export const validateFutureDate = commonValidations.validateFutureDate;
+export const validateName = commonValidations.validateName;
+export const validateSpec = commonValidations.validateSpec;

@@ -47,7 +47,9 @@ export function validateConfig(): void {
 
   if (errors.length > 0) {
     logger.error("Configuration errors:");
-    errors.forEach((e) => logger.error(`  - ${e}`));
+    for (const e of errors) {
+      logger.error(`  - ${e}`);
+    }
     throw new Error("Invalid configuration");
   }
 

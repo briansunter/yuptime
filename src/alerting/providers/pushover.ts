@@ -75,7 +75,7 @@ export async function sendPushoverNotification(
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json() as { errors?: string[] };
       return {
         success: false,
         error: `Pushover error: ${errorData.errors?.[0] || response.statusText}`,

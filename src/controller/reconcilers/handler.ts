@@ -10,14 +10,20 @@ import type { CRDResource, ReconcilerConfig, ReconcileContext } from "./types";
  */
 export const createReconciliationHandler =
   (config: ReconcilerConfig, statusUpdater = { markValid, markInvalid }) =>
-  async (resource: CRDResource, context: ReconcileContext) => {
+  async (resource: CRDResource, context?: ReconcileContext) => {
+    // Create default context if not provided
+    const ctx: ReconcileContext = context || {
+      crdWatcher: null,
+      statusUpdater,
+      secretResolver: async () => "",
+    };
     const namespace = resource.metadata?.namespace || "";
     const name = resource.metadata.name;
     const generation = resource.metadata?.generation || 0;
 
     try {
-      // Validate resource
-      const validationResult = config.validator(resource);
+      // Validate resource (may be sync or async)
+      const validationResult = await Promise.resolve(config.validator(resource));
 
       if (!validationResult.valid) {
         const message = validationResult.errors?.join("; ") || "Validation failed";
@@ -39,7 +45,7 @@ export const createReconciliationHandler =
       }
 
       // Execute reconciliation
-      await config.reconciler(resource, context);
+      await config.reconciler(resource, ctx);
 
       // Mark as valid and reconciled
       await statusUpdater.markValid(config.kind, config.plural, namespace, name, generation);

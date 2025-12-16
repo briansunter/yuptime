@@ -12,7 +12,7 @@ import type { CheckResult } from "./index";
 
 export async function checkKubernetes(
   monitor: Monitor,
-  timeout: number
+  _timeout: number
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.kubernetes;
@@ -51,10 +51,10 @@ export async function checkKubernetes(
     // Check based on resource kind
     if (kind === "Deployment") {
       try {
-        const deployment = await k8sApi.readNamespacedDeployment(
+        const deployment = await k8sApi.readNamespacedDeployment({
           name,
-          namespace
-        );
+          namespace,
+        });
 
         desiredReplicas = deployment.spec?.replicas || 1;
         readyReplicas = deployment.status?.readyReplicas || 0;
@@ -64,7 +64,7 @@ export async function checkKubernetes(
         } else {
           message = `Deployment degraded: ${readyReplicas}/${desiredReplicas} ready replicas`;
         }
-      } catch (error) {
+      } catch (_error) {
         return {
           state: "down",
           latencyMs: Date.now() - startTime,
@@ -74,10 +74,10 @@ export async function checkKubernetes(
       }
     } else if (kind === "StatefulSet") {
       try {
-        const statefulSet = await k8sApi.readNamespacedStatefulSet(
+        const statefulSet = await k8sApi.readNamespacedStatefulSet({
           name,
-          namespace
-        );
+          namespace,
+        });
 
         desiredReplicas = statefulSet.spec?.replicas || 1;
         readyReplicas = statefulSet.status?.readyReplicas || 0;
@@ -87,7 +87,7 @@ export async function checkKubernetes(
         } else {
           message = `StatefulSet degraded: ${readyReplicas}/${desiredReplicas} ready replicas`;
         }
-      } catch (error) {
+      } catch (_error) {
         return {
           state: "down",
           latencyMs: Date.now() - startTime,
@@ -95,33 +95,36 @@ export async function checkKubernetes(
           message: `StatefulSet ${namespace}/${name} not found`,
         };
       }
-    } else if (kind === "Endpoint") {
+    } else if (kind === "Service") {
       try {
-        const endpoint = await coreApi.readNamespacedEndpoints(name, namespace);
+        const endpoints = await coreApi.readNamespacedEndpoints({
+          name,
+          namespace,
+        });
 
-        const readyAddresses = endpoint.subsets?.reduce((acc, subset) => {
+        const readyAddresses = endpoints.subsets?.reduce((acc, subset) => {
           return acc + (subset.addresses?.length || 0);
         }, 0) || 0;
 
         if (readyAddresses > 0) {
-          message = `Endpoint has ${readyAddresses} ready addresses`;
+          message = `Service has ${readyAddresses} ready endpoints`;
         } else {
-          message = "Endpoint has no ready addresses";
+          message = "Service has no ready endpoints";
         }
 
         readyReplicas = readyAddresses;
         desiredReplicas = 1; // At least one address expected
-      } catch (error) {
+      } catch (_error) {
         return {
           state: "down",
           latencyMs: Date.now() - startTime,
-          reason: "K8S_ENDPOINT_NOT_FOUND",
-          message: `Endpoint ${namespace}/${name} not found`,
+          reason: "K8S_SERVICE_NOT_FOUND",
+          message: `Service ${namespace}/${name} not found`,
         };
       }
     } else if (kind === "Pod") {
       try {
-        const pod = await coreApi.readNamespacedPod(name, namespace);
+        const pod = await coreApi.readNamespacedPod({ name, namespace });
 
         const phase = pod.status?.phase;
         const containerStatuses = pod.status?.containerStatuses || [];
@@ -140,7 +143,7 @@ export async function checkKubernetes(
           readyReplicas = readyContainers;
           desiredReplicas = totalContainers;
         }
-      } catch (error) {
+      } catch (_error) {
         return {
           state: "down",
           latencyMs: Date.now() - startTime,

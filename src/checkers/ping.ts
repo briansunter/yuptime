@@ -22,15 +22,15 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
 
   try {
     // Spawn a ping process
-    const { execFile } = require("child_process");
-    const { promisify } = require("util");
+    const { execFile } = require("node:child_process");
+    const { promisify } = require("node:util");
     const execFileAsync = promisify(execFile);
 
     const packetCount = target.packetCount || 1;
     const host = target.host;
 
     // Determine platform and build ping command
-    let command = "ping";
+    const command = "ping";
     let args: string[] = [];
 
     const platform = process.platform;

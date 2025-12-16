@@ -2,7 +2,6 @@
  * Slack notification provider
  */
 
-import { logger } from "../../lib/logger";
 import { resolveSecret } from "../../lib/secrets";
 import type { NotificationProviderConfig } from "../../types/crd";
 import type { ProviderDeliveryResult } from "../types";
@@ -13,6 +12,7 @@ interface SlackMessage {
     type: string;
     text?: { type: string; text: string };
     fields?: Array<{ type: string; text: string }>;
+    elements?: Array<{ type: string; text: string }>;
   }>;
 }
 

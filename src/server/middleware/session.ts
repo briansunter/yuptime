@@ -3,7 +3,7 @@
  * Handles session creation, verification, and user context attachment
  */
 
-import { FastifyRequest, FastifyReply } from "fastify";
+import type { FastifyRequest, FastifyReply } from "fastify";
 import { getDatabase } from "../../db";
 import { sessions } from "../../db/schema";
 import { eq, and, gte } from "drizzle-orm";
@@ -36,12 +36,11 @@ export interface UserContext {
 
 /**
  * Extend Fastify request type to include user context
+ * Override the @fastify/jwt default user type
  */
-declare global {
-  namespace Fastify {
-    interface FastifyRequest {
-      user?: UserContext;
-    }
+declare module "@fastify/jwt" {
+  interface FastifyJWT {
+    user: UserContext | undefined;
   }
 }
 

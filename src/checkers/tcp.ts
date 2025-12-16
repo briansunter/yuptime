@@ -22,18 +22,18 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
 
   try {
     // Create a simple TCP connection using node's net module
-    const net = require("net");
+    const net = require("node:net");
     const socket = new net.Socket();
 
     let completed = false;
-    let result: CheckResult | null = null;
+    let _result: CheckResult | null = null;
 
     // Set timeout
     const timeoutHandle = setTimeout(() => {
       if (!completed) {
         socket.destroy();
         completed = true;
-        result = {
+        _result = {
           state: "down",
           latencyMs: timeout * 1000,
           reason: "TIMEOUT",
@@ -67,11 +67,12 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
             // Wait for response if expect is configured
             if (target.expect) {
               let received = "";
+              const expectedStr = target.expect;
 
               socket.on("data", (data) => {
                 received += data.toString();
 
-                if (received.includes(target.expect)) {
+                if (received.includes(expectedStr)) {
                   socket.destroy();
                   resolve({
                     state: "up",

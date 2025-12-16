@@ -2,7 +2,6 @@
  * Discord notification provider
  */
 
-import { logger } from "../../lib/logger";
 import { resolveSecret } from "../../lib/secrets";
 import type { NotificationProviderConfig } from "../../types/crd";
 import type { ProviderDeliveryResult } from "../types";

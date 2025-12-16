@@ -1,5 +1,5 @@
 import { logger } from "../lib/logger";
-import type { Monitor, HttpTarget, SuccessCriteria } from "../types/crd";
+import type { Monitor, } from "../types/crd";
 import { resolveSecretCached } from "../lib/secrets";
 
 export interface CheckResult {
@@ -49,7 +49,7 @@ export async function checkHttp(
               header.valueFromSecretRef.name,
               header.valueFromSecretRef.key
             );
-          } catch (error) {
+          } catch (_error) {
             logger.warn({ monitor: monitor.metadata.name, header: header.name }, "Failed to resolve header secret");
           }
         }
@@ -69,7 +69,6 @@ export async function checkHttp(
         case "text":
           body = target.body.text;
           break;
-        case "none":
         default:
           break;
       }
@@ -118,7 +117,7 @@ export async function checkHttp(
       }
 
       // Extract and validate certificate info if HTTPS
-      let certInfo: { expiresAt?: Date; daysRemaining?: number } = {};
+      const certInfo: { expiresAt?: Date; daysRemaining?: number } = {};
       if (target.url.startsWith("https://")) {
         // Note: fetch() doesn't expose certificate info directly
         // In a real implementation, you'd use node-fetch with custom agent
@@ -282,7 +281,7 @@ export async function checkKeyword(
               message: `Regex pattern "${pattern}" did not match`,
             };
           }
-        } catch (error) {
+        } catch (_error) {
           return {
             state: "down",
             latencyMs: httpResult.latencyMs,
@@ -396,7 +395,7 @@ function getJsonPath(obj: any, path: string): any {
     const arrayMatch = part.match(/(\w+)\[(\d+)\]/);
     if (arrayMatch) {
       const key = arrayMatch[1];
-      const index = parseInt(arrayMatch[2]);
+      const index = parseInt(arrayMatch[2], 10);
       current = current[key]?.[index];
     } else {
       current = current[part === "$" ? "" : part];

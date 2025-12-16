@@ -80,4 +80,4 @@ export async function deliverNotification(
   }
 }
 
-export { type ProviderDeliveryResult };
+export type { ProviderDeliveryResult };

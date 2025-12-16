@@ -149,7 +149,7 @@ export const IncidentDataSchema = z.object({
   id: z.number(),
   monitorId: z.string(),
   startedAt: z.string().datetime(),
-  resolvedAt: z.string().datetime().nullable(),
+  endedAt: z.string().datetime().nullable(),
   state: z.enum(["down", "up"]),
   reason: z.string().optional(),
 });

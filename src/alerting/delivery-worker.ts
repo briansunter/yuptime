@@ -4,7 +4,7 @@
 
 import { logger } from "../lib/logger";
 import { getDatabase } from "../db";
-import { crdCache, notificationDeliveries } from "../db/schema";
+import { crdCache, } from "../db/schema";
 import { eq, and } from "drizzle-orm";
 import { getPendingNotifications, markAsSent, markAsFailed } from "./delivery-engine";
 import { deliverNotification } from "./providers";

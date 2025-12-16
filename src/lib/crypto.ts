@@ -3,7 +3,7 @@
  */
 
 import argon2 from "argon2";
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { logger } from "./logger";
 
 /**
@@ -29,9 +29,12 @@ export async function verifyPassword(
   hash: string
 ): Promise<boolean> {
   try {
-    return await argon2.verify(hash, plainPassword);
+    logger.debug({ hashLength: hash.length, hashPrefix: hash.substring(0, 30) }, "Verifying password against hash");
+    const result = await argon2.verify(hash, plainPassword);
+    logger.debug({ result }, "Password verification result");
+    return result;
   } catch (error) {
-    logger.error({ error }, "Password verification failed");
+    logger.error({ error, hashLength: hash?.length }, "Password verification failed");
     return false;
   }
 }

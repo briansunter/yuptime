@@ -22,10 +22,8 @@ export {
   createNotificationProviderReconciler,
   createNotificationPolicyReconciler,
 } from "./notification-reconcilers";
-export {
-  createStatusPageReconciler,
-  createMaintenanceWindowReconciler,
-} from "./page-and-window-reconcilers";
+export { createStatusPageReconciler } from "./status-page-reconciler";
+export { createMaintenanceWindowReconciler } from "./maintenance-window-reconciler";
 export {
   createSilenceReconciler,
   createLocalUserReconciler,
