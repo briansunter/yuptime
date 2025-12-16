@@ -1,0 +1,10 @@
+[build]
+root = "src"
+outdir = "dist"
+
+[test]
+root = "tests"
+
+[package]
+# Allow importing from web package
+workspaces = ["web"]

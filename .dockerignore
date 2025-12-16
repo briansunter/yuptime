@@ -1,0 +1,40 @@
+node_modules/
+bun.lockb
+package-lock.json
+yarn.lock
+dist/
+build/
+
+.git/
+.gitignore
+.env*
+.env.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+docs/
+examples/
+tests/
+.turbo/
+
+# Frontend dev stuff
+web/node_modules/
+web/dist/

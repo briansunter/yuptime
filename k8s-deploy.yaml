@@ -1,0 +1,143 @@
+---
+# Namespace for KubeKuma
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubekuma
+
+---
+# Secret with test user password hash
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-password
+  namespace: kubekuma
+type: Opaque
+stringData:
+  hash: "$argon2id$v=19$m=65536,t=3,p=4$ZaQHCABm87e4LWXVCDOI3g$mBthek8imn1/6gNNwe3Ts43ovjpobL66PKU257b0wkg"
+
+---
+# ConfigMap for environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubekuma-config
+  namespace: kubekuma
+data:
+  SESSION_SECRET: "dev-secret-change-in-production"
+  NODE_ENV: "development"
+  LOG_LEVEL: "info"
+
+---
+# Deployment for KubeKuma API Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubekuma-api
+  namespace: kubekuma
+  labels:
+    app: kubekuma
+    component: api-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubekuma
+      component: api-server
+  template:
+    metadata:
+      labels:
+        app: kubekuma
+        component: api-server
+      annotations:
+        description: "KubeKuma API Server"
+    spec:
+      containers:
+      - name: api-server
+        image: kubekuma-api:latest
+        imagePullPolicy: Never
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: kubekuma-config
+              key: NODE_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: kubekuma-config
+              key: LOG_LEVEL
+        - name: SESSION_SECRET
+          valueFrom:
+            configMapKeyRef:
+              name: kubekuma-config
+              key: SESSION_SECRET
+        - name: PORT
+          value: "3000"
+        - name: DATABASE_URL
+          value: "sqlite:/data/kubekuma.db"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+
+        # Resource limits
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        # Volume for SQLite database
+        volumeMounts:
+        - name: data
+          mountPath: /data
+
+      # Volume for persistent database
+      volumes:
+      - name: data
+        hostPath:
+          path: /tmp/kubekuma-data
+          type: DirectoryOrCreate
+
+---
+# Service to expose the API
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubekuma-api
+  namespace: kubekuma
+  labels:
+    app: kubekuma
+    component: api-server
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  selector:
+    app: kubekuma
+    component: api-server

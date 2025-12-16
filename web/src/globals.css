@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Status color utilities */
+.status-up {
+  @apply text-status-up;
+}
+
+.status-down {
+  @apply text-status-down;
+}
+
+.status-pending {
+  @apply text-status-pending;
+}
+
+.status-flapping {
+  @apply text-status-flapping;
+}
+
+.status-paused {
+  @apply text-status-paused;
+}
+
+.bg-status-up {
+  @apply bg-status-up/10;
+}
+
+.bg-status-down {
+  @apply bg-status-down/10;
+}
+
+.bg-status-pending {
+  @apply bg-status-pending/10;
+}
+
+.bg-status-flapping {
+  @apply bg-status-flapping/10;
+}
+
+.bg-status-paused {
+  @apply bg-status-paused/10;
+}
