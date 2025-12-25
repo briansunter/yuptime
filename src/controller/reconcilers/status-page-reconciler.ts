@@ -4,13 +4,16 @@
  * Manages public status pages with monitor grouping
  */
 
+import { and, eq } from "drizzle-orm";
+import { getDatabase } from "../../db";
+import { crdCache } from "../../db/schema";
 import { logger } from "../../lib/logger";
 import { StatusPageSchema } from "../../types/crd";
-import type { ReconcilerConfig, CRDResource } from "./types";
+import type { CRDResource, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
 } from "./validation";
 
@@ -22,7 +25,9 @@ const validateSlug = (resource: CRDResource): string[] => {
   const slug = resource.spec.slug;
 
   if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
-    errors.push("spec.slug must contain only lowercase letters, numbers, and hyphens");
+    errors.push(
+      "spec.slug must contain only lowercase letters, numbers, and hyphens",
+    );
   }
 
   if (slug === "api" || slug === "admin" || slug === "health") {
@@ -63,7 +68,7 @@ const validateGroups = (resource: CRDResource): string[] => {
     for (const monitor of group.monitors || []) {
       if (!monitor.ref?.namespace || !monitor.ref?.name) {
         errors.push(
-          `Group "${group.name}": Monitor must have namespace and name`
+          `Group "${group.name}": Monitor must have namespace and name`,
         );
       }
     }
@@ -77,7 +82,7 @@ const validateStatusPage = composeValidators(
   commonValidations.validateSpec,
   createZodValidator(StatusPageSchema),
   validateSlug,
-  validateGroups
+  validateGroups,
 );
 
 const reconcileStatusPage = async (resource: CRDResource) => {
@@ -89,9 +94,7 @@ const reconcileStatusPage = async (resource: CRDResource) => {
 
   try {
     // Verify all referenced monitors exist
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq, and } = require("drizzle-orm");
+    const db = getDatabase();
 
     const missingMonitors: string[] = [];
 
@@ -105,13 +108,13 @@ const reconcileStatusPage = async (resource: CRDResource) => {
               and(
                 eq(crdCache.kind, "Monitor"),
                 eq(crdCache.namespace, monitorRef.ref.namespace),
-                eq(crdCache.name, monitorRef.ref.name)
-              )
+                eq(crdCache.name, monitorRef.ref.name),
+              ),
             );
 
           if (!monitor || monitor.length === 0) {
             missingMonitors.push(
-              `${monitorRef.ref.namespace}/${monitorRef.ref.name}`
+              `${monitorRef.ref.namespace}/${monitorRef.ref.name}`,
             );
           }
         }
@@ -121,14 +124,14 @@ const reconcileStatusPage = async (resource: CRDResource) => {
     if (missingMonitors.length > 0) {
       logger.warn(
         { namespace, name, missingMonitors },
-        "StatusPage references non-existent monitors"
+        "StatusPage references non-existent monitors",
       );
     }
 
     // Count monitors
     const monitorCount = (spec.groups || []).reduce(
       (sum, group) => sum + (group.monitors?.length || 0),
-      0
+      0,
     );
 
     // Calculate published URL
@@ -146,15 +149,18 @@ const reconcileStatusPage = async (resource: CRDResource) => {
     await db
       .update(crdCache)
       .set({
-        status: missingMonitors.length === 0 ? "valid" : "warning",
-        lastReconcile: new Date().toISOString(),
+        status: JSON.stringify({
+          state: missingMonitors.length === 0 ? "valid" : "warning",
+          missingMonitors,
+        }),
+        updatedAt: new Date().toISOString(),
       })
       .where(
         and(
           eq(crdCache.kind, "StatusPage"),
           eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name)
-        )
+          eq(crdCache.name, name),
+        ),
       );
 
     logger.info(
@@ -166,12 +172,12 @@ const reconcileStatusPage = async (resource: CRDResource) => {
         published: spec.published,
         publishedUrl: publishedUrl || "not-published",
       },
-      "StatusPage reconciliation complete"
+      "StatusPage reconciliation complete",
     );
   } catch (error) {
     logger.error(
       { namespace, name, error },
-      "StatusPage reconciliation failed"
+      "StatusPage reconciliation failed",
     );
     throw error;
   }
@@ -182,9 +188,7 @@ const reconcileStatusPage = async (resource: CRDResource) => {
  */
 export async function getStatusPageBySlug(slug: string): Promise<any | null> {
   try {
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq } = require("drizzle-orm");
+    const db = getDatabase();
 
     const [page] = await db
       .select()
@@ -207,9 +211,7 @@ export async function getStatusPageBySlug(slug: string): Promise<any | null> {
  */
 export async function getPublishedStatusPages(): Promise<any[]> {
   try {
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq } = require("drizzle-orm");
+    const db = getDatabase();
 
     const pages = await db
       .select()

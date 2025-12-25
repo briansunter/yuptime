@@ -1,13 +1,13 @@
 import { logger } from "../../lib/logger";
+import { scheduler } from "../../scheduler";
 import { MonitorSchema } from "../../types/crd";
-import type { ReconcilerConfig, CRDResource, ReconcileContext } from "./types";
+import type { CRDResource, ReconcileContext, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
 } from "./validation";
-import { scheduler } from "../../scheduler";
 
 /**
  * Monitor-specific validators
@@ -19,7 +19,9 @@ const validateMonitorSchedule = (resource: CRDResource): string[] => {
   if (!spec.schedule) return errors;
 
   if (spec.schedule.timeoutSeconds >= spec.schedule.intervalSeconds) {
-    errors.push("schedule.timeoutSeconds must be less than schedule.intervalSeconds");
+    errors.push(
+      "schedule.timeoutSeconds must be less than schedule.intervalSeconds",
+    );
   }
 
   if (spec.schedule.intervalSeconds < 20) {
@@ -104,13 +106,16 @@ const validateMonitor = composeValidators(
   commonValidations.validateSpec,
   createZodValidator(MonitorSchema),
   validateMonitorSchedule,
-  validateMonitorTarget
+  validateMonitorTarget,
 );
 
 /**
  * Monitor reconciliation logic
  */
-const reconcileMonitor = async (resource: CRDResource, _ctx: ReconcileContext) => {
+const reconcileMonitor = async (
+  resource: CRDResource,
+  _ctx: ReconcileContext,
+) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -133,12 +138,18 @@ const reconcileMonitor = async (resource: CRDResource, _ctx: ReconcileContext) =
       priority: 0, // Default priority
     });
 
-    logger.info({ namespace, name, type: spec.type, interval: intervalSeconds }, "Monitor registered with scheduler");
+    logger.info(
+      { namespace, name, type: spec.type, interval: intervalSeconds },
+      "Monitor registered with scheduler",
+    );
   } else {
     // Unregister disabled monitors
     const jobId = `${namespace}/${name}`;
     scheduler.unregister(jobId);
-    logger.info({ namespace, name }, "Monitor unregistered from scheduler (disabled)");
+    logger.info(
+      { namespace, name },
+      "Monitor unregistered from scheduler (disabled)",
+    );
   }
 
   logger.debug({ namespace, name }, "Monitor reconciliation complete");

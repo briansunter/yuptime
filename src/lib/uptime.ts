@@ -6,7 +6,7 @@ export function calculateUptime(
     state: "up" | "down" | "pending" | "flapping" | "paused";
     checkedAt: string | Date;
   }>,
-  windowMinutes: number
+  windowMinutes: number,
 ): number {
   if (heartbeats.length === 0) return 100;
 
@@ -47,7 +47,7 @@ export function calculateSLA(
     startedAt: Date;
     endedAt?: Date;
   }>,
-  windowMs: number
+  windowMs: number,
 ): number {
   const now = new Date();
   const windowStart = new Date(now.getTime() - windowMs);
@@ -59,7 +59,10 @@ export function calculateSLA(
     if (incidentStart > now) continue; // Future incident
 
     const incidentEnd = incident.endedAt || now;
-    const periodStart = Math.max(incidentStart.getTime(), windowStart.getTime());
+    const periodStart = Math.max(
+      incidentStart.getTime(),
+      windowStart.getTime(),
+    );
     const periodEnd = Math.min(incidentEnd.getTime(), now.getTime());
 
     if (periodStart < periodEnd) {
@@ -83,7 +86,9 @@ export function formatSLA(percentage: number): string {
 /**
  * Get uptime classification
  */
-export function classifyUptime(percentage: number): "excellent" | "good" | "fair" | "poor" | "critical" {
+export function classifyUptime(
+  percentage: number,
+): "excellent" | "good" | "fair" | "poor" | "critical" {
   if (percentage >= 99.9) return "excellent";
   if (percentage >= 99) return "good";
   if (percentage >= 95) return "fair";

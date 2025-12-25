@@ -25,7 +25,7 @@ export function calculateJitter(
   namespace: string,
   name: string,
   jitterPercent: number,
-  intervalSeconds: number
+  intervalSeconds: number,
 ): number {
   if (jitterPercent === 0) return 0;
 
@@ -41,7 +41,7 @@ export function calculateJitter(
  */
 export function calculateNextRunTime(
   intervalSeconds: number,
-  jitterMs: number
+  jitterMs: number,
 ): Date {
   const nextRun = new Date();
   nextRun.setTime(nextRun.getTime() + intervalSeconds * 1000 + jitterMs);
@@ -54,10 +54,12 @@ export function calculateNextRunTime(
 export function rescheduleJob(
   currentTime: Date,
   intervalSeconds: number,
-  jitterMs: number
+  jitterMs: number,
 ): Date {
   // Schedule for interval from now (not from scheduled time)
   // This prevents drift if execution takes time
-  const nextRun = new Date(currentTime.getTime() + intervalSeconds * 1000 + jitterMs);
+  const nextRun = new Date(
+    currentTime.getTime() + intervalSeconds * 1000 + jitterMs,
+  );
   return nextRun;
 }

@@ -3,7 +3,10 @@ import { SecretRefSchema, StatusBaseSchema } from "./common";
 
 // StatusPage spec
 export const StatusPageSpecSchema = z.object({
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9-]+$/),
   title: z.string(),
   published: z.boolean().optional().default(false),
   exposure: z
@@ -40,15 +43,18 @@ export const StatusPageSpecSchema = z.object({
               namespace: z.string(),
               name: z.string(),
             }),
-          })
+          }),
         ),
-      })
+      }),
     )
     .optional(),
   badges: z
     .object({
       enabled: z.boolean().optional().default(true),
-      scope: z.enum(["allMonitors", "groupOnly"]).optional().default("groupOnly"),
+      scope: z
+        .enum(["allMonitors", "groupOnly"])
+        .optional()
+        .default("groupOnly"),
     })
     .optional(),
 });

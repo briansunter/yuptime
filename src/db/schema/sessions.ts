@@ -4,13 +4,13 @@
  */
 
 import { sql } from "drizzle-orm";
-import { sqliteTable, text as sqliteText } from "drizzle-orm/sqlite-core";
 import {
   pgTable,
-  varchar,
   text as pgText,
   timestamp,
+  varchar,
 } from "drizzle-orm/pg-core";
+import { sqliteTable, text as sqliteText } from "drizzle-orm/sqlite-core";
 import { config } from "../../lib/config";
 
 // Determine which schema to use based on database type

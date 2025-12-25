@@ -5,16 +5,18 @@
  * The checker tracks whether recent pushes have been received and validates tokens.
  */
 
-import { logger } from "../lib/logger";
+import crypto from "node:crypto";
+import { and, desc, eq } from "drizzle-orm";
 import { getDatabase } from "../db";
-import { heartbeats } from "../db/schema";
-import type { Monitor } from "../types/crd";
+import { crdCache, heartbeats } from "../db/schema";
+import { logger } from "../lib/logger";
+import { resolveSecretCached } from "../lib/secrets";
+import type { Monitor, MonitorSpec } from "../types/crd";
 import type { CheckResult } from "./index";
-import { eq, desc } from "drizzle-orm";
 
 export async function checkPush(
   monitor: Monitor,
-  _timeout: number
+  _timeout: number,
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.push;
@@ -76,10 +78,7 @@ export async function checkPush(
       };
     }
   } catch (error) {
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "Push check failed"
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "Push check failed");
 
     return {
       state: "down",
@@ -93,38 +92,40 @@ export async function checkPush(
 /**
  * Validate push token and extract monitor reference
  * Called by the push endpoint before recording a push
+ *
+ * Token validation:
+ * 1. Monitor must exist and be of type "push"
+ * 2. Token must match the one stored in the Kubernetes Secret
+ * 3. Uses timing-safe comparison to prevent timing attacks
  */
 export async function validatePushToken(
   token: string,
   monitorNamespace: string,
-  monitorName: string
+  monitorName: string,
 ): Promise<{ valid: boolean; reason?: string }> {
   try {
     const db = getDatabase();
 
     // Verify the monitor exists
-    const { crdCache } = require("../db/schema");
-    const { eq, and } = require("drizzle-orm");
-
-    const monitor = await db
+    const monitorRows = await db
       .select()
       .from(crdCache)
       .where(
         and(
           eq(crdCache.kind, "Monitor"),
           eq(crdCache.namespace, monitorNamespace),
-          eq(crdCache.name, monitorName)
-        )
+          eq(crdCache.name, monitorName),
+        ),
       );
 
-    if (!monitor || monitor.length === 0) {
+    if (!monitorRows || monitorRows.length === 0) {
       return {
         valid: false,
         reason: "Monitor not found",
       };
     }
 
-    const spec = JSON.parse(monitor[0].spec || "{}");
+    const spec: MonitorSpec = JSON.parse(monitorRows[0].spec || "{}");
 
     // Check if monitor is push type
     if (spec.type !== "push") {
@@ -134,16 +135,72 @@ export async function validatePushToken(
       };
     }
 
-    // TODO: Implement token validation logic
-    // For now, accept any push if monitor exists
-    // In production, would validate token against push.token field
-    // and check expiry if pushTokenExpiry is set
+    // Check if push target has token secret reference
+    const pushTarget = spec.target?.push;
+    if (!pushTarget?.tokenSecretRef) {
+      return {
+        valid: false,
+        reason: "Push monitor missing tokenSecretRef configuration",
+      };
+    }
+
+    // Resolve the expected token from Kubernetes Secret
+    let expectedToken: string;
+    try {
+      expectedToken = await resolveSecretCached(
+        monitorNamespace,
+        pushTarget.tokenSecretRef.name,
+        pushTarget.tokenSecretRef.key,
+      );
+    } catch (error) {
+      logger.error(
+        {
+          monitorNamespace,
+          monitorName,
+          secretRef: pushTarget.tokenSecretRef,
+          error,
+        },
+        "Failed to resolve push token secret",
+      );
+      return {
+        valid: false,
+        reason: "Failed to resolve token secret",
+      };
+    }
+
+    // Use timing-safe comparison to prevent timing attacks
+    const tokenBuffer = Buffer.from(token);
+    const expectedBuffer = Buffer.from(expectedToken);
+
+    // Lengths must match for timingSafeEqual
+    if (tokenBuffer.length !== expectedBuffer.length) {
+      return {
+        valid: false,
+        reason: "Invalid token",
+      };
+    }
+
+    const isValid = crypto.timingSafeEqual(tokenBuffer, expectedBuffer);
+
+    if (!isValid) {
+      logger.warn(
+        { monitorNamespace, monitorName },
+        "Push token validation failed - token mismatch",
+      );
+      return {
+        valid: false,
+        reason: "Invalid token",
+      };
+    }
 
     return { valid: true };
   } catch (error) {
     logger.error(
-      { token: `${token.substring(0, 10)}...`, error },
-      "Push token validation failed"
+      {
+        token: token.length > 10 ? `${token.substring(0, 10)}...` : "[short]",
+        error,
+      },
+      "Push token validation failed",
     );
 
     return {
@@ -163,7 +220,7 @@ export async function recordPush(
   state: "up" | "down" | "pending",
   reason: string,
   message: string,
-  latencyMs?: number
+  latencyMs?: number,
 ): Promise<{ recorded: boolean; error?: string }> {
   try {
     const db = getDatabase();
@@ -183,10 +240,7 @@ export async function recordPush(
       attempts: 1,
     });
 
-    logger.debug(
-      { monitor: monitorId, state },
-      "Push event recorded"
-    );
+    logger.debug({ monitor: monitorId, state }, "Push event recorded");
 
     return { recorded: true };
   } catch (error) {

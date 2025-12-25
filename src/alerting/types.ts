@@ -2,6 +2,8 @@
  * Core types for the alerting system
  */
 
+export type MonitorState = "up" | "down" | "pending" | "flapping" | "paused";
+
 export interface AlertEvent {
   monitorId: string;
   monitorNamespace: string;

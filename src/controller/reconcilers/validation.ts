@@ -1,4 +1,3 @@
-
 import type { ZodSchema } from "zod";
 import type { CRDResource, ValidationResult } from "./types";
 
@@ -58,7 +57,7 @@ export const commonValidations = {
     startStr: string,
     endStr: string,
     startPath: string,
-    endPath: string
+    endPath: string,
   ): string[] => {
     const errors: string[] = [];
     const start = new Date(startStr);
@@ -72,7 +71,11 @@ export const commonValidations = {
       errors.push(`${endPath} must be a valid ISO 8601 date`);
     }
 
-    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start >= end) {
+    if (
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      start >= end
+    ) {
       errors.push(`${startPath} must be before ${endPath}`);
     }
 
@@ -101,7 +104,9 @@ export const createZodValidator =
  * Compose multiple validators (AND logic)
  */
 export const composeValidators =
-  (...validators: ((resource: CRDResource) => string[])[]): ((resource: CRDResource) => string[]) =>
+  (
+    ...validators: ((resource: CRDResource) => string[])[]
+  ): ((resource: CRDResource) => string[]) =>
   (resource: CRDResource) => {
     const allErrors: string[] = [];
 
@@ -129,50 +134,59 @@ export const validate =
 /**
  * Validate uniqueness in array field
  */
-export const validateUniqueField =
-  (fieldPath: string, items: any[], keySelector: (item: any) => string): string[] => {
-    const seen = new Set<string>();
-    const errors: string[] = [];
+export const validateUniqueField = (
+  fieldPath: string,
+  items: any[],
+  keySelector: (item: any) => string,
+): string[] => {
+  const seen = new Set<string>();
+  const errors: string[] = [];
 
-    for (const item of items) {
-      const key = keySelector(item);
-      if (seen.has(key)) {
-        errors.push(`Duplicate value in ${fieldPath}: ${key}`);
-      }
-      seen.add(key);
+  for (const item of items) {
+    const key = keySelector(item);
+    if (seen.has(key)) {
+      errors.push(`Duplicate value in ${fieldPath}: ${key}`);
     }
+    seen.add(key);
+  }
 
-    return errors;
-  };
+  return errors;
+};
 
 /**
  * Validate required array is not empty
  */
-export const validateNonEmptyArray =
-  (fieldPath: string, items: any[]): string[] => {
-    if (!items || items.length === 0) {
-      return [`${fieldPath} must contain at least one item`];
-    }
-    return [];
-  };
+export const validateNonEmptyArray = (
+  fieldPath: string,
+  items: any[],
+): string[] => {
+  if (!items || items.length === 0) {
+    return [`${fieldPath} must contain at least one item`];
+  }
+  return [];
+};
 
 /**
  * Validate numeric range
  */
-export const validateRange =
-  (value: number, min: number, max: number, fieldPath: string): string[] => {
-    const errors: string[] = [];
+export const validateRange = (
+  value: number,
+  min: number,
+  max: number,
+  fieldPath: string,
+): string[] => {
+  const errors: string[] = [];
 
-    if (value < min) {
-      errors.push(`${fieldPath} must be >= ${min}`);
-    }
+  if (value < min) {
+    errors.push(`${fieldPath} must be >= ${min}`);
+  }
 
-    if (value > max) {
-      errors.push(`${fieldPath} must be <= ${max}`);
-    }
+  if (value > max) {
+    errors.push(`${fieldPath} must be <= ${max}`);
+  }
 
-    return errors;
-  };
+  return errors;
+};
 
 /**
  * Exported directly for convenience

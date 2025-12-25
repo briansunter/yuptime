@@ -2,8 +2,8 @@
  * Cryptographic utilities for password hashing, API key generation, and token management
  */
 
-import argon2 from "argon2";
 import crypto from "node:crypto";
+import argon2 from "argon2";
 import { logger } from "./logger";
 
 /**
@@ -26,15 +26,13 @@ const ARGON2_OPTIONS = {
  */
 export async function verifyPassword(
   plainPassword: string,
-  hash: string
+  hash: string,
 ): Promise<boolean> {
   try {
-    logger.debug({ hashLength: hash.length, hashPrefix: hash.substring(0, 30) }, "Verifying password against hash");
-    const result = await argon2.verify(hash, plainPassword);
-    logger.debug({ result }, "Password verification result");
-    return result;
+    logger.debug("Verifying password");
+    return await argon2.verify(hash, plainPassword);
   } catch (error) {
-    logger.error({ error, hashLength: hash?.length }, "Password verification failed");
+    logger.error({ error }, "Password verification failed");
     return false;
   }
 }
@@ -65,7 +63,7 @@ export async function hashPassword(plainPassword: string): Promise<string> {
  */
 export async function verifyApiKey(
   plainKey: string,
-  hash: string
+  hash: string,
 ): Promise<boolean> {
   try {
     return await argon2.verify(hash, plainKey);

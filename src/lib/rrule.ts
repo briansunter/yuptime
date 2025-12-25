@@ -82,7 +82,7 @@ const dayAbbr = {
  */
 export function getNextOccurrence(
   rruleConfig: RRuleConfig,
-  after: Date = new Date()
+  after: Date = new Date(),
 ): Date | null {
   const now = new Date(after);
   const candidate = new Date(now);
@@ -98,14 +98,16 @@ export function getNextOccurrence(
         candidate.setDate(candidate.getDate() + (rruleConfig.interval || 1));
         break;
       case "WEEKLY":
-        candidate.setDate(candidate.getDate() + 7 * (rruleConfig.interval || 1));
+        candidate.setDate(
+          candidate.getDate() + 7 * (rruleConfig.interval || 1),
+        );
         break;
       case "MONTHLY":
         candidate.setMonth(candidate.getMonth() + (rruleConfig.interval || 1));
         break;
       case "YEARLY":
         candidate.setFullYear(
-          candidate.getFullYear() + (rruleConfig.interval || 1)
+          candidate.getFullYear() + (rruleConfig.interval || 1),
         );
         break;
     }
@@ -128,8 +130,7 @@ export function getNextOccurrence(
     if (rruleConfig.byDay) {
       const dayOfWeek = candidate.getDay();
       const dayMatch = Object.entries(dayAbbr).find(
-        ([abbr, day]) =>
-          day === dayOfWeek && rruleConfig.byDay?.includes(abbr)
+        ([abbr, day]) => day === dayOfWeek && rruleConfig.byDay?.includes(abbr),
       );
       if (!dayMatch) {
         continue;
@@ -169,7 +170,7 @@ export function getNextOccurrence(
 export function isInMaintenanceWindow(
   rruleConfig: RRuleConfig,
   durationMinutes: number,
-  checkTime: Date = new Date()
+  checkTime: Date = new Date(),
 ): boolean {
   // Get the most recent occurrence before or at checkTime
   const oneYearAgo = new Date(checkTime);

@@ -1,3 +1,4 @@
+import { Socket } from "node:net";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
@@ -5,7 +6,10 @@ import type { CheckResult } from "./index";
 /**
  * TCP connection checker
  */
-export async function checkTcp(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export async function checkTcp(
+  monitor: Monitor,
+  timeout: number,
+): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.tcp;
 
@@ -22,8 +26,7 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
 
   try {
     // Create a simple TCP connection using node's net module
-    const net = require("node:net");
-    const socket = new net.Socket();
+    const socket = new Socket();
 
     let completed = false;
     let _result: CheckResult | null = null;

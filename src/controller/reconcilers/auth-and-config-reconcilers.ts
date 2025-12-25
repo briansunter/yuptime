@@ -1,10 +1,18 @@
+import { and, eq } from "drizzle-orm";
+import { getDatabase } from "../../db";
+import { crdCache } from "../../db/schema";
 import { logger } from "../../lib/logger";
-import { SilenceSchema, LocalUserSchema, ApiKeySchema, KubeKumaSettingsSchema } from "../../types/crd";
-import type { ReconcilerConfig, CRDResource } from "./types";
+import {
+  ApiKeySchema,
+  KubeKumaSettingsSchema,
+  LocalUserSchema,
+  SilenceSchema,
+} from "../../types/crd";
+import type { CRDResource, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
   validateFutureDate,
 } from "./validation";
@@ -21,7 +29,7 @@ const validateSilence = composeValidators(
   commonValidations.validateName,
   commonValidations.validateSpec,
   createZodValidator(SilenceSchema),
-  validateSilenceExpiry
+  validateSilenceExpiry,
 );
 
 const silenceCache = new Map<string, any>();
@@ -56,12 +64,15 @@ const reconcileSilence = async (resource: CRDResource) => {
       // Setup expiry timer to remove from cache when silence expires
       setTimeout(() => {
         silenceCache.delete(silenceKey);
-        logger.info({ namespace, name }, "Silence expired and removed from cache");
+        logger.info(
+          { namespace, name },
+          "Silence expired and removed from cache",
+        );
       }, expiresInMs);
 
       logger.debug(
         { namespace, name, expiresIn: Math.floor(expiresInMs / 1000) },
-        "Silence cached with expiry timer"
+        "Silence cached with expiry timer",
       );
     } else {
       // Silence already expired, don't cache it
@@ -70,21 +81,19 @@ const reconcileSilence = async (resource: CRDResource) => {
     }
 
     // Update crd_cache status
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq, and } = require("drizzle-orm");
+    const db = getDatabase();
 
     await db
       .update(crdCache)
       .set({
-        lastReconcile: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .where(
         and(
           eq(crdCache.kind, "Silence"),
           eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name)
-        )
+          eq(crdCache.name, name),
+        ),
       );
 
     logger.debug({ namespace, name }, "Silence reconciliation complete");
@@ -97,7 +106,9 @@ const reconcileSilence = async (resource: CRDResource) => {
 /**
  * Get all active silences that match given labels
  */
-export const getActiveSilences = (labels: Record<string, string> = {}): any[] => {
+export const getActiveSilences = (
+  labels: Record<string, string> = {},
+): any[] => {
   const now = new Date();
   const matchingSilences: any[] = [];
 
@@ -140,7 +151,7 @@ const validateLocalUser = composeValidators(
   commonValidations.validateName,
   commonValidations.validateSpec,
   createZodValidator(LocalUserSchema),
-  validateLocalUserName
+  validateLocalUserName,
 );
 
 const reconcileLocalUser = async (resource: CRDResource) => {
@@ -169,7 +180,7 @@ const validateApiKey = composeValidators(
   commonValidations.validateName,
   commonValidations.validateSpec,
   createZodValidator(ApiKeySchema),
-  validateApiKeyExpiry
+  validateApiKeyExpiry,
 );
 
 const reconcileApiKey = async (resource: CRDResource) => {
@@ -191,7 +202,9 @@ const reconcileApiKey = async (resource: CRDResource) => {
  */
 const validateSettingsName = (resource: CRDResource): string[] => {
   if (resource.metadata.name !== "kubekuma") {
-    return ["metadata.name must be exactly 'kubekuma' (only one instance allowed)"];
+    return [
+      "metadata.name must be exactly 'kubekuma' (only one instance allowed)",
+    ];
   }
   return [];
 };
@@ -219,7 +232,10 @@ const validateSettingsScheduler = (resource: CRDResource): string[] => {
     errors.push("scheduler.minIntervalSeconds must be >= 1");
   }
 
-  if (scheduler?.maxConcurrentNetChecks && scheduler.maxConcurrentNetChecks < 1) {
+  if (
+    scheduler?.maxConcurrentNetChecks &&
+    scheduler.maxConcurrentNetChecks < 1
+  ) {
     errors.push("scheduler.maxConcurrentNetChecks must be >= 1");
   }
 
@@ -231,7 +247,7 @@ const validateSettings = composeValidators(
   createZodValidator(KubeKumaSettingsSchema),
   validateSettingsName,
   validateSettingsAuth,
-  validateSettingsScheduler
+  validateSettingsScheduler,
 );
 
 let globalSettings: any = null;
@@ -250,7 +266,7 @@ const reconcileSettings = async (resource: CRDResource) => {
       gitOpsReadOnly: resource.spec.mode?.gitOpsReadOnly,
       minInterval: resource.spec.scheduler?.minIntervalSeconds,
     },
-    "KubeKumaSettings updated"
+    "KubeKumaSettings updated",
   );
 };
 

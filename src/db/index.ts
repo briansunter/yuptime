@@ -1,14 +1,22 @@
-import { drizzle } from "drizzle-orm/bun-sqlite";
-import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import { Database } from "bun:sqlite";
-import postgres from "postgres";
 import path from "node:path";
+import { type BunSQLiteDatabase, drizzle } from "drizzle-orm/bun-sqlite";
+import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { logger } from "../lib/logger";
 import * as schema from "./schema";
 
 const databaseUrl = process.env.DATABASE_URL || "sqlite:./kubekuma.db";
 const isPostgres = databaseUrl.startsWith("postgresql://");
 
-let db: any;
+/**
+ * Database instance type - uses SQLite type as base since Drizzle ORM
+ * doesn't provide a common interface for SQLite and PostgreSQL.
+ * The PostgreSQL driver is compatible at runtime.
+ */
+type DatabaseInstance = BunSQLiteDatabase<typeof schema>;
+
+let db: DatabaseInstance | null = null;
 let sqliteDb: Database | null = null;
 
 /**
@@ -148,7 +156,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_resourceKey ON audit_events(resourceKey);
 export async function initializeDatabase() {
   if (isPostgres) {
     const client = postgres(databaseUrl);
-    db = drizzlePostgres(client, { schema });
+    // Cast to SQLite type - Drizzle ORM APIs are compatible at runtime
+    db = drizzlePostgres(client, { schema }) as unknown as DatabaseInstance;
   } else {
     let file = databaseUrl;
 
@@ -164,14 +173,14 @@ export async function initializeDatabase() {
       file = path.resolve(process.cwd(), file);
     }
 
-    console.log("Opening SQLite database at:", file);
+    logger.info({ file }, "Opening SQLite database");
     // Use file-based database for persistence
     sqliteDb = new Database(file);
 
     // Auto-create schema if tables don't exist
-    console.log("Ensuring SQLite schema exists...");
+    logger.debug("Ensuring SQLite schema exists...");
     sqliteDb.exec(SQLITE_SCHEMA);
-    console.log("SQLite schema ready");
+    logger.info("SQLite schema ready");
 
     db = drizzle(sqliteDb, { schema });
   }
@@ -180,7 +189,9 @@ export async function initializeDatabase() {
 
 export function getDatabase() {
   if (!db) {
-    throw new Error("Database not initialized. Call initializeDatabase() first.");
+    throw new Error(
+      "Database not initialized. Call initializeDatabase() first.",
+    );
   }
   return db;
 }

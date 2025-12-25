@@ -1,13 +1,18 @@
 import { logger } from "../lib/logger";
-import { checkHttp, checkKeyword, checkJsonQuery, type CheckResult } from "./http";
-import { checkTcp } from "./tcp";
+import type { Monitor } from "../types/crd";
 import { checkDns } from "./dns";
+import {
+  type CheckResult,
+  checkHttp,
+  checkJsonQuery,
+  checkKeyword,
+} from "./http";
+import { checkKubernetes } from "./kubernetes";
 import { checkPing } from "./ping";
-import { checkWebSocket } from "./websocket";
 import { checkPush } from "./push";
 import { checkSteam } from "./steam";
-import { checkKubernetes } from "./kubernetes";
-import type { Monitor } from "../types/crd";
+import { checkTcp } from "./tcp";
+import { checkWebSocket } from "./websocket";
 
 /**
  * Execute a check based on monitor type
@@ -15,7 +20,7 @@ import type { Monitor } from "../types/crd";
  */
 export async function executeCheck(
   monitor: Monitor,
-  timeout: number
+  timeout: number,
 ): Promise<CheckResult> {
   const type = monitor.spec.type;
   const start = Date.now();
@@ -23,7 +28,7 @@ export async function executeCheck(
   try {
     logger.debug(
       { monitor: monitor.metadata.name, type, timeout },
-      "Executing check"
+      "Executing check",
     );
 
     switch (type) {
@@ -81,7 +86,7 @@ export async function executeCheck(
     const latencyMs = Date.now() - start;
     logger.error(
       { monitor: monitor.metadata.name, type, error },
-      "Check execution failed with error"
+      "Check execution failed with error",
     );
 
     return {
@@ -94,4 +99,4 @@ export async function executeCheck(
 }
 
 export type { CheckResult };
-export { validatePushToken, recordPush } from "./push";
+export { recordPush, validatePushToken } from "./push";

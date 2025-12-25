@@ -1,14 +1,17 @@
-import Fastify from "fastify";
-import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
+import fastifyJwt from "@fastify/jwt";
+import { eq } from "drizzle-orm";
+import Fastify from "fastify";
 import { ZodError } from "zod";
-import { logger } from "../lib/logger";
-import { config } from "../lib/config";
 import { getDatabase } from "../db";
-import { registerStatusPageRoutes } from "./routes/status-pages";
-import { registerAuthRoutes } from "./routes/auth";
-import { sessionMiddleware } from "./middleware/session";
+import type { CrdCache } from "../db/schema";
+import { crdCache } from "../db/schema";
+import { config } from "../lib/config";
+import { logger } from "../lib/logger";
 import { apiKeyAuth } from "./middleware/auth";
+import { sessionMiddleware } from "./middleware/session";
+import { registerAuthRoutes } from "./routes/auth";
+import { registerStatusPageRoutes } from "./routes/status-pages";
 
 export async function createApp() {
   const app = Fastify({
@@ -46,7 +49,10 @@ export async function createApp() {
       });
     }
 
-    logger.error({ error, url: request.url, method: request.method }, "Unhandled error");
+    logger.error(
+      { error, url: request.url, method: request.method },
+      "Unhandled error",
+    );
 
     return reply.status(500).send({
       error: "Internal server error",
@@ -81,42 +87,35 @@ export async function createApp() {
   await registerAuthRoutes(app as any);
 
   // Register API routes
-  await app.register(async (app) => {
-    // Monitors - list all monitors from CRD cache
-    app.get("/monitors", async (_request, _reply) => {
-      const db = getDatabase();
-      const { crdCache } = require("../db/schema");
-      const { eq } = require("drizzle-orm");
+  await app.register(
+    async (apiApp) => {
+      // Monitors - list all monitors from CRD cache
+      apiApp.get("/monitors", async () => {
+        const db = getDatabase();
 
-      const monitors = await db
-        .select()
-        .from(crdCache)
-        .where(eq(crdCache.kind, "Monitor"));
+        const monitors: CrdCache[] = await db
+          .select()
+          .from(crdCache)
+          .where(eq(crdCache.kind, "Monitor"));
 
-      const items = monitors.map((m: any) => ({
-        namespace: m.namespace,
-        name: m.name,
-        spec: JSON.parse(m.spec || "{}"),
-      }));
+        const items = monitors.map((m) => ({
+          namespace: m.namespace,
+          name: m.name,
+          spec: JSON.parse(m.spec || "{}"),
+        }));
 
-      return { items, total: items.length };
-    });
-
-    // Health check
-    app.get("/health", async () => ({ ok: true }));
-  }, { prefix: "/api/v1" });
+        return { items, total: items.length };
+      });
+    },
+    { prefix: "/api/v1" },
+  );
 
   // Register status page routes (public endpoints)
   await registerStatusPageRoutes(app as any);
 
-  // SPA fallback: route unmatched API requests
-  app.setNotFoundHandler((request, reply) => {
-    if (request.url.startsWith("/api")) {
-      reply.code(404).send({ error: "Not found" });
-    } else {
-      // For non-API requests, return 404 (frontend not served in this setup)
-      reply.code(404).send({ error: "Not found" });
-    }
+  // 404 handler for all unmatched routes
+  app.setNotFoundHandler((_request, reply) => {
+    reply.code(404).send({ error: "Not found" });
   });
 
   return app;

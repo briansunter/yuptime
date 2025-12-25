@@ -9,9 +9,12 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendTelegramNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
-  if (!config.telegram?.botTokenSecretRef || !config.telegram?.chatIdSecretRef) {
+  if (
+    !config.telegram?.botTokenSecretRef ||
+    !config.telegram?.chatIdSecretRef
+  ) {
     return {
       success: false,
       error: "Telegram bot token or chat ID not configured",
@@ -22,13 +25,13 @@ export async function sendTelegramNotification(
     const botToken = await resolveSecret(
       config.telegram.botTokenSecretRef.name,
       config.telegram.botTokenSecretRef.key,
-      config.telegram.botTokenSecretRef.namespace || "monitoring"
+      config.telegram.botTokenSecretRef.namespace || "monitoring",
     );
 
     const chatId = await resolveSecret(
       config.telegram.chatIdSecretRef.name,
       config.telegram.chatIdSecretRef.key,
-      config.telegram.chatIdSecretRef.namespace || "monitoring"
+      config.telegram.chatIdSecretRef.namespace || "monitoring",
     );
 
     if (!botToken || !chatId) {
@@ -52,11 +55,11 @@ export async function sendTelegramNotification(
           text: message,
           parse_mode: "Markdown",
         }),
-      }
+      },
     );
 
     if (!response.ok) {
-      const errorData = await response.json() as { description?: string };
+      const errorData = (await response.json()) as { description?: string };
       return {
         success: false,
         error: `Telegram API error: ${errorData.description || response.statusText}`,

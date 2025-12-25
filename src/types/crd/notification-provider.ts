@@ -33,14 +33,17 @@ export const NotificationProviderConfigSchema = z.object({
   webhook: z
     .object({
       urlSecretRef: SecretRefSchema,
-      method: z.enum(["GET", "POST", "PUT", "DELETE"]).optional().default("POST"),
+      method: z
+        .enum(["GET", "POST", "PUT", "DELETE"])
+        .optional()
+        .default("POST"),
       headers: z
         .array(
           z.object({
             name: z.string(),
             value: z.string().optional(),
             valueFromSecretRef: SecretRefSchema.optional(),
-          })
+          }),
         )
         .optional(),
       template: z.string().optional(),
@@ -66,16 +69,29 @@ export const NotificationProviderConfigSchema = z.object({
     .optional(),
 });
 
-export type NotificationProviderConfig = z.infer<typeof NotificationProviderConfigSchema>;
+export type NotificationProviderConfig = z.infer<
+  typeof NotificationProviderConfigSchema
+>;
 
 // NotificationProvider spec
 export const NotificationProviderSpecSchema = z.object({
-  type: z.enum(["slack", "discord", "telegram", "smtp", "webhook", "gotify", "pushover", "apprise"]),
+  type: z.enum([
+    "slack",
+    "discord",
+    "telegram",
+    "smtp",
+    "webhook",
+    "gotify",
+    "pushover",
+    "apprise",
+  ]),
   enabled: z.boolean().optional().default(true),
   config: NotificationProviderConfigSchema,
 });
 
-export type NotificationProviderSpec = z.infer<typeof NotificationProviderSpecSchema>;
+export type NotificationProviderSpec = z.infer<
+  typeof NotificationProviderSpecSchema
+>;
 
 // NotificationProvider status
 export const NotificationProviderStatusSchema = StatusBaseSchema.extend({
@@ -84,7 +100,9 @@ export const NotificationProviderStatusSchema = StatusBaseSchema.extend({
   isHealthy: z.boolean().optional(),
 });
 
-export type NotificationProviderStatus = z.infer<typeof NotificationProviderStatusSchema>;
+export type NotificationProviderStatus = z.infer<
+  typeof NotificationProviderStatusSchema
+>;
 
 // Full NotificationProvider CRD
 export const NotificationProviderSchema = z.object({

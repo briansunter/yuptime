@@ -9,7 +9,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendWebhookNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (!config.webhook?.urlSecretRef) {
     return {
@@ -22,7 +22,7 @@ export async function sendWebhookNotification(
     const url = await resolveSecret(
       config.webhook.urlSecretRef.name,
       config.webhook.urlSecretRef.key,
-      config.webhook.urlSecretRef.namespace || "monitoring"
+      config.webhook.urlSecretRef.namespace || "monitoring",
     );
 
     if (!url) {
@@ -46,7 +46,7 @@ export async function sendWebhookNotification(
           const value = await resolveSecret(
             header.valueFromSecretRef.name,
             header.valueFromSecretRef.key,
-            header.valueFromSecretRef.namespace || "monitoring"
+            header.valueFromSecretRef.namespace || "monitoring",
           );
           if (value) {
             headers[header.name] = value;

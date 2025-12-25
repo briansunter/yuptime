@@ -1,10 +1,10 @@
 import { logger } from "../../lib/logger";
 import { MonitorSetSchema } from "../../types/crd";
-import type { ReconcilerConfig, CRDResource } from "./types";
+import type { CRDResource, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
   validateNonEmptyArray,
   validateUniqueField,
@@ -23,7 +23,7 @@ const validateMonitorSetItems = (resource: CRDResource): string[] => {
   // Check names are unique and valid
   if (spec.items) {
     errors.push(
-      ...validateUniqueField("item.name", spec.items, (item) => item.name)
+      ...validateUniqueField("item.name", spec.items, (item) => item.name),
     );
 
     for (const item of spec.items) {
@@ -43,7 +43,7 @@ const validateMonitorSet = composeValidators(
   commonValidations.validateName,
   commonValidations.validateSpec,
   createZodValidator(MonitorSetSchema),
-  validateMonitorSetItems
+  validateMonitorSetItems,
 );
 
 /**
@@ -58,7 +58,10 @@ const reconcileMonitorSet = async (resource: CRDResource) => {
 
   // TODO: Register each monitor item with scheduler (inline mode)
 
-  logger.debug({ namespace, name, itemCount }, "MonitorSet reconciliation complete");
+  logger.debug(
+    { namespace, name, itemCount },
+    "MonitorSet reconciliation complete",
+  );
 };
 
 export const createMonitorSetReconciler = (): ReconcilerConfig => ({

@@ -1,6 +1,6 @@
 import { logger } from "../../lib/logger";
-import { markValid, markInvalid } from "./status-utils";
-import type { CRDResource, ReconcilerConfig, ReconcileContext } from "./types";
+import { markInvalid, markValid } from "./status-utils";
+import type { CRDResource, ReconcileContext, ReconcilerConfig } from "./types";
 
 /**
  * Generic reconciliation handler that handles any CRD type
@@ -23,13 +23,16 @@ export const createReconciliationHandler =
 
     try {
       // Validate resource (may be sync or async)
-      const validationResult = await Promise.resolve(config.validator(resource));
+      const validationResult = await Promise.resolve(
+        config.validator(resource),
+      );
 
       if (!validationResult.valid) {
-        const message = validationResult.errors?.join("; ") || "Validation failed";
+        const message =
+          validationResult.errors?.join("; ") || "Validation failed";
         logger.warn(
           { kind: config.kind, namespace, name },
-          `Validation failed: ${message}`
+          `Validation failed: ${message}`,
         );
 
         await statusUpdater.markInvalid(
@@ -38,7 +41,7 @@ export const createReconciliationHandler =
           namespace,
           name,
           "ValidationFailed",
-          message
+          message,
         );
 
         return;
@@ -48,17 +51,23 @@ export const createReconciliationHandler =
       await config.reconciler(resource, ctx);
 
       // Mark as valid and reconciled
-      await statusUpdater.markValid(config.kind, config.plural, namespace, name, generation);
+      await statusUpdater.markValid(
+        config.kind,
+        config.plural,
+        namespace,
+        name,
+        generation,
+      );
 
       logger.debug(
         { kind: config.kind, namespace, name },
-        `${config.kind} reconciliation successful`
+        `${config.kind} reconciliation successful`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       logger.error(
         { kind: config.kind, namespace, name, error },
-        `${config.kind} reconciliation failed`
+        `${config.kind} reconciliation failed`,
       );
 
       try {
@@ -68,10 +77,13 @@ export const createReconciliationHandler =
           namespace,
           name,
           "ReconcileFailed",
-          message
+          message,
         );
       } catch (statusError) {
-        logger.error({ error: statusError }, "Failed to update status after error");
+        logger.error(
+          { error: statusError },
+          "Failed to update status after error",
+        );
       }
     }
   };
@@ -84,7 +96,7 @@ export const createDeleteHandler =
     if (!config.deleteHandler) {
       logger.debug(
         { kind: config.kind, namespace, name },
-        `No delete handler for ${config.kind}`
+        `No delete handler for ${config.kind}`,
       );
       return;
     }
@@ -93,12 +105,12 @@ export const createDeleteHandler =
       await config.deleteHandler(namespace, name);
       logger.debug(
         { kind: config.kind, namespace, name },
-        `${config.kind} deleted successfully`
+        `${config.kind} deleted successfully`,
       );
     } catch (error) {
       logger.error(
         { kind: config.kind, namespace, name, error },
-        `Delete handler for ${config.kind} failed`
+        `Delete handler for ${config.kind} failed`,
       );
     }
   };

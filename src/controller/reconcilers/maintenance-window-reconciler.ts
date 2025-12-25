@@ -4,14 +4,17 @@
  * Manages scheduled maintenance windows with RRULE support
  */
 
+import { and, eq } from "drizzle-orm";
+import { getDatabase } from "../../db";
+import { crdCache } from "../../db/schema";
 import { logger } from "../../lib/logger";
+import { getNextOccurrence, parseRRule } from "../../lib/rrule";
 import { MaintenanceWindowSchema } from "../../types/crd";
-import { parseRRule, getNextOccurrence } from "../../lib/rrule";
-import type { ReconcilerConfig, CRDResource } from "./types";
+import type { CRDResource, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
 } from "./validation";
 
@@ -59,7 +62,7 @@ const validateMaintenanceWindow = composeValidators(
   commonValidations.validateSpec,
   createZodValidator(MaintenanceWindowSchema),
   validateWindowSchedule,
-  validateWindowMatchers
+  validateWindowMatchers,
 );
 
 const maintenanceWindowCache = new Map<string, any>();
@@ -90,7 +93,7 @@ const reconcileMaintenanceWindow = async (resource: CRDResource) => {
     if (!rruleConfig) {
       logger.error(
         { namespace, name, rrule: spec.schedule.recurrence },
-        "Failed to parse RRULE"
+        "Failed to parse RRULE",
       );
       throw new Error("Invalid RRULE format");
     }
@@ -100,7 +103,7 @@ const reconcileMaintenanceWindow = async (resource: CRDResource) => {
     if (durationMinutes === 0) {
       logger.error(
         { namespace, name, duration: spec.schedule.duration },
-        "Failed to parse duration"
+        "Failed to parse duration",
       );
       throw new Error("Invalid duration format");
     }
@@ -129,35 +132,33 @@ const reconcileMaintenanceWindow = async (resource: CRDResource) => {
         nextOccurrence: nextOccurrence?.toISOString(),
         duration: `${durationMinutes}m`,
       },
-      "MaintenanceWindow cached"
+      "MaintenanceWindow cached",
     );
 
     // Update crd_cache status
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq, and } = require("drizzle-orm");
+    const db = getDatabase();
 
     await db
       .update(crdCache)
       .set({
-        lastReconcile: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .where(
         and(
           eq(crdCache.kind, "MaintenanceWindow"),
           eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name)
-        )
+          eq(crdCache.name, name),
+        ),
       );
 
     logger.debug(
       { namespace, name },
-      "MaintenanceWindow reconciliation complete"
+      "MaintenanceWindow reconciliation complete",
     );
   } catch (error) {
     logger.error(
       { namespace, name, error },
-      "MaintenanceWindow reconciliation failed"
+      "MaintenanceWindow reconciliation failed",
     );
     throw error;
   }
@@ -167,7 +168,7 @@ const reconcileMaintenanceWindow = async (resource: CRDResource) => {
  * Check if a monitor is currently in a maintenance window
  */
 export const isInMaintenanceWindow = (
-  labels: Record<string, string> = {}
+  labels: Record<string, string> = {},
 ): boolean => {
   const now = new Date();
 
@@ -202,7 +203,7 @@ export const isInMaintenanceWindow = (
  * Get all active maintenance windows
  */
 export const getActiveMaintenanceWindows = (
-  labels: Record<string, string> = {}
+  labels: Record<string, string> = {},
 ): any[] => {
   const activeWindows: any[] = [];
 

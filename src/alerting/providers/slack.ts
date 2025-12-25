@@ -19,7 +19,7 @@ interface SlackMessage {
 export async function sendSlackNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (!config.slack?.webhookUrlSecretRef) {
     return {
@@ -32,7 +32,7 @@ export async function sendSlackNotification(
     const webhookUrl = await resolveSecret(
       config.slack.webhookUrlSecretRef.name,
       config.slack.webhookUrlSecretRef.key,
-      config.slack.webhookUrlSecretRef.namespace || "monitoring"
+      config.slack.webhookUrlSecretRef.namespace || "monitoring",
     );
 
     if (!webhookUrl) {

@@ -23,7 +23,7 @@ export const KubeKumaSettingsSpecSchema = z.object({
             z.object({
               matchGroup: z.string(),
               role: z.enum(["admin", "editor", "viewer"]),
-            })
+            }),
           )
           .optional(),
       })
@@ -82,7 +82,10 @@ export const KubeKumaSettingsSpecSchema = z.object({
       .optional(),
     ping: z
       .object({
-        mode: z.enum(["icmp", "tcpFallback", "tcpOnly"]).optional().default("tcpFallback"),
+        mode: z
+          .enum(["icmp", "tcpFallback", "tcpOnly"])
+          .optional()
+          .default("tcpFallback"),
         tcpFallbackPort: z.number().min(1).max(65535).optional().default(443),
       })
       .optional(),
@@ -94,7 +97,10 @@ export const KubeKumaSettingsSpecSchema = z.object({
     metrics: z
       .object({
         enabled: z.boolean().optional().default(true),
-        authMode: z.enum(["open", "basic", "apiKey"]).optional().default("open"),
+        authMode: z
+          .enum(["open", "basic", "apiKey"])
+          .optional()
+          .default("open"),
         basicAuthSecretRef: SecretRefSchema.optional(),
       })
       .optional(),
@@ -107,7 +113,7 @@ export const KubeKumaSettingsSpecSchema = z.object({
         .array(
           z.object({
             type: z.enum(["ingress", "gatewayapi", "service"]),
-          })
+          }),
         )
         .optional(),
       behavior: z
@@ -129,7 +135,9 @@ export const KubeKumaSettingsStatusSchema = StatusBaseSchema.extend({
   errors: z.array(z.string()).optional(),
 });
 
-export type KubeKumaSettingsStatus = z.infer<typeof KubeKumaSettingsStatusSchema>;
+export type KubeKumaSettingsStatus = z.infer<
+  typeof KubeKumaSettingsStatusSchema
+>;
 
 // Full KubeKumaSettings CRD (cluster-scoped)
 export const KubeKumaSettingsSchema = z.object({

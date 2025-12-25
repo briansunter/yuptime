@@ -10,7 +10,7 @@ export function matchesSelector(
     name: string;
     labels?: Record<string, string>;
     tags?: string[];
-  }
+  },
 ): boolean {
   if (!selector) return true;
 
@@ -60,14 +60,16 @@ export function matchesSelector(
   // Check tag match
   if (selector.matchTags && selector.matchTags.length > 0) {
     const monitorTags = monitor.tags || [];
-    const hasMatch = selector.matchTags.some((tag) => monitorTags.includes(tag));
+    const hasMatch = selector.matchTags.some((tag) =>
+      monitorTags.includes(tag),
+    );
     if (!hasMatch) return false;
   }
 
   // Check exact name match
   if (selector.matchNames && selector.matchNames.length > 0) {
     const hasMatch = selector.matchNames.some(
-      (ref) => ref.namespace === monitor.namespace && ref.name === monitor.name
+      (ref) => ref.namespace === monitor.namespace && ref.name === monitor.name,
     );
     if (!hasMatch) return false;
   }
@@ -85,7 +87,7 @@ export function matchesAnySelectorIn(
     name: string;
     labels?: Record<string, string>;
     tags?: string[];
-  }
+  },
 ): boolean {
   if (selectors.length === 0) return true;
   return selectors.some((selector) => matchesSelector(selector, monitor));
@@ -101,7 +103,7 @@ export function matchesAllSelectors(
     name: string;
     labels?: Record<string, string>;
     tags?: string[];
-  }
+  },
 ): boolean {
   return selectors.every((selector) => matchesSelector(selector, monitor));
 }
@@ -116,7 +118,7 @@ export function filterBySelector(
     labels?: Record<string, string>;
     tags?: string[];
   }>,
-  selector: Selector | undefined
+  selector: Selector | undefined,
 ) {
   return monitors.filter((monitor) => matchesSelector(selector, monitor));
 }

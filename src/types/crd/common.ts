@@ -43,7 +43,7 @@ export const LabelSelectorSchema = z.object({
         key: z.string(),
         operator: z.enum(["In", "NotIn", "Exists", "DoesNotExist"]),
         values: z.array(z.string()).optional(),
-      })
+      }),
     )
     .optional(),
 });
@@ -59,7 +59,7 @@ export const SelectorSchema = z.object({
       z.object({
         namespace: z.string(),
         name: z.string(),
-      })
+      }),
     )
     .optional(),
 });

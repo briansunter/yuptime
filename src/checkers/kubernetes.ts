@@ -5,14 +5,14 @@
  * Can check: pod running status, endpoint readiness, deployment replicas
  */
 
-import { logger } from "../lib/logger";
 import { getKubernetesClient } from "../controller/k8s-client";
+import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
 
 export async function checkKubernetes(
   monitor: Monitor,
-  _timeout: number
+  _timeout: number,
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.kubernetes;
@@ -102,9 +102,10 @@ export async function checkKubernetes(
           namespace,
         });
 
-        const readyAddresses = endpoints.subsets?.reduce((acc, subset) => {
-          return acc + (subset.addresses?.length || 0);
-        }, 0) || 0;
+        const readyAddresses =
+          endpoints.subsets?.reduce((acc, subset) => {
+            return acc + (subset.addresses?.length || 0);
+          }, 0) || 0;
 
         if (readyAddresses > 0) {
           message = `Service has ${readyAddresses} ready endpoints`;
@@ -129,9 +130,7 @@ export async function checkKubernetes(
         const phase = pod.status?.phase;
         const containerStatuses = pod.status?.containerStatuses || [];
 
-        const readyContainers = containerStatuses.filter(
-          (c) => c.ready
-        ).length;
+        const readyContainers = containerStatuses.filter((c) => c.ready).length;
         const totalContainers = containerStatuses.length;
 
         if (phase === "Running" && readyContainers === totalContainers) {
@@ -183,14 +182,15 @@ export async function checkKubernetes(
     const latencyMs = Date.now() - startTime;
     logger.warn(
       { monitor: monitor.metadata.name, error },
-      "Kubernetes check failed"
+      "Kubernetes check failed",
     );
 
     return {
       state: "down",
       latencyMs,
       reason: "ERROR",
-      message: error instanceof Error ? error.message : "Kubernetes check failed",
+      message:
+        error instanceof Error ? error.message : "Kubernetes check failed",
     };
   }
 }

@@ -1,6 +1,13 @@
 import { sql } from "drizzle-orm";
+import {
+  integer,
+  numeric,
+  pgTable,
+  serial,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { int, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, numeric, serial, integer } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 // Detect driver based on centralized config
@@ -12,7 +19,9 @@ export const heartbeats = isPostgres
       monitorNamespace: varchar("monitorNamespace").notNull(),
       monitorName: varchar("monitorName").notNull(),
       monitorId: varchar("monitorId").notNull(), // namespace/name composite
-      state: varchar("state", { enum: ["up", "down", "pending", "flapping", "paused"] }).notNull(),
+      state: varchar("state", {
+        enum: ["up", "down", "pending", "flapping", "paused"],
+      }).notNull(),
       latencyMs: numeric("latencyMs"),
       reason: varchar("reason"),
       message: varchar("message"),
@@ -25,7 +34,9 @@ export const heartbeats = isPostgres
       monitorNamespace: text("monitorNamespace").notNull(),
       monitorName: text("monitorName").notNull(),
       monitorId: text("monitorId").notNull(), // namespace/name composite
-      state: text("state", { enum: ["up", "down", "pending", "flapping", "paused"] }).notNull(),
+      state: text("state", {
+        enum: ["up", "down", "pending", "flapping", "paused"],
+      }).notNull(),
       latencyMs: real("latencyMs"),
       reason: text("reason"),
       message: text("message"),

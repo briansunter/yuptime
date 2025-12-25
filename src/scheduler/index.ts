@@ -1,12 +1,19 @@
-import { logger } from "../lib/logger";
-import { getDatabase } from "../db";
-import { executeCheck } from "../checkers";
+import { and, desc, eq } from "drizzle-orm";
+import type { AlertEvent, MonitorState } from "../alerting";
 import { handleAlertEvent } from "../alerting";
-import { createPriorityQueue, type PriorityQueue } from "./queue";
+import { executeCheck } from "../checkers";
+import { getDatabase } from "../db";
+import { crdCache, heartbeats } from "../db/schema";
+import { logger } from "../lib/logger";
 import { calculateJitter, rescheduleJob } from "./jitter";
-import { acquireLock, releaseLock, startLockRenewal, stopLockRenewal, } from "./lock";
-import type { SchedulerState, ScheduledJob, } from "./types";
-import type { AlertEvent } from "../alerting";
+import {
+  acquireLock,
+  releaseLock,
+  startLockRenewal,
+  stopLockRenewal,
+} from "./lock";
+import { createPriorityQueue, type PriorityQueue } from "./queue";
+import type { ScheduledJob, SchedulerState } from "./types";
 
 /**
  * Scheduler state management
@@ -75,7 +82,7 @@ export function createScheduler(): Scheduler {
       job.namespace,
       job.name,
       5, // TODO: Get from settings
-      job.intervalSeconds
+      job.intervalSeconds,
     );
     job.nextRunAt = rescheduleJob(now, job.intervalSeconds, jitterMs);
     queue.add(job);
@@ -87,8 +94,6 @@ export function createScheduler(): Scheduler {
 
       // Get the full monitor from cache
       const db = getDatabase();
-      const { crdCache } = require("../db/schema");
-      const { eq, and, desc: drizzleDesc } = require("drizzle-orm");
 
       const cached = await db
         .select()
@@ -97,8 +102,8 @@ export function createScheduler(): Scheduler {
           and(
             eq(crdCache.kind, "Monitor"),
             eq(crdCache.namespace, job.namespace),
-            eq(crdCache.name, job.name)
-          )
+            eq(crdCache.name, job.name),
+          ),
         )
         .limit(1);
 
@@ -121,7 +126,6 @@ export function createScheduler(): Scheduler {
       const result = await executeCheck(monitor, job.timeoutSeconds);
 
       // Store result in database
-      const { heartbeats, desc } = require("../db/schema");
       await db.insert(heartbeats).values({
         monitorNamespace: job.namespace,
         monitorName: job.name,
@@ -136,7 +140,7 @@ export function createScheduler(): Scheduler {
 
       logger.debug(
         { jobId: job.id, state: result.state, latency: result.latencyMs },
-        "Check completed"
+        "Check completed",
       );
 
       // Get previous heartbeat to detect state changes
@@ -144,10 +148,11 @@ export function createScheduler(): Scheduler {
         .select()
         .from(heartbeats)
         .where(eq(heartbeats.monitorId, job.id))
-        .orderBy(drizzleDesc(heartbeats.checkedAt))
+        .orderBy(desc(heartbeats.checkedAt))
         .limit(2);
 
-      const previousState = previousHeartbeat?.[1]?.state || "pending";
+      const previousState = (previousHeartbeat?.[1]?.state ||
+        "pending") as MonitorState;
       const isStateChange = previousState !== result.state;
 
       // Trigger alerting engine for state changes
@@ -155,8 +160,8 @@ export function createScheduler(): Scheduler {
         monitorId: job.id,
         monitorNamespace: job.namespace,
         monitorName: job.name,
-        previousState: previousState as any,
-        currentState: result.state as any,
+        previousState,
+        currentState: result.state as MonitorState,
         reason: result.reason,
         message: result.message,
         latencyMs: result.latencyMs,
@@ -197,7 +202,9 @@ export function createScheduler(): Scheduler {
       // Acquire singleton lock (optional in dev mode)
       const locked = await acquireLock();
       if (!locked) {
-        logger.warn("Failed to acquire scheduler lock, continuing without lock");
+        logger.warn(
+          "Failed to acquire scheduler lock, continuing without lock",
+        );
         // Continue anyway in development - skip leader election
       } else {
         // Start lock renewal
@@ -213,7 +220,10 @@ export function createScheduler(): Scheduler {
         queue.add(job);
       }
 
-      logger.info({ jobCount: state.jobs.size }, "Scheduler started with jobs in queue");
+      logger.info(
+        { jobCount: state.jobs.size },
+        "Scheduler started with jobs in queue",
+      );
 
       // Start scheduler loop
       runSchedulerLoop();

@@ -34,7 +34,9 @@ export const MaintenanceWindowStatusSchema = StatusBaseSchema.extend({
   monitorCount: z.number().optional(),
 });
 
-export type MaintenanceWindowStatus = z.infer<typeof MaintenanceWindowStatusSchema>;
+export type MaintenanceWindowStatus = z.infer<
+  typeof MaintenanceWindowStatusSchema
+>;
 
 // Full MaintenanceWindow CRD
 export const MaintenanceWindowSchema = z.object({

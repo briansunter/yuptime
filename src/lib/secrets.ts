@@ -1,6 +1,6 @@
+import fs from "node:fs";
 import { KubeConfig } from "@kubernetes/client-node";
 import { logger } from "./logger";
-import fs from "node:fs";
 
 // In-cluster paths
 const SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token";
@@ -20,7 +20,10 @@ function getK8sClient(): KubeConfig {
       // Also read the token directly for use in fetch calls
       if (fs.existsSync(SA_TOKEN_PATH)) {
         inClusterToken = fs.readFileSync(SA_TOKEN_PATH, "utf-8").trim();
-        logger.debug({ tokenLength: inClusterToken.length }, "Secrets: Loaded in-cluster token");
+        logger.debug(
+          { tokenLength: inClusterToken.length },
+          "Secrets: Loaded in-cluster token",
+        );
       }
       logger.debug("Secrets: Using in-cluster K8s configuration");
     } catch {
@@ -54,7 +57,7 @@ function getToken(): string | undefined {
 export async function resolveSecret(
   namespace: string,
   secretName: string,
-  key: string
+  key: string,
 ): Promise<string> {
   try {
     const kc = getK8sClient();
@@ -65,25 +68,31 @@ export async function resolveSecret(
 
     const token = getToken();
 
-    logger.debug({
-      hasCluster: !!cluster,
-      server: cluster.server,
-      hasToken: !!token,
-      tokenLength: token?.length || 0,
-    }, "K8s client config");
+    logger.debug(
+      {
+        hasCluster: !!cluster,
+        server: cluster.server,
+        hasToken: !!token,
+        tokenLength: token?.length || 0,
+      },
+      "K8s client config",
+    );
 
     const url = `${cluster.server}/api/v1/namespaces/${namespace}/secrets/${secretName}`;
 
-    logger.debug({ namespace, secretName, key, url }, "Resolving secret from K8s");
+    logger.debug(
+      { namespace, secretName, key, url },
+      "Resolving secret from K8s",
+    );
 
     // Use fetch with TLS workaround for self-signed certs (like controller does)
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Accept": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      // @ts-ignore - Bun supports this for self-signed certs
+      // @ts-expect-error - Bun supports this for self-signed certs
       tls: {
         rejectUnauthorized: false,
       },
@@ -91,11 +100,16 @@ export async function resolveSecret(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error({ status: response.status, statusText: response.statusText, errorText }, "HTTP error from K8s");
-      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+      logger.error(
+        { status: response.status, statusText: response.statusText, errorText },
+        "HTTP error from K8s",
+      );
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText} - ${errorText}`,
+      );
     }
 
-    const secret = await response.json() as { data?: Record<string, string> };
+    const secret = (await response.json()) as { data?: Record<string, string> };
 
     if (!secret.data || !secret.data[key]) {
       throw new Error(`Key '${key}' not found in secret '${secretName}'`);
@@ -103,12 +117,21 @@ export async function resolveSecret(
 
     // Secret data is base64 encoded
     const value = Buffer.from(secret.data[key], "base64").toString("utf-8");
-    logger.debug({ secretName, key, valueLength: value.length }, "Secret resolved successfully");
+    logger.debug(
+      { secretName, key, valueLength: value.length },
+      "Secret resolved successfully",
+    );
     return value;
   } catch (error: any) {
     logger.error(
-      { namespace, secretName, key, errorMessage: error?.message, errorStack: error?.stack },
-      "Failed to resolve secret"
+      {
+        namespace,
+        secretName,
+        key,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+      },
+      "Failed to resolve secret",
     );
     throw new Error(`Failed to resolve secret: ${secretName}/${key}`);
   }
@@ -118,7 +141,7 @@ export async function resolveSecret(
  * Batch resolve multiple secrets for performance
  */
 export async function resolveSecrets(
-  refs: Array<{ namespace: string; name: string; key: string }>
+  refs: Array<{ namespace: string; name: string; key: string }>,
 ): Promise<Record<string, string>> {
   const results: Record<string, string> = {};
 
@@ -144,7 +167,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 export async function resolveSecretCached(
   namespace: string,
   secretName: string,
-  key: string
+  key: string,
 ): Promise<string> {
   const cacheKey = `${namespace}/${secretName}:${key}`;
   const cached = secretCache.get(cacheKey);

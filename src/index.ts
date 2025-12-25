@@ -1,10 +1,10 @@
-import { logger } from "./lib/logger";
-import { config, validateConfig } from "./lib/config";
-import { createApp } from "./server/app";
-import { initializeDatabase } from "./db";
-import { controller } from "./controller";
-import { scheduler } from "./scheduler";
 import { startDeliveryWorker, stopDeliveryWorker } from "./alerting";
+import { controller } from "./controller";
+import { initializeDatabase } from "./db";
+import { config, validateConfig } from "./lib/config";
+import { logger } from "./lib/logger";
+import { scheduler } from "./scheduler";
+import { createApp } from "./server/app";
 
 let deliveryWorker: NodeJS.Timer | null = null;
 
@@ -46,7 +46,7 @@ async function main() {
         env: config.env,
         database: config.isPostgres ? "PostgreSQL" : "SQLite",
       },
-      `KubeKuma server started successfully`
+      `KubeKuma server started successfully`,
     );
   } catch (error) {
     logger.error(error, "Fatal error during startup");

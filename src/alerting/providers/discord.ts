@@ -9,7 +9,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendDiscordNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (!config.discord?.webhookUrlSecretRef) {
     return {
@@ -22,7 +22,7 @@ export async function sendDiscordNotification(
     const webhookUrl = await resolveSecret(
       config.discord.webhookUrlSecretRef.name,
       config.discord.webhookUrlSecretRef.key,
-      config.discord.webhookUrlSecretRef.namespace || "monitoring"
+      config.discord.webhookUrlSecretRef.namespace || "monitoring",
     );
 
     if (!webhookUrl) {

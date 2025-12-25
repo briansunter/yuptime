@@ -39,5 +39,5 @@ export type CheckResultHandler = (
   state: "up" | "down" | "pending",
   latencyMs: number,
   reason: string,
-  message: string
+  message: string,
 ) => Promise<void>;

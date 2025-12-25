@@ -20,7 +20,7 @@ async function connectWebSocket(
   url: string,
   timeout: number,
   sendMessage?: string,
-  expectedResponse?: string
+  expectedResponse?: string,
 ): Promise<WebSocketResult> {
   return new Promise((resolve) => {
     const startTime = Date.now();
@@ -145,7 +145,7 @@ async function connectWebSocket(
 
 export async function checkWebSocket(
   monitor: Monitor,
-  timeout: number
+  timeout: number,
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.websocket;
@@ -176,7 +176,7 @@ export async function checkWebSocket(
       url,
       timeout,
       target.send,
-      target.expect
+      target.expect,
     );
 
     const latencyMs = result.latencyMs;
@@ -200,14 +200,15 @@ export async function checkWebSocket(
     const latencyMs = Date.now() - startTime;
     logger.warn(
       { monitor: monitor.metadata.name, error },
-      "WebSocket check failed"
+      "WebSocket check failed",
     );
 
     return {
       state: "down",
       latencyMs,
       reason: "ERROR",
-      message: error instanceof Error ? error.message : "WebSocket check failed",
+      message:
+        error instanceof Error ? error.message : "WebSocket check failed",
     };
   }
 }

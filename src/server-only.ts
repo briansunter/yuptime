@@ -2,10 +2,11 @@
  * Minimal server entry point for testing
  * Starts only the Fastify API server without controller/scheduler
  */
-import { logger } from "./lib/logger";
-import { config, validateConfig } from "./lib/config";
-import { createApp } from "./server/app";
+
 import { initializeDatabase } from "./db";
+import { config, validateConfig } from "./lib/config";
+import { logger } from "./lib/logger";
+import { createApp } from "./server/app";
 
 async function main() {
   try {
@@ -30,7 +31,7 @@ async function main() {
         env: config.env,
         database: config.isPostgres ? "PostgreSQL" : "SQLite",
       },
-      `KubeKuma API server started successfully`
+      `KubeKuma API server started successfully`,
     );
   } catch (error) {
     logger.error(error, "Fatal error during startup");

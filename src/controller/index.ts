@@ -1,19 +1,24 @@
 import { logger } from "../lib/logger";
-import { initializeK8sClient } from "./k8s-client";
-import { startAllWatchers, stopAllWatchers, informerRegistry, registry } from "./informers";
-import { createReconciliationHandler } from "./reconcilers/handler";
 import {
+  informerRegistry,
+  registry,
+  startAllWatchers,
+  stopAllWatchers,
+} from "./informers";
+import { initializeK8sClient } from "./k8s-client";
+import {
+  createApiKeyReconciler,
+  createLocalUserReconciler,
+  createMaintenanceWindowReconciler,
   createMonitorReconciler,
   createMonitorSetReconciler,
-  createNotificationProviderReconciler,
   createNotificationPolicyReconciler,
-  createStatusPageReconciler,
-  createMaintenanceWindowReconciler,
-  createSilenceReconciler,
-  createLocalUserReconciler,
-  createApiKeyReconciler,
+  createNotificationProviderReconciler,
   createSettingsReconciler,
+  createSilenceReconciler,
+  createStatusPageReconciler,
 } from "./reconcilers";
+import { createReconciliationHandler } from "./reconcilers/handler";
 
 /**
  * Initialize and start the Kubernetes controller
@@ -81,7 +86,10 @@ function registerAllReconcilers() {
     // Register with the informer registry
     registry.registerReconciler(informerRegistry, config.kind, handler);
 
-    logger.debug({ kind: config.kind }, `Registered reconciler for ${config.kind}`);
+    logger.debug(
+      { kind: config.kind },
+      `Registered reconciler for ${config.kind}`,
+    );
   }
 
   logger.debug("All reconcilers registered");

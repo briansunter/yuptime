@@ -1,5 +1,5 @@
-import { logger } from "../lib/logger";
 import { getCoordinationApiClient } from "../controller/k8s-client";
+import { logger } from "../lib/logger";
 
 /**
  * Singleton lock using Kubernetes Lease resource
@@ -50,21 +50,26 @@ export async function acquireLock(): Promise<boolean> {
 
     // Try to get existing lease
     try {
-      const existing = await client.readNamespacedLease({ name: LOCK_NAME, namespace: LOCK_NAMESPACE });
+      const existing = await client.readNamespacedLease({
+        name: LOCK_NAME,
+        namespace: LOCK_NAMESPACE,
+      });
 
       // Check if lease is still valid
-      const renewTimeStr = existing.spec?.renewTime as unknown as string || "0";
+      const renewTimeStr =
+        (existing.spec?.renewTime as unknown as string) || "0";
       const renewTime = new Date(renewTimeStr);
       if (renewTime.getTime() > now.getTime()) {
         logger.warn(
           { holder: existing.spec?.holderIdentity },
-          "Lease held by another instance"
+          "Lease held by another instance",
         );
         return false;
       }
 
       // Lease expired, take it
-      (lease.metadata as any).resourceVersion = existing.metadata?.resourceVersion;
+      (lease.metadata as any).resourceVersion =
+        existing.metadata?.resourceVersion;
       const updated = await client.replaceNamespacedLease({
         name: LOCK_NAME,
         namespace: LOCK_NAMESPACE,
@@ -77,7 +82,10 @@ export async function acquireLock(): Promise<boolean> {
       return true;
     } catch (_error) {
       // Lease doesn't exist, create it
-      const created = await client.createNamespacedLease({ namespace: LOCK_NAMESPACE, body: lease as any });
+      const created = await client.createNamespacedLease({
+        namespace: LOCK_NAMESPACE,
+        body: lease as any,
+      });
       lockState.lease = created;
       lockState.held = true;
       logger.info("Created and acquired scheduler lock");
@@ -103,7 +111,10 @@ export async function releaseLock(): Promise<void> {
 
   try {
     const client = getCoordinationApiClient();
-    await client.deleteNamespacedLease({ name: LOCK_NAME, namespace: LOCK_NAMESPACE });
+    await client.deleteNamespacedLease({
+      name: LOCK_NAME,
+      namespace: LOCK_NAMESPACE,
+    });
     lockState.held = false;
     logger.info("Released scheduler lock");
   } catch (error) {

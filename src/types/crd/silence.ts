@@ -10,7 +10,7 @@ export const SilenceSpecSchema = z.object({
         z.object({
           namespace: z.string(),
           name: z.string(),
-        })
+        }),
       )
       .optional(),
     namespaces: z.array(z.string()).optional(),

@@ -98,7 +98,10 @@ export function success<T>(data: T): ApiResponse<T> {
 }
 
 // Standard error response wrapper
-export function error(message: string, errors?: Record<string, string>): ApiResponse<never> {
+export function error(
+  message: string,
+  errors?: Record<string, string>,
+): ApiResponse<never> {
   return {
     success: false,
     error: message,

@@ -3,19 +3,19 @@
  */
 
 import { logger } from "../../lib/logger";
-import { sendSlackNotification } from "./slack";
-import { sendDiscordNotification } from "./discord";
-import { sendTelegramNotification } from "./telegram";
-import { sendSmtpNotification } from "./smtp";
-import { sendWebhookNotification } from "./webhook";
-import { sendGotifyNotification } from "./gotify";
-import { sendPushoverNotification } from "./pushover";
-import { sendAppriseNotification } from "./apprise";
 import type {
   NotificationProvider,
   NotificationProviderConfig,
 } from "../../types/crd";
 import type { ProviderDeliveryResult } from "../types";
+import { sendAppriseNotification } from "./apprise";
+import { sendDiscordNotification } from "./discord";
+import { sendGotifyNotification } from "./gotify";
+import { sendPushoverNotification } from "./pushover";
+import { sendSlackNotification } from "./slack";
+import { sendSmtpNotification } from "./smtp";
+import { sendTelegramNotification } from "./telegram";
+import { sendWebhookNotification } from "./webhook";
 
 /**
  * Send notification via provider
@@ -23,7 +23,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function deliverNotification(
   provider: NotificationProvider,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   const type = provider.spec.type;
   const config = provider.spec.config as NotificationProviderConfig;
@@ -70,7 +70,7 @@ export async function deliverNotification(
   } catch (error) {
     logger.error(
       { provider: provider.metadata.name, error },
-      "Provider delivery failed"
+      "Provider delivery failed",
     );
 
     return {
