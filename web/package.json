@@ -11,7 +11,7 @@
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.1",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
-    "@radix-ui/react-slot": "^2.0.2",
+    "@radix-ui/react-slot": "^1.2.4",
     "@tanstack/react-router": "^1.52.0",
     "@tanstack/react-router-devtools": "^1.52.0",
     "class-variance-authority": "^0.7.0",

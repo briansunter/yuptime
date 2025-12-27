@@ -604,6 +604,6 @@ spec:
 
 ## See Also
 
-- [ARCHITECTURE.md](../ARCHITECTURE.md) - System design
-- [PHASE_3_SUMMARY.md](../PHASE_3_SUMMARY.md) - Technical details
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - System design
+- [PHASE_3_SUMMARY.md](./PHASE_3_SUMMARY.md) - Technical details
 - [CRD Specification](./CRDS.md) - Full API reference
