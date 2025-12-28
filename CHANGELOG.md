@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.15](https://github.com/briansunter/yuptime/compare/v0.0.14...v0.0.15) (2025-12-28)
+
+
+### Bug Fixes
+
+* add release-please to publish-helm job needs ([3127090](https://github.com/briansunter/yuptime/commit/31270909c40e4a567586b999d3616ca2fb137807))
+
 ## [0.0.14](https://github.com/briansunter/yuptime/compare/v0.0.13...v0.0.14) (2025-12-28)
 
 
