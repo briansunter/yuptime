@@ -92,7 +92,6 @@ export function createCRDWatcher(
             Accept: "application/json",
             ...(opts.headers || {}),
           },
-          // @ts-expect-error - Bun supports this
           tls: {
             rejectUnauthorized: false, // For self-signed certs in dev
           },

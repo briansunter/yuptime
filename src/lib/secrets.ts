@@ -92,7 +92,6 @@ export async function resolveSecret(
         Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      // @ts-expect-error - Bun supports this for self-signed certs
       tls: {
         rejectUnauthorized: false,
       },
