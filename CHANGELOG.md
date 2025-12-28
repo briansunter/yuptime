@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.3](https://github.com/briansunter/yuptime/compare/v0.0.2...v0.0.3) (2025-12-28)
+
+
+### Bug Fixes
+
+* integrate release builds into release-please workflow ([1e11bd2](https://github.com/briansunter/yuptime/commit/1e11bd29a9932b220ef96714df6b3f11c69cdcb9))
+
 ## [0.0.2](https://github.com/briansunter/yuptime/compare/v0.0.1...v0.0.2) (2025-12-28)
 
 
