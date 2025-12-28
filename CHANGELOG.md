@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.13](https://github.com/briansunter/yuptime/compare/v0.0.12...v0.0.13) (2025-12-28)
+
+
+### Bug Fixes
+
+* set KUBECONFIG=/dev/null for kubectl validation ([a556590](https://github.com/briansunter/yuptime/commit/a556590b53bec32c302b4befbb15890a0adeebb2))
+
 ## [0.0.12](https://github.com/briansunter/yuptime/compare/v0.0.11...v0.0.12) (2025-12-28)
 
 
