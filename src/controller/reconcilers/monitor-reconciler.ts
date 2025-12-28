@@ -1,7 +1,7 @@
 import { logger } from "../../lib/logger";
 import { MonitorSchema } from "../../types/crd";
 import type { JobManager } from "../job-manager";
-import { calculateJitter, rescheduleJob } from "../job-manager/jitter";
+import { calculateJitter } from "../job-manager/jitter";
 import type { CRDResource, ReconcileContext, ReconcilerConfig } from "./types";
 import {
   commonValidations,

@@ -62,7 +62,7 @@ export function createCRDWatcher(
   options: { namespace?: string; namespaced?: boolean } = {},
 ) {
   const kc = getK8sClient();
-  const { namespace = "", namespaced = true } = options;
+  const { namespace = "", namespaced: _namespaced = true } = options;
 
   return {
     /**

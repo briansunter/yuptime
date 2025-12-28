@@ -7,7 +7,6 @@ import { CustomObjectsApi, KubeConfig } from "@kubernetes/client-node";
 import type { CheckResult } from "../checkers";
 import { executeCheck as runCheck } from "../checkers";
 import { getDatabase } from "../db";
-import { heartbeats } from "../db/schema";
 import type { Monitor } from "../types/crd";
 
 const logger = console;

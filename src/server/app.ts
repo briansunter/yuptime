@@ -1,8 +1,8 @@
+import path from "node:path";
 import fastifyCookie from "@fastify/cookie";
 import fastifyJwt from "@fastify/jwt";
 import fastifyStatic from "@fastify/static";
 import Fastify from "fastify";
-import path from "path";
 import { ZodError } from "zod";
 import { getDatabase } from "../db";
 import { config } from "../lib/config";
@@ -137,7 +137,7 @@ export async function createApp() {
     // Serve index.html for SPA routing
     try {
       const indexPath = path.join(publicPath, "index.html");
-      const fs = await import("fs/promises");
+      const fs = await import("node:fs/promises");
       const content = await fs.readFile(indexPath, "utf-8");
       return reply.type("text/html").send(content);
     } catch {

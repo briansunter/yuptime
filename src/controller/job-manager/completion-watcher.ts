@@ -299,7 +299,7 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
               {
                 monitorId,
                 lastCheck: heartbeat.checkedAt,
-                stalledFor: Math.round((now - lastCheckTime) / 1000) + "s",
+                stalledFor: `${Math.round((now - lastCheckTime) / 1000)}s`,
               },
               "Monitor stalled, rescheduling",
             );

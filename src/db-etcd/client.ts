@@ -31,7 +31,6 @@ export * from "../db/schema";
 
 export class EtcdDatabase {
   private client: Etcd3;
-  private isConnected: boolean = false;
 
   constructor(connectionString?: string) {
     // Connect to Kubernetes etcd by default
@@ -333,7 +332,7 @@ class HeartbeatQuery {
     this.client = client;
   }
 
-  from(table: any): this {
+  from(_table: any): this {
     // Drizzle compatibility - ignore table name since we already know it
     return this;
   }
@@ -493,7 +492,7 @@ class HeartbeatQuery {
     const result = await this.client.getAll().prefix(prefix).exec();
 
     const stateCounts: Record<string, number> = {};
-    let totalChecks = 0;
+    let _totalChecks = 0;
 
     if (result.kvs) {
       for (const kv of result.kvs) {
@@ -509,7 +508,7 @@ class HeartbeatQuery {
         }
 
         stateCounts[state] = (stateCounts[state] || 0) + 1;
-        totalChecks++;
+        _totalChecks++;
       }
     }
 
@@ -646,7 +645,7 @@ class IncidentQuery {
     this.client = client;
   }
 
-  from(table: any): this {
+  from(_table: any): this {
     return this;
   }
 
@@ -758,7 +757,7 @@ class IncidentQuery {
     return results.filter(fn);
   }
 
-  groupBy(field: string): this {
+  groupBy(_field: string): this {
     // Not implemented for incidents
     return this;
   }
@@ -834,7 +833,7 @@ class NotificationQuery {
     this.client = client;
   }
 
-  from(table: any): this {
+  from(_table: any): this {
     return this;
   }
 
@@ -851,17 +850,17 @@ class NotificationQuery {
     return this;
   }
 
-  orderBy(field: any): this {
+  orderBy(_field: any): this {
     // Not implemented for notifications
     return this;
   }
 
-  limit(count: number): this {
+  limit(_count: number): this {
     // Not implemented for notifications
     return this;
   }
 
-  groupBy(field: string): this {
+  groupBy(_field: string): this {
     // Not implemented for notifications
     return this;
   }
@@ -1003,7 +1002,7 @@ class CrdCacheQuery {
     this.client = client;
   }
 
-  from(table: any): this {
+  from(_table: any): this {
     return this;
   }
 
@@ -1020,15 +1019,15 @@ class CrdCacheQuery {
     return this;
   }
 
-  orderBy(field: any): this {
+  orderBy(_field: any): this {
     return this;
   }
 
-  limit(count: number): this {
+  limit(_count: number): this {
     return this;
   }
 
-  groupBy(field: string): this {
+  groupBy(_field: string): this {
     return this;
   }
 
@@ -1122,7 +1121,7 @@ export function eq<T>(field: keyof T | string, value: any) {
   return { field, value, op: "eq" };
 }
 
-export function and<T>(...predicates: any[]) {
+export function and<_T>(...predicates: any[]) {
   return { type: "and", predicates };
 }
 

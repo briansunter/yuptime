@@ -21,7 +21,7 @@ import type {
  */
 export function createJobManager(config: JobManagerConfig): JobManager {
   const batchApi = getBatchApiClient();
-  const coreApi = config.kubeConfig.makeApiClient(CoreV1Api);
+  const _coreApi = config.kubeConfig.makeApiClient(CoreV1Api);
 
   const defaultNamespace = config.namespace || "default";
 

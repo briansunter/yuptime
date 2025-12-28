@@ -3,8 +3,6 @@
  * Types for Kubernetes Job-based monitor check execution
  */
 
-import type { V1Job } from "@kubernetes/client-node";
-
 /**
  * Monitor CRD resource (simplified)
  */

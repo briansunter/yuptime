@@ -3,8 +3,8 @@
  * Supports SQLite, PostgreSQL (via Drizzle), and etcd
  */
 
-import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import { drizzle as drizzlePg } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { config } from "../lib/config";

@@ -7,7 +7,7 @@ import {
 } from "./informers";
 import { createJobManager } from "./job-manager";
 import { createJobCompletionWatcher } from "./job-manager/completion-watcher";
-import { getK8sClient, initializeK8sClient } from "./k8s-client";
+import { initializeK8sClient } from "./k8s-client";
 import {
   createApiKeyReconciler,
   createLocalUserReconciler,

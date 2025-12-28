@@ -19,7 +19,7 @@ export async function sendSmtpNotification(
   }
 
   try {
-    const { host, port, useTls, from, to } = config.smtp;
+    const { host: _host, port: _port, useTls: _useTls, from, to } = config.smtp;
 
     let _username: string | undefined;
     let _password: string | undefined;
