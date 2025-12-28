@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.11](https://github.com/briansunter/yuptime/compare/v0.0.10...v0.0.11) (2025-12-28)
+
+
+### Bug Fixes
+
+* skip kubectl validation when cluster unavailable in CI ([38cd599](https://github.com/briansunter/yuptime/commit/38cd5995c8bf93a1a28505cfbc84094cc26d5a9e))
+
 ## [0.0.10](https://github.com/briansunter/yuptime/compare/v0.0.9...v0.0.10) (2025-12-28)
 
 
