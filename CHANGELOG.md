@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.8](https://github.com/briansunter/yuptime/compare/v0.0.7...v0.0.8) (2025-12-28)
+
+
+### Bug Fixes
+
+* resolve lint errors and disable type-check in CI ([84b4610](https://github.com/briansunter/yuptime/commit/84b4610f9251883d698b03235d9e9ee13b1550e5))
+* resolve TypeScript type errors for mixed database backends ([e418d20](https://github.com/briansunter/yuptime/commit/e418d20b2120057f70938293801d29feb2d5cd33))
+* update E2E test monitor to match Timoni CRD schema ([8da8a80](https://github.com/briansunter/yuptime/commit/8da8a80dd616054b03a909b84b2ee783554f7a24))
+
 ## [0.0.7](https://github.com/briansunter/yuptime/compare/v0.0.6...v0.0.7) (2025-12-28)
 
 
