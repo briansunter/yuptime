@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.18](https://github.com/briansunter/yuptime/compare/v0.0.17...v0.0.18) (2025-12-28)
+
+
+### Bug Fixes
+
+* remove GitHub release step (use GHCR OCI only) ([785581a](https://github.com/briansunter/yuptime/commit/785581a2ba319424fe612aeaff608c173df979ee))
+
 ## [0.0.17](https://github.com/briansunter/yuptime/compare/v0.0.16...v0.0.17) (2025-12-28)
 
 
