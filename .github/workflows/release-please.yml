@@ -390,18 +390,6 @@ jobs:
           VERSION=${{ needs.release-please.outputs.version }}
           helm push yuptime-${VERSION}.tgz oci://ghcr.io/${{ github.repository }}/charts
 
-      - name: Fetch tags
-        run: git fetch --tags --force
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            yuptime-${{ needs.release-please.outputs.version }}.tgz
-          generate_release_notes: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   commit-artifacts:
     name: Commit Generated Artifacts
     runs-on: ubuntu-latest
