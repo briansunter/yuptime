@@ -113,6 +113,7 @@ jobs:
               pullPolicy: "Never"
             }
             mode: "development"
+            logging: level: "debug"
             database: {
               type: "sqlite"
               sqlite: path: "/data/yuptime.db"
@@ -130,6 +131,22 @@ jobs:
                 enabled:  true
                 username: "admin"
                 passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
+              }
+            }
+            probes: {
+              liveness: {
+                enabled: true
+                initialDelaySeconds: 60
+                periodSeconds: 30
+                timeoutSeconds: 10
+                failureThreshold: 5
+              }
+              readiness: {
+                enabled: true
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 5
               }
             }
             crds: install: true
