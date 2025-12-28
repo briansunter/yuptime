@@ -358,7 +358,7 @@ jobs:
   publish-helm:
     name: Publish Helm Chart to OCI
     runs-on: ubuntu-latest
-    needs: generate-artifacts
+    needs: [release-please, generate-artifacts]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
       - name: Download Helm chart artifact
