@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.10](https://github.com/briansunter/yuptime/compare/v0.0.9...v0.0.10) (2025-12-28)
+
+
+### Bug Fixes
+
+* add Timoni setup to generate-artifacts job ([c594c40](https://github.com/briansunter/yuptime/commit/c594c40cab80d46f2d970f66263cd1e0d932a154))
+
 ## [0.0.9](https://github.com/briansunter/yuptime/compare/v0.0.8...v0.0.9) (2025-12-28)
 
 
