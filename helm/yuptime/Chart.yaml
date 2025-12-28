@@ -1,0 +1,27 @@
+apiVersion: v2
+name: yuptime
+description: Kubernetes-native monitoring where all configuration is CRDs
+type: application
+version: 0.0.8
+appVersion: 0.0.8
+kubeVersion: ">=1.26.0"
+keywords:
+  - monitoring
+  - uptime
+  - kubernetes
+  - crd
+  - gitops
+home: https://github.com/yuptime/yuptime
+sources:
+  - https://github.com/yuptime/yuptime
+maintainers:
+  - name: briansunter
+    email: brian@yuptime.io
+annotations:
+  artifacthub.io/category: monitoring
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://docs.yuptime.io
+    - name: Support
+      url: https://github.com/yuptime/yuptime/issues
