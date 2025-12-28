@@ -130,6 +130,12 @@ import (
 			resources: ["monitors"]
 			verbs: ["get", "list"]
 		},
+		// Allow updating Monitor status (checker writes results here)
+		{
+			apiGroups: ["monitoring.yuptime.io"]
+			resources: ["monitors/status"]
+			verbs: ["patch", "update"]
+		},
 		// Allow creating Events
 		{
 			apiGroups: [""]

@@ -6,19 +6,22 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "tsc && bun run web:build",
+    "build": "bun run web:build",
+    "build:node": "tsc && bun run web:build",
     "web:build": "cd web && bun run build",
-    "start": "node dist/index.js",
+    "start": "bun run src/index.ts",
+    "start:node": "node dist/index.js",
     "test": "bun test",
     "test:ci": "bun test --ci",
     "test:coverage": "bun test --coverage",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
-    "type-check": "tsc --noEmit",
+    "type-check": "bunx tsc --noEmit",
     "check": "bun run lint && bun run type-check && bun run test",
     "db:push": "drizzle-kit push:sqlite",
-    "db:generate": "drizzle-kit generate:sqlite"
+    "db:generate": "drizzle-kit generate:sqlite",
+    "prepare": "husky"
   },
   "dependencies": {
     "@fastify/cookie": "^8.2.0",
@@ -44,6 +47,7 @@
     "@types/node": "^20.12.0",
     "@types/uuid": "^11.0.0",
     "drizzle-kit": "^0.23.0",
+    "husky": "^9.1.7",
     "typescript": "^5.4.4"
   },
   "engines": {

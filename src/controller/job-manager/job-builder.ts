@@ -81,13 +81,7 @@ export function buildJobForMonitor(
               env: [
                 {
                   name: "NODE_ENV",
-                  value: "production",
-                },
-                {
-                  name: "ETCD_ENDPOINTS",
-                  value:
-                    process.env.ETCD_ENDPOINTS ||
-                    "http://etcd.yuptime.svc.cluster.local:2379",
+                  value: process.env.NODE_ENV || "production",
                 },
                 {
                   name: "NODE_TLS_REJECT_UNAUTHORIZED",
@@ -112,7 +106,7 @@ export function buildJobForMonitor(
               },
               securityContext: {
                 allowPrivilegeEscalation: false,
-                // Note: readOnlyRootFilesystem disabled to allow database writes
+                readOnlyRootFilesystem: true,
                 capabilities: {
                   drop: ["ALL"],
                 },
