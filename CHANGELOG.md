@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.7](https://github.com/briansunter/yuptime/compare/v0.0.6...v0.0.7) (2025-12-28)
+
+
+### Bug Fixes
+
+* restore SQLite/PostgreSQL database support ([da2242f](https://github.com/briansunter/yuptime/commit/da2242f71d0f07df4244e6baa4a25083bf07aca2))
+
 ## [0.0.6](https://github.com/briansunter/yuptime/compare/v0.0.5...v0.0.6) (2025-12-28)
 
 
