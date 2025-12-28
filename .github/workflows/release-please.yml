@@ -40,7 +40,7 @@ jobs:
           target-branch: master
 
   test:
-    name: Run Tests
+    name: Run Unit Tests
     runs-on: ubuntu-latest
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
@@ -65,10 +65,115 @@ jobs:
       - name: Type check
         run: bun run type-check
 
+  e2e-test:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    needs: [release-please, test]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          minikube-version: 'latest'
+          driver: docker
+          container-runtime: docker
+          cpus: 2
+          memory: 4096
+
+      - name: Setup Timoni
+        uses: stefanprodan/timoni/actions/setup@main
+        with:
+          version: latest
+
+      - name: Build Docker images
+        run: |
+          eval $(minikube docker-env)
+          docker build -t yuptime-api:latest -f Dockerfile .
+          docker build -t yuptime-checker:latest -f Dockerfile.checker .
+          docker images | grep yuptime
+
+      - name: Create values file
+        run: |
+          cat > values-ci.cue << 'EOF'
+          values: {
+            image: {
+              repository: "yuptime-api"
+              tag:        "latest"
+              digest:     ""
+              pullPolicy: "Never"
+            }
+            checkerImage: {
+              repository: "yuptime-checker"
+              tag:        "latest"
+              digest:     ""
+              pullPolicy: "Never"
+            }
+            mode: "development"
+            database: {
+              type: "sqlite"
+              sqlite: path: "/data/yuptime.db"
+            }
+            storage: {
+              enabled:      true
+              size:         "1Gi"
+              storageClass: "standard"
+              accessMode:   "ReadWriteOnce"
+            }
+            auth: {
+              mode: "local"
+              session: secret: "ci-test-secret"
+              adminUser: {
+                enabled:  true
+                username: "admin"
+                passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
+              }
+            }
+            crds: install: true
+            test: enabled: true
+          }
+          EOF
+
+      - name: Deploy with Timoni
+        run: |
+          timoni mod vet ./timoni/yuptime
+          timoni apply yuptime ./timoni/yuptime -n yuptime -f values-ci.cue --timeout=5m
+
+      - name: Wait for deployment
+        timeout-minutes: 3
+        run: |
+          kubectl rollout status deployment/yuptime-api -n yuptime --timeout=120s
+          kubectl get pods -n yuptime
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          kubectl get pods -n yuptime -o wide
+          kubectl describe pods -n yuptime
+          kubectl logs -n yuptime -l app.kubernetes.io/name=yuptime --tail=100 || true
+          kubectl get events -n yuptime --sort-by='.lastTimestamp'
+
+      - name: Health check
+        timeout-minutes: 2
+        run: |
+          kubectl port-forward svc/yuptime-api 3000:3000 -n yuptime &
+          sleep 5
+          curl -f http://localhost:3000/health
+          echo "✓ Health check passed"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          timoni delete yuptime -n yuptime || true
+          kubectl delete namespace yuptime --ignore-not-found || true
+
   build-api:
     name: Build API Image
     runs-on: ubuntu-latest
-    needs: [release-please, test]
+    needs: [release-please, test, e2e-test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -134,7 +239,7 @@ jobs:
   build-checker:
     name: Build Checker Image
     runs-on: ubuntu-latest
-    needs: [release-please, test]
+    needs: [release-please, test, e2e-test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     outputs:
       digest: ${{ steps.build.outputs.digest }}
