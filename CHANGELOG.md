@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4](https://github.com/briansunter/yuptime/compare/v0.0.3...v0.0.4) (2025-12-28)
+
+
+### Bug Fixes
+
+* fetch BWS secrets directly in each build job ([987760b](https://github.com/briansunter/yuptime/commit/987760b6e182a4a5c321bce89c3a15b8e78d8174))
+
 ## [0.0.3](https://github.com/briansunter/yuptime/compare/v0.0.2...v0.0.3) (2025-12-28)
 
 
