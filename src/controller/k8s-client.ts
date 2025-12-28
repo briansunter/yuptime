@@ -1,11 +1,11 @@
 import {
-  KubeConfig,
-  Watch,
-  CustomObjectsApi,
-  CoordinationV1Api,
-  CoreV1Api,
   AppsV1Api,
   BatchV1Api,
+  CoordinationV1Api,
+  CoreV1Api,
+  CustomObjectsApi,
+  KubeConfig,
+  Watch,
 } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
 
@@ -32,7 +32,7 @@ export function initializeK8sClient(): KubeConfig {
     } catch (_error) {
       logger.error("Failed to initialize Kubernetes client");
       throw new Error(
-        "Kubernetes client initialization failed. Ensure running in cluster or KUBECONFIG is set."
+        "Kubernetes client initialization failed. Ensure running in cluster or KUBECONFIG is set.",
       );
     }
   }
@@ -59,7 +59,7 @@ export function createCRDWatcher(
   group: string,
   version: string,
   plural: string,
-  options: { namespace?: string; namespaced?: boolean } = {}
+  options: { namespace?: string; namespaced?: boolean } = {},
 ) {
   const kc = getK8sClient();
   const { namespace = "", namespaced = true } = options;
@@ -89,10 +89,10 @@ export function createCRDWatcher(
         const response = await fetch(url, {
           method: "GET",
           headers: {
-            "Accept": "application/json",
+            Accept: "application/json",
             ...(opts.headers || {}),
           },
-          // @ts-ignore - Bun supports this
+          // @ts-expect-error - Bun supports this
           tls: {
             rejectUnauthorized: false, // For self-signed certs in dev
           },
@@ -105,7 +105,10 @@ export function createCRDWatcher(
         const data = await response.json();
         return (data as any).items || [];
       } catch (error) {
-        logger.error({ group, version, plural, namespace, error }, "Failed to list CRDs");
+        logger.error(
+          { group, version, plural, namespace, error },
+          "Failed to list CRDs",
+        );
         throw error;
       }
     },
@@ -118,10 +121,24 @@ export function createCRDWatcher(
 
       try {
         return ns
-          ? await client.getNamespacedCustomObject({ group, version, namespace: ns, plural, name })
-          : await client.getClusterCustomObject({ group, version, plural, name });
+          ? await client.getNamespacedCustomObject({
+              group,
+              version,
+              namespace: ns,
+              plural,
+              name,
+            })
+          : await client.getClusterCustomObject({
+              group,
+              version,
+              plural,
+              name,
+            });
       } catch (error) {
-        logger.error({ group, version, plural, name, namespace: ns, error }, "Failed to get CRD");
+        logger.error(
+          { group, version, plural, name, namespace: ns, error },
+          "Failed to get CRD",
+        );
         throw error;
       }
     },
@@ -134,10 +151,24 @@ export function createCRDWatcher(
 
       try {
         return ns
-          ? await client.createNamespacedCustomObject({ group, version, namespace: ns, plural, body })
-          : await client.createClusterCustomObject({ group, version, plural, body });
+          ? await client.createNamespacedCustomObject({
+              group,
+              version,
+              namespace: ns,
+              plural,
+              body,
+            })
+          : await client.createClusterCustomObject({
+              group,
+              version,
+              plural,
+              body,
+            });
       } catch (error) {
-        logger.error({ group, version, plural, namespace: ns, error }, "Failed to create CRD");
+        logger.error(
+          { group, version, plural, namespace: ns, error },
+          "Failed to create CRD",
+        );
         throw error;
       }
     },
@@ -150,12 +181,25 @@ export function createCRDWatcher(
 
       try {
         return ns
-          ? await client.patchNamespacedCustomObject({ group, version, namespace: ns, plural, name, body })
-          : await client.patchClusterCustomObject({ group, version, plural, name, body });
+          ? await client.patchNamespacedCustomObject({
+              group,
+              version,
+              namespace: ns,
+              plural,
+              name,
+              body,
+            })
+          : await client.patchClusterCustomObject({
+              group,
+              version,
+              plural,
+              name,
+              body,
+            });
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
-          "Failed to patch CRD"
+          "Failed to patch CRD",
         );
         throw error;
       }
@@ -175,13 +219,19 @@ export function createCRDWatcher(
               namespace: ns,
               plural,
               name,
-              body
+              body,
             })
-          : await client.patchClusterCustomObjectStatus({ group, version, plural, name, body });
+          : await client.patchClusterCustomObjectStatus({
+              group,
+              version,
+              plural,
+              name,
+              body,
+            });
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
-          "Failed to patch CRD status"
+          "Failed to patch CRD status",
         );
         throw error;
       }
@@ -195,12 +245,23 @@ export function createCRDWatcher(
 
       try {
         return ns
-          ? await client.deleteNamespacedCustomObject({ group, version, namespace: ns, plural, name })
-          : await client.deleteClusterCustomObject({ group, version, plural, name });
+          ? await client.deleteNamespacedCustomObject({
+              group,
+              version,
+              namespace: ns,
+              plural,
+              name,
+            })
+          : await client.deleteClusterCustomObject({
+              group,
+              version,
+              plural,
+              name,
+            });
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
-          "Failed to delete CRD"
+          "Failed to delete CRD",
         );
         throw error;
       }
@@ -212,7 +273,7 @@ export function createCRDWatcher(
     async watch(
       onEvent: (type: string, obj: any) => void,
       onError?: (error: Error) => void,
-      ns?: string
+      ns?: string,
     ) {
       const kc = getK8sClient();
       const path = ns
@@ -227,7 +288,7 @@ export function createCRDWatcher(
         (phase, obj) => {
           onEvent(phase, obj);
         },
-        onError || (() => {})
+        onError || (() => {}),
       );
     },
   };

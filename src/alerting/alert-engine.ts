@@ -2,11 +2,11 @@
  * Alert engine - detects state transitions and creates incidents
  */
 
-import { logger } from "../lib/logger";
+import { and, desc, eq } from "drizzle-orm";
 import { getDatabase } from "../db";
 import { heartbeats, incidents } from "../db/schema";
-import type { AlertEvent, MatchedPolicy, AlertToDeliver } from "./types";
-import { eq, and, desc, } from "drizzle-orm";
+import { logger } from "../lib/logger";
+import type { AlertEvent, AlertToDeliver, MatchedPolicy } from "./types";
 
 /**
  * Get previous heartbeat for state change detection
@@ -29,14 +29,12 @@ export async function getPreviousHeartbeat(monitorId: string) {
  */
 export async function getActiveIncident(monitorId: string) {
   const db = getDatabase();
-  const results = await db
+  const results = (await db
     .select()
     .from(incidents)
-    .where(
-      and(eq(incidents.monitorId, monitorId), eq(incidents.state, "down"))
-    )
+    .where(and(eq(incidents.monitorId, monitorId), eq(incidents.state, "down")))
     .limit(1)
-    .execute() as any[];
+    .execute()) as any[];
 
   return results[0] || null;
 }
@@ -45,7 +43,7 @@ export async function getActiveIncident(monitorId: string) {
  * Create or close incident based on state change
  */
 export async function handleIncident(
-  event: AlertEvent
+  event: AlertEvent,
 ): Promise<{ incidentId: number; isNew: boolean }> {
   const db = getDatabase();
 
@@ -54,9 +52,12 @@ export async function handleIncident(
     const active = await getActiveIncident(event.monitorId);
     if (active) {
       const now = new Date();
-      const startedAt = typeof active.startedAt === 'string' ? new Date(active.startedAt) : active.startedAt;
+      const startedAt =
+        typeof active.startedAt === "string"
+          ? new Date(active.startedAt)
+          : active.startedAt;
       const durationSeconds = Math.floor(
-        (now.getTime() - startedAt.getTime()) / 1000
+        (now.getTime() - startedAt.getTime()) / 1000,
       );
 
       await db
@@ -75,7 +76,7 @@ export async function handleIncident(
           incidentId: active.id,
           duration: durationSeconds,
         },
-        "Incident closed"
+        "Incident closed",
       );
 
       return { incidentId: active.id, isNew: false };
@@ -95,24 +96,22 @@ export async function handleIncident(
 
     // Create new incident
     const now = new Date();
-    const incidentId = await db
-      .insert(incidents)
-      .values({
-        monitorNamespace: event.monitorNamespace,
-        monitorName: event.monitorName,
-        monitorId: event.monitorId,
-        state: "down",
-        startedAt: now.toISOString(),
-        suppressed: false,
-        acknowledged: false,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      });
+    const incidentId = await db.insert(incidents).values({
+      monitorNamespace: event.monitorNamespace,
+      monitorName: event.monitorName,
+      monitorId: event.monitorId,
+      state: "down",
+      startedAt: now.toISOString(),
+      suppressed: false,
+      acknowledged: false,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    });
 
     const id = (incidentId as any).id || 0;
     logger.info(
       { monitorId: event.monitorId, incidentId: id },
-      "Incident created"
+      "Incident created",
     );
 
     return { incidentId: id, isNew: true };
@@ -128,7 +127,7 @@ export async function handleIncident(
  */
 export function shouldTriggerAlert(
   event: AlertEvent,
-  policy: MatchedPolicy
+  policy: MatchedPolicy,
 ): boolean {
   const { triggers } = policy;
 
@@ -157,7 +156,7 @@ export function shouldTriggerAlert(
  */
 export function formatAlertMessage(
   event: AlertEvent,
-  policy: MatchedPolicy
+  policy: MatchedPolicy,
 ): { title: string; body: string } {
   const templates = policy.formatting || {};
 
@@ -186,8 +185,7 @@ Time: ${event.timestamp.toISOString()}
       .replace("{state}", event.currentState)
       .replace("{reason}", event.reason)
       .replace("{message}", event.message)
-      .replace("{latency}", event.latencyMs.toString()) ||
-    defaultBody;
+      .replace("{latency}", event.latencyMs.toString()) || defaultBody;
 
   return { title, body };
 }
@@ -197,7 +195,7 @@ Time: ${event.timestamp.toISOString()}
  */
 export async function processAlertEvent(
   event: AlertEvent,
-  matchedPolicies: MatchedPolicy[]
+  matchedPolicies: MatchedPolicy[],
 ): Promise<AlertToDeliver[]> {
   const alertsToDeliver: AlertToDeliver[] = [];
 
@@ -214,7 +212,7 @@ export async function processAlertEvent(
     if (!shouldTriggerAlert(event, policy)) {
       logger.debug(
         { policy: policy.name, event: event.currentState },
-        "Policy trigger condition not met"
+        "Policy trigger condition not met",
       );
       continue;
     }
@@ -250,7 +248,7 @@ export async function processAlertEvent(
 
   logger.info(
     { monitorId: event.monitorId, alertCount: alertsToDeliver.length },
-    "Alerts queued for delivery"
+    "Alerts queued for delivery",
   );
 
   return alertsToDeliver;

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { MonitorSpecSchema, } from "./monitor";
 import { StatusBaseSchema } from "./common";
+import { MonitorSpecSchema } from "./monitor";
 
 // MonitorSet is a bulk declarative way to create many monitors
 export const MonitorSetItemSchema = z.object({
@@ -36,7 +36,7 @@ export const MonitorSetStatusSchema = StatusBaseSchema.extend({
         name: z.string(),
         ready: z.boolean(),
         message: z.string().optional(),
-      })
+      }),
     )
     .optional(),
 });
@@ -45,7 +45,7 @@ export type MonitorSetStatus = z.infer<typeof MonitorSetStatusSchema>;
 
 // Full MonitorSet CRD
 export const MonitorSetSchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
   kind: z.literal("MonitorSet"),
   metadata: z.object({
     name: z.string(),

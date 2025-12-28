@@ -1,14 +1,14 @@
-# Network Policy for KubeKuma Controller and Jobs
+# Network Policy for Yuptime Controller and Jobs
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: kubekuma-controller
-  namespace: kubekuma
+  name: yuptime-controller
+  namespace: yuptime
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: kubekuma
+      app.kubernetes.io/name: yuptime
   policyTypes:
   - Ingress
   - Egress

@@ -1,14 +1,14 @@
 import { logger } from "../../lib/logger";
 import { MonitorSchema } from "../../types/crd";
-import type { ReconcilerConfig, CRDResource, ReconcileContext } from "./types";
+import type { JobManager } from "../job-manager";
+import { calculateJitter, rescheduleJob } from "../job-manager/jitter";
+import type { CRDResource, ReconcileContext, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
 } from "./validation";
-import { calculateJitter, rescheduleJob } from "../job-manager/jitter";
-import type { JobManager } from "../job-manager";
 
 // Track which monitors have been scheduled to prevent duplicates
 const scheduledMonitors = new Set<string>();
@@ -23,7 +23,9 @@ const validateMonitorSchedule = (resource: CRDResource): string[] => {
   if (!spec.schedule) return errors;
 
   if (spec.schedule.timeoutSeconds >= spec.schedule.intervalSeconds) {
-    errors.push("schedule.timeoutSeconds must be less than schedule.intervalSeconds");
+    errors.push(
+      "schedule.timeoutSeconds must be less than schedule.intervalSeconds",
+    );
   }
 
   if (spec.schedule.intervalSeconds < 20) {
@@ -108,13 +110,16 @@ const validateMonitor = composeValidators(
   commonValidations.validateSpec,
   createZodValidator(MonitorSchema),
   validateMonitorSchedule,
-  validateMonitorTarget
+  validateMonitorTarget,
 );
 
 /**
  * Monitor reconciliation logic
  */
-const reconcileMonitor = async (resource: CRDResource, ctx: ReconcileContext) => {
+const reconcileMonitor = async (
+  resource: CRDResource,
+  ctx: ReconcileContext,
+) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -124,7 +129,10 @@ const reconcileMonitor = async (resource: CRDResource, ctx: ReconcileContext) =>
   // Get job manager from context
   const jobManager = ctx?.jobManager as JobManager;
   if (!jobManager) {
-    logger.error({ namespace, name }, "JobManager not available in reconciliation context");
+    logger.error(
+      { namespace, name },
+      "JobManager not available in reconciliation context",
+    );
     return;
   }
 
@@ -138,22 +146,36 @@ const reconcileMonitor = async (resource: CRDResource, ctx: ReconcileContext) =>
       const jitterPercent = spec.schedule?.jitterPercent || 5;
 
       // Calculate deterministic jitter
-      const jitterMs = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
+      const jitterMs = calculateJitter(
+        namespace,
+        name,
+        jitterPercent,
+        intervalSeconds,
+      );
 
       // Schedule first check with jitter
       setTimeout(async () => {
         try {
           await jobManager.scheduleCheck(resource as any); // Cast to Monitor type
-          logger.info({ namespace, name, type: spec.type, interval: intervalSeconds }, "Monitor check scheduled");
+          logger.info(
+            { namespace, name, type: spec.type, interval: intervalSeconds },
+            "Monitor check scheduled",
+          );
         } catch (error) {
-          logger.error({ namespace, name, error }, "Failed to schedule monitor check");
+          logger.error(
+            { namespace, name, error },
+            "Failed to schedule monitor check",
+          );
         }
       }, jitterMs);
 
       // Mark as scheduled
       scheduledMonitors.add(monitorId);
 
-      logger.debug({ namespace, name, jitterMs }, "Monitor scheduled with jitter");
+      logger.debug(
+        { namespace, name, jitterMs },
+        "Monitor scheduled with jitter",
+      );
     } else {
       logger.debug({ namespace, name }, "Monitor already scheduled, skipping");
     }
@@ -178,13 +200,19 @@ const reconcileMonitor = async (resource: CRDResource, ctx: ReconcileContext) =>
 /**
  * Handle monitor deletion
  */
-export const handleMonitorDeletion = async (namespace: string, name: string) => {
+export const handleMonitorDeletion = async (
+  namespace: string,
+  name: string,
+) => {
   const monitorId = `${namespace}/${name}`;
 
   // Remove from scheduled set
   scheduledMonitors.delete(monitorId);
 
-  logger.debug({ namespace, name }, "Monitor deleted, removed from scheduled set");
+  logger.debug(
+    { namespace, name },
+    "Monitor deleted, removed from scheduled set",
+  );
 };
 
 /**

@@ -3,7 +3,7 @@ import { config } from "dotenv";
 
 config({ path: ".env.local" });
 
-const databaseUrl = process.env.DATABASE_URL || "sqlite:./kubekuma.db";
+const databaseUrl = process.env.DATABASE_URL || "sqlite:./yuptime.db";
 const isPostgres = databaseUrl.startsWith("postgresql://");
 
 export default defineConfig({

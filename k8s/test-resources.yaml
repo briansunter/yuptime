@@ -1,4 +1,4 @@
-# Test resources for KubeKuma
+# Test resources for Yuptime
 ---
 # Secret for admin user password hash
 apiVersion: v1
@@ -13,7 +13,7 @@ stringData:
 
 ---
 # LocalUser - admin user
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: LocalUser
 metadata:
   name: admin
@@ -27,7 +27,7 @@ spec:
 
 ---
 # Monitor - HTTP check for Google
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
   name: google-http
@@ -59,7 +59,7 @@ spec:
 
 ---
 # Monitor - HTTP check for CloudFlare DNS
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
   name: cloudflare-http
@@ -91,7 +91,7 @@ spec:
 
 ---
 # Monitor - TCP check for Google DNS
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
   name: google-dns-tcp
@@ -115,7 +115,7 @@ spec:
 
 ---
 # Monitor - DNS check
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
   name: google-dns-resolve
@@ -138,15 +138,15 @@ spec:
     - resolution
 
 ---
-# Monitor - Local KubeKuma API
-apiVersion: monitoring.kubekuma.io/v1
+# Monitor - Local Yuptime API
+apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
-  name: kubekuma-api-health
-  namespace: kubekuma
+  name: yuptime-api-health
+  namespace: yuptime
   labels:
     tier: internal
-    service: kubekuma
+    service: yuptime
 spec:
   enabled: true
   type: http
@@ -155,7 +155,7 @@ spec:
     timeoutSeconds: 5
   target:
     http:
-      url: http://kubekuma-api.kubekuma.svc.cluster.local:3000/health
+      url: http://yuptime-api.yuptime.svc.cluster.local:3000/health
       method: GET
   successCriteria:
     http:
@@ -166,7 +166,7 @@ spec:
 
 ---
 # StatusPage - Public status page
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: StatusPage
 metadata:
   name: public-status
@@ -202,5 +202,5 @@ spec:
       description: Internal services
       monitors:
         - ref:
-            namespace: kubekuma
-            name: kubekuma-api-health
+            namespace: yuptime
+            name: yuptime-api-health

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { SecretRefSchema, StatusBaseSchema } from "./common";
 
-// KubeKumaSettings spec
-export const KubeKumaSettingsSpecSchema = z.object({
+// YuptimeSettings spec
+export const YuptimeSettingsSpecSchema = z.object({
   mode: z.object({
     gitOpsReadOnly: z.boolean().optional().default(false),
     singleInstanceRequired: z.boolean().optional().default(true),
@@ -23,7 +23,7 @@ export const KubeKumaSettingsSpecSchema = z.object({
             z.object({
               matchGroup: z.string(),
               role: z.enum(["admin", "editor", "viewer"]),
-            })
+            }),
           )
           .optional(),
       })
@@ -73,7 +73,7 @@ export const KubeKumaSettingsSpecSchema = z.object({
   }),
 
   networking: z.object({
-    userAgent: z.string().optional().default("KubeKuma/1.0"),
+    userAgent: z.string().optional().default("Yuptime/1.0"),
     dns: z
       .object({
         resolvers: z.array(z.string()).optional(),
@@ -82,7 +82,10 @@ export const KubeKumaSettingsSpecSchema = z.object({
       .optional(),
     ping: z
       .object({
-        mode: z.enum(["icmp", "tcpFallback", "tcpOnly"]).optional().default("tcpFallback"),
+        mode: z
+          .enum(["icmp", "tcpFallback", "tcpOnly"])
+          .optional()
+          .default("tcpFallback"),
         tcpFallbackPort: z.number().min(1).max(65535).optional().default(443),
       })
       .optional(),
@@ -94,7 +97,10 @@ export const KubeKumaSettingsSpecSchema = z.object({
     metrics: z
       .object({
         enabled: z.boolean().optional().default(true),
-        authMode: z.enum(["open", "basic", "apiKey"]).optional().default("open"),
+        authMode: z
+          .enum(["open", "basic", "apiKey"])
+          .optional()
+          .default("open"),
         basicAuthSecretRef: SecretRefSchema.optional(),
       })
       .optional(),
@@ -107,7 +113,7 @@ export const KubeKumaSettingsSpecSchema = z.object({
         .array(
           z.object({
             type: z.enum(["ingress", "gatewayapi", "service"]),
-          })
+          }),
         )
         .optional(),
       behavior: z
@@ -121,30 +127,30 @@ export const KubeKumaSettingsSpecSchema = z.object({
     .optional(),
 });
 
-export type KubeKumaSettingsSpec = z.infer<typeof KubeKumaSettingsSpecSchema>;
+export type YuptimeSettingsSpec = z.infer<typeof YuptimeSettingsSpecSchema>;
 
-// KubeKumaSettings status
-export const KubeKumaSettingsStatusSchema = StatusBaseSchema.extend({
+// YuptimeSettings status
+export const YuptimeSettingsStatusSchema = StatusBaseSchema.extend({
   lastValidation: z.string().optional(),
   errors: z.array(z.string()).optional(),
 });
 
-export type KubeKumaSettingsStatus = z.infer<typeof KubeKumaSettingsStatusSchema>;
+export type YuptimeSettingsStatus = z.infer<typeof YuptimeSettingsStatusSchema>;
 
-// Full KubeKumaSettings CRD (cluster-scoped)
-export const KubeKumaSettingsSchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
-  kind: z.literal("KubeKumaSettings"),
+// Full YuptimeSettings CRD (cluster-scoped)
+export const YuptimeSettingsSchema = z.object({
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
+  kind: z.literal("YuptimeSettings"),
   metadata: z.object({
-    name: z.literal("kubekuma"), // Only one instance per cluster
+    name: z.literal("yuptime"), // Only one instance per cluster
     uid: z.string().optional(),
     resourceVersion: z.string().optional(),
     generation: z.number().optional(),
     labels: z.record(z.string()).optional(),
     annotations: z.record(z.string()).optional(),
   }),
-  spec: KubeKumaSettingsSpecSchema,
-  status: KubeKumaSettingsStatusSchema.optional(),
+  spec: YuptimeSettingsSpecSchema,
+  status: YuptimeSettingsStatusSchema.optional(),
 });
 
-export type KubeKumaSettings = z.infer<typeof KubeKumaSettingsSchema>;
+export type YuptimeSettings = z.infer<typeof YuptimeSettingsSchema>;

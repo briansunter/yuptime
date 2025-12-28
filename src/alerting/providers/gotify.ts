@@ -9,7 +9,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendGotifyNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (!config.gotify?.baseUrlSecretRef || !config.gotify?.tokenSecretRef) {
     return {
@@ -22,13 +22,13 @@ export async function sendGotifyNotification(
     const baseUrl = await resolveSecret(
       config.gotify.baseUrlSecretRef.name,
       config.gotify.baseUrlSecretRef.key,
-      config.gotify.baseUrlSecretRef.namespace || "monitoring"
+      config.gotify.baseUrlSecretRef.namespace || "monitoring",
     );
 
     const token = await resolveSecret(
       config.gotify.tokenSecretRef.name,
       config.gotify.tokenSecretRef.key,
-      config.gotify.tokenSecretRef.namespace || "monitoring"
+      config.gotify.tokenSecretRef.namespace || "monitoring",
     );
 
     if (!baseUrl || !token) {

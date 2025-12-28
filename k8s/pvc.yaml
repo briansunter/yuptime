@@ -1,10 +1,10 @@
-# Persistent Volume Claim for KubeKuma
+# Persistent Volume Claim for Yuptime
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: kubekuma-pvc
-  namespace: kubekuma
+  name: yuptime-pvc
+  namespace: yuptime
 spec:
   accessModes:
   - ReadWriteOnce

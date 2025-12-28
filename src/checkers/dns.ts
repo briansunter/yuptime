@@ -5,7 +5,10 @@ import type { CheckResult } from "./index";
 /**
  * DNS resolution checker
  */
-export async function checkDns(monitor: Monitor, _timeout: number): Promise<CheckResult> {
+export async function checkDns(
+  monitor: Monitor,
+  _timeout: number,
+): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.dns;
 
@@ -29,7 +32,10 @@ export async function checkDns(monitor: Monitor, _timeout: number): Promise<Chec
     switch (target.recordType || "A") {
       case "A":
       case "AAAA": {
-        const addresses = await dns.resolve(target.name, target.recordType || "A");
+        const addresses = await dns.resolve(
+          target.name,
+          target.recordType || "A",
+        );
         results = addresses;
         break;
       }
@@ -81,7 +87,9 @@ export async function checkDns(monitor: Monitor, _timeout: number): Promise<Chec
     // If expected values are configured, check them
     if (target.expected?.values && target.expected.values.length > 0) {
       const hasMatch = target.expected.values.some((expected) =>
-        results.some((result) => result === expected || result.includes(expected))
+        results.some(
+          (result) => result === expected || result.includes(expected),
+        ),
       );
 
       if (!hasMatch) {
@@ -104,7 +112,10 @@ export async function checkDns(monitor: Monitor, _timeout: number): Promise<Chec
     const latencyMs = Date.now() - startTime;
 
     if (error instanceof Error) {
-      if (error.message.includes("ENOTFOUND") || error.message.includes("NXDOMAIN")) {
+      if (
+        error.message.includes("ENOTFOUND") ||
+        error.message.includes("NXDOMAIN")
+      ) {
         return {
           state: "down",
           latencyMs,
@@ -113,7 +124,10 @@ export async function checkDns(monitor: Monitor, _timeout: number): Promise<Chec
         };
       }
 
-      if (error.message.includes("ETIMEDOUT") || error.message.includes("ETIMEOUT")) {
+      if (
+        error.message.includes("ETIMEDOUT") ||
+        error.message.includes("ETIMEOUT")
+      ) {
         return {
           state: "down",
           latencyMs,

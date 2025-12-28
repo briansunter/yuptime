@@ -1,6 +1,13 @@
 import { sql } from "drizzle-orm";
+import {
+  boolean,
+  integer,
+  pgTable,
+  serial,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, boolean, integer, serial } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;

@@ -24,7 +24,7 @@ export type ApiKeyStatus = z.infer<typeof ApiKeyStatusSchema>;
 
 // Full ApiKey CRD
 export const ApiKeySchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
   kind: z.literal("ApiKey"),
   metadata: z.object({
     name: z.string(),

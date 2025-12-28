@@ -1,0 +1,83 @@
+version: 2
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Bun/npm packages (root)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "backend"
+    groups:
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+      kubernetes:
+        patterns:
+          - "@kubernetes/*"
+      fastify:
+        patterns:
+          - "fastify*"
+          - "@fastify/*"
+      database:
+        patterns:
+          - "drizzle*"
+          - "postgres"
+          - "etcd3"
+
+  # Bun/npm packages (frontend)
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(web)"
+    labels:
+      - "dependencies"
+      - "frontend"
+    groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      radix:
+        patterns:
+          - "@radix-ui/*"
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      tailwind:
+        patterns:
+          - "tailwindcss*"
+          - "postcss"
+          - "autoprefixer"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+
+  # Docker base images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "docker"
+    labels:
+      - "dependencies"
+      - "docker"

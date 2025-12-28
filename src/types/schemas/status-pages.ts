@@ -9,10 +9,12 @@ import { z } from "zod";
  * Monitor namespace/name format validation
  * Used in several routes for monitor references
  */
-const MonitorRefSchema = z.string().regex(
-  /^[a-zA-Z0-9-]+\/[a-zA-Z0-9-_]+$/,
-  "Monitor must be in format: namespace/name"
-);
+const MonitorRefSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9-]+\/[a-zA-Z0-9-_]+$/,
+    "Monitor must be in format: namespace/name",
+  );
 
 /**
  * Status page route params

@@ -3,12 +3,12 @@
  * Handles session creation, verification, and user context attachment
  */
 
-import type { FastifyRequest, FastifyReply } from "fastify";
+import { and, eq, gte } from "drizzle-orm";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { getDatabase } from "../../db";
 import { sessions } from "../../db/schema";
-import { eq, and, gte } from "drizzle-orm";
-import { logger } from "../../lib/logger";
 import { hashToken } from "../../lib/crypto";
+import { logger } from "../../lib/logger";
 
 /**
  * JWT payload structure
@@ -54,7 +54,7 @@ declare module "@fastify/jwt" {
  */
 export async function sessionMiddleware(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   try {
     // Check for JWT in httpOnly cookie first, then Authorization header
@@ -89,8 +89,8 @@ export async function sessionMiddleware(
         and(
           eq(sessions.id, payload.sessionId),
           eq(sessions.tokenHash, tokenHash),
-          gte(sessions.expiresAt, nowISO)
-        )
+          gte(sessions.expiresAt, nowISO),
+        ),
       )
       .execute();
 
@@ -98,7 +98,7 @@ export async function sessionMiddleware(
       // Session revoked, expired, or doesn't exist
       logger.debug(
         { sessionId: payload.sessionId },
-        "Session not found or expired"
+        "Session not found or expired",
       );
       reply.clearCookie("auth_token");
       return;
@@ -120,7 +120,7 @@ export async function sessionMiddleware(
 
     logger.debug(
       { username: payload.username, sessionId: payload.sessionId },
-      "Session verified"
+      "Session verified",
     );
   } catch (error) {
     // Unexpected error during session verification
@@ -140,7 +140,7 @@ export async function sessionMiddleware(
  */
 export async function requireAuth(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   if (!request.user) {
     return reply.status(401).send({
@@ -162,12 +162,10 @@ export async function requireAuth(
  * @throws 401 if not authenticated
  * @throws 403 if user doesn't have required role
  */
-export function requireRole(
-  ...roles: Array<"admin" | "editor" | "viewer">
-) {
+export function requireRole(...roles: Array<"admin" | "editor" | "viewer">) {
   return async (
     request: FastifyRequest,
-    reply: FastifyReply
+    reply: FastifyReply,
   ): Promise<void> => {
     // First check if authenticated
     if (!request.user) {

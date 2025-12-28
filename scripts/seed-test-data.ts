@@ -10,7 +10,7 @@ async function seedTestData() {
   console.log("Seeding test data...");
 
   // Open database
-  const dbPath = "/data/kubekuma.db";
+  const dbPath = "/data/yuptime.db";
   console.log("Opening database at:", dbPath);
   const sqlite = new Database(dbPath);
 
@@ -185,7 +185,7 @@ async function seedTestData() {
 
     stmt.run(
       "LocalUser",
-      "monitoring.kubekuma.io/v1",
+      "monitoring.yuptime.io/v1",
       "default",
       "admin",
       1,

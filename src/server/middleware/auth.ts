@@ -3,15 +3,15 @@
  * Validates API keys from X-API-Key header against ApiKey CRDs
  */
 
-import type { FastifyRequest, FastifyReply } from "fastify";
+import { eq } from "drizzle-orm";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { getDatabase } from "../../db";
 import { crdCache } from "../../db/schema";
-import { eq } from "drizzle-orm";
-import { logger } from "../../lib/logger";
 import { verifyApiKey } from "../../lib/crypto";
+import { logger } from "../../lib/logger";
 import { resolveSecretCached } from "../../lib/secrets";
-import type { UserContext } from "./session";
 import type { LocalUserSpec } from "../../types/crd/local-user";
+import type { UserContext } from "./session";
 
 /**
  * ApiKey CRD spec type (minimal subset we need)
@@ -51,7 +51,7 @@ interface ApiKeySpec {
  */
 export async function apiKeyAuth(
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
 ): Promise<void> {
   const apiKeyHeader = request.headers["x-api-key"] as string | undefined;
 
@@ -64,11 +64,11 @@ export async function apiKeyAuth(
     const db = getDatabase();
 
     // Get all ApiKey CRDs from cache
-    const apiKeyCrds = await db
+    const apiKeyCrds = (await db
       .select()
       .from(crdCache)
       .where(eq(crdCache.kind, "ApiKey"))
-      .execute() as any[];
+      .execute()) as any[];
 
     if (apiKeyCrds.length === 0) {
       logger.debug("No API keys configured");
@@ -100,7 +100,7 @@ export async function apiKeyAuth(
         keyHash = await resolveSecretCached(
           crd.namespace || "default",
           spec.keyHashSecretRef.name,
-          spec.keyHashSecretRef.key
+          spec.keyHashSecretRef.key,
         );
       } catch (error) {
         logger.warn(
@@ -109,7 +109,7 @@ export async function apiKeyAuth(
             secretRef: spec.keyHashSecretRef,
             error,
           },
-          "Failed to resolve API key hash from secret"
+          "Failed to resolve API key hash from secret",
         );
         continue;
       }
@@ -127,14 +127,14 @@ export async function apiKeyAuth(
       const userNamespace = crd.namespace || "default";
 
       // Find LocalUser CRD in same namespace
-      const userCrds = await db
+      const userCrds = (await db
         .select()
         .from(crdCache)
         .where(eq(crdCache.kind, "LocalUser"))
-        .execute() as any[];
+        .execute()) as any[];
 
       const userCrd = userCrds.find(
-        (u) => u.namespace === userNamespace && u.name === userName
+        (u) => u.namespace === userNamespace && u.name === userName,
       );
 
       if (!userCrd) {
@@ -144,7 +144,7 @@ export async function apiKeyAuth(
             ownerRef: spec.ownerRef,
             namespace: userNamespace,
           },
-          "API key owner (LocalUser) not found"
+          "API key owner (LocalUser) not found",
         );
         continue;
       }
@@ -154,10 +154,7 @@ export async function apiKeyAuth(
 
       // Check if user is disabled
       if (userSpec.disabled) {
-        logger.warn(
-          { username: userSpec.username },
-          "User account disabled"
-        );
+        logger.warn({ username: userSpec.username }, "User account disabled");
         return reply.status(403).send({
           error: "User account disabled",
           code: "USER_DISABLED",
@@ -180,14 +177,17 @@ export async function apiKeyAuth(
           apiKeyName: crd.name,
           scope: request.url,
         },
-        "API key authentication successful"
+        "API key authentication successful",
       );
 
       return;
     }
 
     // No API key matched - return 401
-    logger.warn({ apiKeyHeaderLength: apiKeyHeader.length }, "API key not found or invalid");
+    logger.warn(
+      { apiKeyHeaderLength: apiKeyHeader.length },
+      "API key not found or invalid",
+    );
     return reply.status(401).send({
       error: "Invalid API key",
       code: "INVALID_API_KEY",

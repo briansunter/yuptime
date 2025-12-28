@@ -14,7 +14,7 @@ import { eq, desc } from 'drizzle-orm';
 import { existsSync } from 'fs';
 import path from 'path';
 
-const SQLITE_DB = process.env.SQLITE_DB || 'data/kubekuma.db';
+const SQLITE_DB = process.env.SQLITE_DB || 'data/yuptime.db';
 const ETCD_ENDPOINTS = process.env.ETCD_ENDPOINTS || 'https://kubernetes.default.svc:2379';
 
 // Migration stats
@@ -201,7 +201,7 @@ async function verifyMigration(sqlite: any, etcd: EtcdDatabase): Promise<boolean
  * Main migration function
  */
 async function migrate() {
-	console.log('=== KubeKuma SQLite → etcd Migration ===\n');
+	console.log('=== Yuptime SQLite → etcd Migration ===\n');
 	console.log(`SQLite DB: ${SQLITE_DB}`);
 	console.log(`etcd Endpoints: ${ETCD_ENDPOINTS}\n`);
 

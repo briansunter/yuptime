@@ -5,16 +5,16 @@
  * The checker tracks whether recent pushes have been received and validates tokens.
  */
 
-import { logger } from "../lib/logger";
+import { desc, eq } from "drizzle-orm";
 import { getDatabase } from "../db";
 import { heartbeats } from "../db/schema";
+import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
-import { eq, desc } from "drizzle-orm";
 
 export async function checkPush(
   monitor: Monitor,
-  _timeout: number
+  _timeout: number,
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.push;
@@ -33,13 +33,13 @@ export async function checkPush(
     const monitorId = `${monitor.metadata.namespace}/${monitor.metadata.name}`;
 
     // Get the most recent heartbeat to check if a push was received recently
-    const recent = await db
+    const recent = (await db
       .select()
       .from(heartbeats)
       .where(eq(heartbeats.monitorId, monitorId))
       .orderBy(desc(heartbeats.checkedAt))
       .limit(1)
-      .execute() as any[];
+      .execute()) as any[];
 
     if (!recent || recent.length === 0) {
       // No push ever received - report as down until first push
@@ -77,10 +77,7 @@ export async function checkPush(
       };
     }
   } catch (error) {
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "Push check failed"
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "Push check failed");
 
     return {
       state: "down",
@@ -98,7 +95,7 @@ export async function checkPush(
 export async function validatePushToken(
   token: string,
   monitorNamespace: string,
-  monitorName: string
+  monitorName: string,
 ): Promise<{ valid: boolean; reason?: string }> {
   try {
     const db = getDatabase();
@@ -107,17 +104,17 @@ export async function validatePushToken(
     const { crdCache } = require("../db/schema");
     const { eq, and } = require("drizzle-orm");
 
-    const monitor = await db
+    const monitor = (await db
       .select()
       .from(crdCache)
       .where(
         and(
           eq(crdCache.kind, "Monitor"),
           eq(crdCache.namespace, monitorNamespace),
-          eq(crdCache.name, monitorName)
-        )
+          eq(crdCache.name, monitorName),
+        ),
       )
-      .execute() as any[];
+      .execute()) as any[];
 
     if (!monitor || monitor.length === 0) {
       return {
@@ -145,7 +142,7 @@ export async function validatePushToken(
   } catch (error) {
     logger.error(
       { token: `${token.substring(0, 10)}...`, error },
-      "Push token validation failed"
+      "Push token validation failed",
     );
 
     return {
@@ -165,7 +162,7 @@ export async function recordPush(
   state: "up" | "down" | "pending",
   reason: string,
   message: string,
-  latencyMs?: number
+  latencyMs?: number,
 ): Promise<{ recorded: boolean; error?: string }> {
   try {
     const db = getDatabase();
@@ -185,10 +182,7 @@ export async function recordPush(
       attempts: 1,
     });
 
-    logger.debug(
-      { monitor: monitorId, state },
-      "Push event recorded"
-    );
+    logger.debug({ monitor: monitorId, state }, "Push event recorded");
 
     return { recorded: true };
   } catch (error) {

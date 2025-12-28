@@ -1,6 +1,6 @@
 import { logger } from "../lib/logger";
-import type { Monitor, } from "../types/crd";
 import { resolveSecretCached } from "../lib/secrets";
+import type { Monitor } from "../types/crd";
 
 export interface CheckResult {
   state: "up" | "down";
@@ -16,7 +16,7 @@ export interface CheckResult {
  */
 export async function checkHttp(
   monitor: Monitor,
-  timeout: number
+  timeout: number,
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.http;
@@ -35,7 +35,7 @@ export async function checkHttp(
     const headers = new Headers();
 
     // Add default headers
-    headers.set("User-Agent", "KubeKuma/1.0");
+    headers.set("User-Agent", "Yuptime/1.0");
 
     // Add configured headers (with secret resolution)
     if (target.headers) {
@@ -47,10 +47,13 @@ export async function checkHttp(
             value = await resolveSecretCached(
               monitor.metadata.namespace,
               header.valueFromSecretRef.name,
-              header.valueFromSecretRef.key
+              header.valueFromSecretRef.key,
             );
           } catch (_error) {
-            logger.warn({ monitor: monitor.metadata.name, header: header.name }, "Failed to resolve header secret");
+            logger.warn(
+              { monitor: monitor.metadata.name, header: header.name },
+              "Failed to resolve header secret",
+            );
           }
         }
 
@@ -125,7 +128,10 @@ export async function checkHttp(
       }
 
       // Check latency if specified
-      if (successCriteria?.latencyMsUnder && latencyMs > successCriteria.latencyMsUnder) {
+      if (
+        successCriteria?.latencyMsUnder &&
+        latencyMs > successCriteria.latencyMsUnder
+      ) {
         return {
           state: "down",
           latencyMs,
@@ -187,7 +193,7 @@ export async function checkHttp(
 
     logger.warn(
       { monitor: monitor.metadata.name, error },
-      "HTTP check failed with error"
+      "HTTP check failed with error",
     );
 
     return {
@@ -204,7 +210,7 @@ export async function checkHttp(
  */
 export async function checkKeyword(
   monitor: Monitor,
-  timeout: number
+  timeout: number,
 ): Promise<CheckResult> {
   // First do the HTTP check
   const httpResult = await checkHttp(monitor, timeout);
@@ -294,7 +300,10 @@ export async function checkKeyword(
 
     return httpResult;
   } catch (error) {
-    logger.warn({ monitor: monitor.metadata.name, error }, "Keyword check failed");
+    logger.warn(
+      { monitor: monitor.metadata.name, error },
+      "Keyword check failed",
+    );
 
     return {
       state: "down",
@@ -310,7 +319,7 @@ export async function checkKeyword(
  */
 export async function checkJsonQuery(
   monitor: Monitor,
-  timeout: number
+  timeout: number,
 ): Promise<CheckResult> {
   // First do the HTTP check
   const httpResult = await checkHttp(monitor, timeout);

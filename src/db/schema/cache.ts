@@ -1,6 +1,13 @@
 import { sql } from "drizzle-orm";
+import {
+  json,
+  integer as pgInteger,
+  pgTable,
+  serial,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, json, serial, integer as pgInteger } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;
@@ -11,7 +18,7 @@ export const crdCache = isPostgres
   ? pgTable("crd_cache", {
       id: serial("id").primaryKey(),
       kind: varchar("kind").notNull(), // Monitor, NotificationProvider, StatusPage, etc.
-      apiVersion: varchar("apiVersion").notNull(), // monitoring.kubekuma.io/v1
+      apiVersion: varchar("apiVersion").notNull(), // monitoring.yuptime.io/v1
       namespace: varchar("namespace").notNull(),
       name: varchar("name").notNull(),
       generation: pgInteger("generation").notNull(), // spec generation for observedGeneration tracking
@@ -26,7 +33,7 @@ export const crdCache = isPostgres
   : sqliteTable("crd_cache", {
       id: int("id").primaryKey({ autoIncrement: true }),
       kind: text("kind").notNull(), // Monitor, NotificationProvider, StatusPage, etc.
-      apiVersion: text("apiVersion").notNull(), // monitoring.kubekuma.io/v1
+      apiVersion: text("apiVersion").notNull(), // monitoring.yuptime.io/v1
       namespace: text("namespace").notNull(),
       name: text("name").notNull(),
       generation: int("generation").notNull(), // spec generation for observedGeneration tracking

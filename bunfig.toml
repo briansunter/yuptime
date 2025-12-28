@@ -3,7 +3,10 @@ root = "src"
 outdir = "dist"
 
 [test]
-root = "tests"
+# Tests are colocated with source files
+root = "src"
+coverage = false
+coverageDir = "./coverage"
 
 [package]
 # Allow importing from web package

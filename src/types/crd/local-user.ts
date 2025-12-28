@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SecretRefSchema, StatusBaseSchema } from "./common";
 
-// LocalUser spec (only active if KubeKumaSettings.auth.mode=local)
+// LocalUser spec (only active if YuptimeSettings.auth.mode=local)
 export const LocalUserSpecSchema = z.object({
   username: z.string().min(1),
   passwordHashSecretRef: SecretRefSchema,
@@ -27,7 +27,7 @@ export type LocalUserStatus = z.infer<typeof LocalUserStatusSchema>;
 
 // Full LocalUser CRD
 export const LocalUserSchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
   kind: z.literal("LocalUser"),
   metadata: z.object({
     name: z.string(),

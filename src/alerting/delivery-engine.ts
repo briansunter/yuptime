@@ -2,10 +2,10 @@
  * Notification delivery engine - queue, deduplicate, rate limit, and deliver alerts
  */
 
-import { logger } from "../lib/logger";
+import { and, eq, gt } from "drizzle-orm";
 import { getDatabase } from "../db";
 import { notificationDeliveries } from "../db/schema";
-import { eq, and, gt, } from "drizzle-orm";
+import { logger } from "../lib/logger";
 import type { AlertToDeliver, NotificationDeliveryQueueItem } from "./types";
 
 /**
@@ -13,7 +13,7 @@ import type { AlertToDeliver, NotificationDeliveryQueueItem } from "./types";
  */
 export async function isDuplicate(
   _dedupKey: string,
-  windowMinutes: number
+  windowMinutes: number,
 ): Promise<boolean> {
   const db = getDatabase();
   const _windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
@@ -23,7 +23,7 @@ export async function isDuplicate(
     .from(notificationDeliveries)
     .where(
       // This is a simplified check - in production you'd want to track dedup key separately
-      eq(notificationDeliveries.status, "sent")
+      eq(notificationDeliveries.status, "sent"),
     )
     .limit(1);
 
@@ -38,7 +38,7 @@ export async function isDuplicate(
 export async function isRateLimited(
   monitorId: string,
   policyName: string,
-  minMinutesBetween: number
+  minMinutesBetween: number,
 ): Promise<boolean> {
   if (minMinutesBetween === 0) {
     return false; // No rate limit
@@ -55,11 +55,8 @@ export async function isRateLimited(
         eq(notificationDeliveries.monitorId, monitorId),
         eq(notificationDeliveries.policyName, policyName),
         eq(notificationDeliveries.status, "sent"),
-        gt(
-          notificationDeliveries.sentAt || "",
-          windowStart.toISOString()
-        )
-      )
+        gt(notificationDeliveries.sentAt || "", windowStart.toISOString()),
+      ),
     )
     .execute();
 
@@ -71,7 +68,7 @@ export async function isRateLimited(
  */
 async function isSuppressed(
   monitorNamespace: string,
-  monitorName: string
+  monitorName: string,
 ): Promise<{ suppressed: boolean; reason?: string }> {
   try {
     const db = getDatabase();
@@ -79,17 +76,17 @@ async function isSuppressed(
     const { crdCache } = require("../db/schema");
     const { eq, and } = require("drizzle-orm");
 
-    const monitor = await db
+    const monitor = (await db
       .select()
       .from(crdCache)
       .where(
         and(
           eq(crdCache.kind, "Monitor"),
           eq(crdCache.namespace, monitorNamespace),
-          eq(crdCache.name, monitorName)
-        )
+          eq(crdCache.name, monitorName),
+        ),
       )
-      .execute() as any[];
+      .execute()) as any[];
 
     if (!monitor || monitor.length === 0) {
       return { suppressed: false };
@@ -99,7 +96,9 @@ async function isSuppressed(
     const labels = monitorSpec.metadata?.labels || {};
 
     // Check silences
-    const { getActiveSilences } = require("../controller/reconcilers/auth-and-config-reconcilers");
+    const {
+      getActiveSilences,
+    } = require("../controller/reconcilers/auth-and-config-reconcilers");
     const silences = getActiveSilences(labels);
     if (silences.length > 0) {
       return {
@@ -109,7 +108,9 @@ async function isSuppressed(
     }
 
     // Check maintenance windows
-    const { getActiveMaintenanceWindows } = require("../controller/reconcilers/maintenance-window-reconciler");
+    const {
+      getActiveMaintenanceWindows,
+    } = require("../controller/reconcilers/maintenance-window-reconciler");
     const windows = getActiveMaintenanceWindows(labels);
     if (windows.length > 0) {
       return {
@@ -129,7 +130,7 @@ async function isSuppressed(
  * Queue alert for delivery
  */
 export async function queueAlertForDelivery(
-  alert: AlertToDeliver
+  alert: AlertToDeliver,
 ): Promise<NotificationDeliveryQueueItem> {
   const db = getDatabase();
   const now = new Date();
@@ -137,7 +138,7 @@ export async function queueAlertForDelivery(
   // Check for suppression (silence or maintenance window)
   const suppression = await isSuppressed(
     alert.event.monitorNamespace,
-    alert.event.monitorName
+    alert.event.monitorName,
   );
   if (suppression.suppressed) {
     logger.debug(
@@ -146,25 +147,23 @@ export async function queueAlertForDelivery(
         policy: alert.policyName,
         reason: suppression.reason,
       },
-      "Alert suppressed"
+      "Alert suppressed",
     );
 
-    await db
-      .insert(notificationDeliveries)
-      .values({
-        incidentId: alert.incidentId,
-        monitorId: alert.event.monitorId,
-        policyName: alert.policyName,
-        providerName: alert.providerName,
-        providerType: alert.providerType,
-        status: "deduped",
-        attempts: 0,
-        createdAt: now.toISOString(),
-        metadata: JSON.stringify({
-          dedupKey: alert.dedupKey,
-          reason: suppression.reason || "suppressed",
-        }),
-      });
+    await db.insert(notificationDeliveries).values({
+      incidentId: alert.incidentId,
+      monitorId: alert.event.monitorId,
+      policyName: alert.policyName,
+      providerName: alert.providerName,
+      providerType: alert.providerType,
+      status: "deduped",
+      attempts: 0,
+      createdAt: now.toISOString(),
+      metadata: JSON.stringify({
+        dedupKey: alert.dedupKey,
+        reason: suppression.reason || "suppressed",
+      }),
+    });
 
     return {
       incidentId: alert.incidentId,
@@ -181,7 +180,7 @@ export async function queueAlertForDelivery(
   // Check for duplicates
   const isDup = await isDuplicate(
     alert.dedupKey,
-    alert.metadata?.dedupWindowMinutes || 10
+    alert.metadata?.dedupWindowMinutes || 10,
   );
   if (isDup) {
     logger.debug(
@@ -189,25 +188,23 @@ export async function queueAlertForDelivery(
         monitor: alert.event.monitorId,
         policy: alert.policyName,
       },
-      "Alert deduplicated"
+      "Alert deduplicated",
     );
 
-    await db
-      .insert(notificationDeliveries)
-      .values({
-        incidentId: alert.incidentId,
-        monitorId: alert.event.monitorId,
-        policyName: alert.policyName,
-        providerName: alert.providerName,
-        providerType: alert.providerType,
-        status: "deduped",
-        attempts: 0,
-        createdAt: now.toISOString(),
-        metadata: JSON.stringify({
-          dedupKey: alert.dedupKey,
-          reason: "duplicate_in_window",
-        }),
-      });
+    await db.insert(notificationDeliveries).values({
+      incidentId: alert.incidentId,
+      monitorId: alert.event.monitorId,
+      policyName: alert.policyName,
+      providerName: alert.providerName,
+      providerType: alert.providerType,
+      status: "deduped",
+      attempts: 0,
+      createdAt: now.toISOString(),
+      metadata: JSON.stringify({
+        dedupKey: alert.dedupKey,
+        reason: "duplicate_in_window",
+      }),
+    });
 
     return {
       incidentId: alert.incidentId,
@@ -225,7 +222,7 @@ export async function queueAlertForDelivery(
   const isLimited = await isRateLimited(
     alert.event.monitorId,
     alert.policyName,
-    alert.metadata?.rateLimitMinutes || 0
+    alert.metadata?.rateLimitMinutes || 0,
   );
   if (isLimited) {
     logger.debug(
@@ -233,25 +230,23 @@ export async function queueAlertForDelivery(
         monitor: alert.event.monitorId,
         policy: alert.policyName,
       },
-      "Alert rate limited"
+      "Alert rate limited",
     );
 
-    await db
-      .insert(notificationDeliveries)
-      .values({
-        incidentId: alert.incidentId,
-        monitorId: alert.event.monitorId,
-        policyName: alert.policyName,
-        providerName: alert.providerName,
-        providerType: alert.providerType,
-        status: "deduped",
-        attempts: 0,
-        createdAt: now.toISOString(),
-        metadata: JSON.stringify({
-          dedupKey: alert.dedupKey,
-          reason: "rate_limited",
-        }),
-      });
+    await db.insert(notificationDeliveries).values({
+      incidentId: alert.incidentId,
+      monitorId: alert.event.monitorId,
+      policyName: alert.policyName,
+      providerName: alert.providerName,
+      providerType: alert.providerType,
+      status: "deduped",
+      attempts: 0,
+      createdAt: now.toISOString(),
+      metadata: JSON.stringify({
+        dedupKey: alert.dedupKey,
+        reason: "rate_limited",
+      }),
+    });
 
     return {
       incidentId: alert.incidentId,
@@ -266,24 +261,22 @@ export async function queueAlertForDelivery(
   }
 
   // Queue for delivery
-  await db
-    .insert(notificationDeliveries)
-    .values({
-      incidentId: alert.incidentId,
-      monitorId: alert.event.monitorId,
-      policyName: alert.policyName,
-      providerName: alert.providerName,
-      providerType: alert.providerType,
-      status: "pending",
-      attempts: 0,
-      createdAt: now.toISOString(),
-      metadata: JSON.stringify({
-        title: alert.formattedTitle,
-        body: alert.formattedBody,
-        dedupKey: alert.dedupKey,
-        ...alert.metadata,
-      }),
-    });
+  await db.insert(notificationDeliveries).values({
+    incidentId: alert.incidentId,
+    monitorId: alert.event.monitorId,
+    policyName: alert.policyName,
+    providerName: alert.providerName,
+    providerType: alert.providerType,
+    status: "pending",
+    attempts: 0,
+    createdAt: now.toISOString(),
+    metadata: JSON.stringify({
+      title: alert.formattedTitle,
+      body: alert.formattedBody,
+      dedupKey: alert.dedupKey,
+      ...alert.metadata,
+    }),
+  });
 
   logger.debug(
     {
@@ -291,7 +284,7 @@ export async function queueAlertForDelivery(
       policy: alert.policyName,
       provider: alert.providerName,
     },
-    "Alert queued for delivery"
+    "Alert queued for delivery",
   );
 
   return {
@@ -310,7 +303,7 @@ export async function queueAlertForDelivery(
  * Queue multiple alerts for delivery
  */
 export async function queueAlertsForDelivery(
-  alerts: AlertToDeliver[]
+  alerts: AlertToDeliver[],
 ): Promise<NotificationDeliveryQueueItem[]> {
   const queued: NotificationDeliveryQueueItem[] = [];
 
@@ -321,7 +314,7 @@ export async function queueAlertsForDelivery(
     } catch (error) {
       logger.error(
         { alert: alert.event.monitorId, error },
-        "Failed to queue alert"
+        "Failed to queue alert",
       );
     }
   }
@@ -333,7 +326,7 @@ export async function queueAlertsForDelivery(
  * Get pending notifications for delivery
  */
 export async function getPendingNotifications(
-  limit: number = 100
+  limit: number = 100,
 ): Promise<NotificationDeliveryQueueItem[]> {
   const db = getDatabase();
 
@@ -352,7 +345,9 @@ export async function getPendingNotifications(
     providerType: item.providerType,
     status: item.status as "pending" | "sent" | "failed" | "deduped",
     attempts: item.attempts || 0,
-    lastAttemptAt: item.lastAttemptAt ? new Date(item.lastAttemptAt) : undefined,
+    lastAttemptAt: item.lastAttemptAt
+      ? new Date(item.lastAttemptAt)
+      : undefined,
     lastError: item.lastError || undefined,
     createdAt: new Date(item.createdAt),
     sentAt: item.sentAt ? new Date(item.sentAt) : undefined,
@@ -364,7 +359,7 @@ export async function getPendingNotifications(
  */
 export async function markAsSent(
   notificationId: number,
-  sentAt: Date = new Date()
+  sentAt: Date = new Date(),
 ): Promise<void> {
   const db = getDatabase();
 
@@ -376,10 +371,7 @@ export async function markAsSent(
     })
     .where(eq(notificationDeliveries.id, notificationId));
 
-  logger.debug(
-    { notificationId },
-    "Notification marked as sent"
-  );
+  logger.debug({ notificationId }, "Notification marked as sent");
 }
 
 /**
@@ -388,7 +380,7 @@ export async function markAsSent(
 export async function markAsFailed(
   notificationId: number,
   error: string,
-  lastAttemptAt: Date = new Date()
+  lastAttemptAt: Date = new Date(),
 ): Promise<void> {
   const db = getDatabase();
 
@@ -401,8 +393,5 @@ export async function markAsFailed(
     })
     .where(eq(notificationDeliveries.id, notificationId));
 
-  logger.debug(
-    { notificationId, error },
-    "Notification marked as failed"
-  );
+  logger.debug({ notificationId, error }, "Notification marked as failed");
 }

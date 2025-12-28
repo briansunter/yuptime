@@ -1,21 +1,26 @@
 import { logger } from "../lib/logger";
-import { initializeK8sClient, getK8sClient } from "./k8s-client";
-import { startAllWatchers, stopAllWatchers, informerRegistry, registry } from "./informers";
-import { createReconciliationHandler } from "./reconcilers/handler";
 import {
-  createMonitorReconciler,
-  createMonitorSetReconciler,
-  createNotificationProviderReconciler,
-  createNotificationPolicyReconciler,
-  createStatusPageReconciler,
-  createMaintenanceWindowReconciler,
-  createSilenceReconciler,
-  createLocalUserReconciler,
-  createApiKeyReconciler,
-  createSettingsReconciler,
-} from "./reconcilers";
+  informerRegistry,
+  registry,
+  startAllWatchers,
+  stopAllWatchers,
+} from "./informers";
 import { createJobManager } from "./job-manager";
 import { createJobCompletionWatcher } from "./job-manager/completion-watcher";
+import { getK8sClient, initializeK8sClient } from "./k8s-client";
+import {
+  createApiKeyReconciler,
+  createLocalUserReconciler,
+  createMaintenanceWindowReconciler,
+  createMonitorReconciler,
+  createMonitorSetReconciler,
+  createNotificationPolicyReconciler,
+  createNotificationProviderReconciler,
+  createSettingsReconciler,
+  createSilenceReconciler,
+  createStatusPageReconciler,
+} from "./reconcilers";
+import { createReconciliationHandler } from "./reconcilers/handler";
 
 // Global instances
 let jobManager: any = null;
@@ -37,7 +42,7 @@ export async function startController() {
       kubeConfig,
       concurrency: 10, // Configurable via Settings CRD later
       jobTTL: 3600, // 1 hour
-      namespace: "kubekuma",
+      namespace: "yuptime",
     });
     await jobManager.start();
     logger.info("Job Manager started");
@@ -120,7 +125,10 @@ function registerAllReconcilers() {
     // Register with the informer registry
     registry.registerReconciler(informerRegistry, config.kind, handler);
 
-    logger.debug({ kind: config.kind }, `Registered reconciler for ${config.kind}`);
+    logger.debug(
+      { kind: config.kind },
+      `Registered reconciler for ${config.kind}`,
+    );
   }
 
   logger.debug("All reconcilers registered");

@@ -1,12 +1,12 @@
-# KubeKuma Custom Resource Definitions
-# API Group: monitoring.kubekuma.io/v1
+# Yuptime Custom Resource Definitions
+# API Group: monitoring.yuptime.io/v1
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: monitors.monitoring.kubekuma.io
+  name: monitors.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: Monitor
     listKind: MonitorList
@@ -289,9 +289,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: localusers.monitoring.kubekuma.io
+  name: localusers.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: LocalUser
     listKind: LocalUserList
@@ -391,9 +391,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: statuspages.monitoring.kubekuma.io
+  name: statuspages.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: StatusPage
     listKind: StatusPageList
@@ -502,9 +502,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: notificationproviders.monitoring.kubekuma.io
+  name: notificationproviders.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: NotificationProvider
     listKind: NotificationProviderList
@@ -592,9 +592,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: notificationpolicies.monitoring.kubekuma.io
+  name: notificationpolicies.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: NotificationPolicy
     listKind: NotificationPolicyList
@@ -668,9 +668,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: maintenancewindows.monitoring.kubekuma.io
+  name: maintenancewindows.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: MaintenanceWindow
     listKind: MaintenanceWindowList
@@ -741,9 +741,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: silences.monitoring.kubekuma.io
+  name: silences.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: Silence
     listKind: SilenceList
@@ -814,9 +814,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: monitorsets.monitoring.kubekuma.io
+  name: monitorsets.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: MonitorSet
     listKind: MonitorSetList
@@ -871,9 +871,9 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: apikeys.monitoring.kubekuma.io
+  name: apikeys.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
     kind: ApiKey
     listKind: ApiKeyList
@@ -942,14 +942,14 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: kubekumasettings.monitoring.kubekuma.io
+  name: yuptimesettings.monitoring.yuptime.io
 spec:
-  group: monitoring.kubekuma.io
+  group: monitoring.yuptime.io
   names:
-    kind: KubeKumaSettings
-    listKind: KubeKumaSettingsList
-    plural: kubekumasettings
-    singular: kubekumasettings
+    kind: YuptimeSettings
+    listKind: YuptimeSettingsList
+    plural: yuptimesettings
+    singular: yuptimesettings
   scope: Cluster
   versions:
     - name: v1

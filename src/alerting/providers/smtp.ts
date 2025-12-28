@@ -9,7 +9,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendSmtpNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (!config.smtp) {
     return {
@@ -28,7 +28,7 @@ export async function sendSmtpNotification(
       _username = await resolveSecret(
         config.smtp.usernameSecretRef.name,
         config.smtp.usernameSecretRef.key,
-        config.smtp.usernameSecretRef.namespace || "monitoring"
+        config.smtp.usernameSecretRef.namespace || "monitoring",
       );
     }
 
@@ -36,7 +36,7 @@ export async function sendSmtpNotification(
       _password = await resolveSecret(
         config.smtp.passwordSecretRef.name,
         config.smtp.passwordSecretRef.key,
-        config.smtp.passwordSecretRef.namespace || "monitoring"
+        config.smtp.passwordSecretRef.namespace || "monitoring",
       );
     }
 

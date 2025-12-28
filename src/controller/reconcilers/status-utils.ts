@@ -10,9 +10,9 @@ export async function updateStatus(
   plural: string,
   namespace: string,
   name: string,
-  statusUpdate: Record<string, any>
+  statusUpdate: Record<string, any>,
 ) {
-  const watcher = createCRDWatcher("monitoring.kubekuma.io", "v1", plural);
+  const watcher = createCRDWatcher("monitoring.yuptime.io", "v1", plural);
 
   try {
     const patch = [
@@ -27,7 +27,10 @@ export async function updateStatus(
 
     logger.debug({ kind, namespace, name }, `Updated ${kind} status`);
   } catch (error) {
-    logger.error({ kind, namespace, name, error }, `Failed to update ${kind} status`);
+    logger.error(
+      { kind, namespace, name, error },
+      `Failed to update ${kind} status`,
+    );
     throw error;
   }
 }
@@ -39,7 +42,7 @@ export const createCondition = (
   type: string,
   status: "True" | "False" | "Unknown",
   reason?: string,
-  message?: string
+  message?: string,
 ): Condition => ({
   type,
   status,
@@ -53,7 +56,7 @@ export const createCondition = (
  */
 export const updateConditions = (
   conditions: Condition[] = [],
-  newCondition: Condition
+  newCondition: Condition,
 ): Condition[] => {
   const now = new Date().toISOString();
   const existing = conditions.findIndex((c) => c.type === newCondition.type);
@@ -87,9 +90,9 @@ export async function markValid(
   plural: string,
   namespace: string,
   name: string,
-  generation: number
+  generation: number,
 ) {
-  const watcher = createCRDWatcher("monitoring.kubekuma.io", "v1", plural);
+  const watcher = createCRDWatcher("monitoring.yuptime.io", "v1", plural);
 
   try {
     const resource = await watcher.get(name, namespace);
@@ -99,19 +102,24 @@ export async function markValid(
     // Set Valid condition
     conditions = updateConditions(
       conditions,
-      createCondition("Valid", "True", "Validated", "Resource spec is valid")
+      createCondition("Valid", "True", "Validated", "Resource spec is valid"),
     );
 
     // Set Reconciled condition
     conditions = updateConditions(
       conditions,
-      createCondition("Reconciled", "True", "ReconcileSuccess", "Resource has been reconciled")
+      createCondition(
+        "Reconciled",
+        "True",
+        "ReconcileSuccess",
+        "Resource has been reconciled",
+      ),
     );
 
     // Set Ready condition
     conditions = updateConditions(
       conditions,
-      createCondition("Ready", "True", "ResourceReady", "Resource is ready")
+      createCondition("Ready", "True", "ResourceReady", "Resource is ready"),
     );
 
     const newStatus = {
@@ -122,7 +130,10 @@ export async function markValid(
 
     await updateStatus(kind, plural, namespace, name, newStatus);
   } catch (error) {
-    logger.error({ kind, namespace, name, error }, `Failed to mark ${kind} as valid`);
+    logger.error(
+      { kind, namespace, name, error },
+      `Failed to mark ${kind} as valid`,
+    );
     throw error;
   }
 }
@@ -136,9 +147,9 @@ export async function markInvalid(
   namespace: string,
   name: string,
   reason: string,
-  message: string
+  message: string,
 ) {
-  const watcher = createCRDWatcher("monitoring.kubekuma.io", "v1", plural);
+  const watcher = createCRDWatcher("monitoring.yuptime.io", "v1", plural);
 
   try {
     const resource = await watcher.get(name, namespace);
@@ -148,13 +159,18 @@ export async function markInvalid(
     // Set Valid condition to False
     conditions = updateConditions(
       conditions,
-      createCondition("Valid", "False", reason, message)
+      createCondition("Valid", "False", reason, message),
     );
 
     // Set Ready condition to False
     conditions = updateConditions(
       conditions,
-      createCondition("Ready", "False", "ValidationFailed", "Resource validation failed")
+      createCondition(
+        "Ready",
+        "False",
+        "ValidationFailed",
+        "Resource validation failed",
+      ),
     );
 
     const newStatus = {
@@ -164,9 +180,15 @@ export async function markInvalid(
 
     await updateStatus(kind, plural, namespace, name, newStatus);
 
-    logger.warn({ kind, namespace, name, reason, message }, `Marked ${kind} as invalid`);
+    logger.warn(
+      { kind, namespace, name, reason, message },
+      `Marked ${kind} as invalid`,
+    );
   } catch (error) {
-    logger.error({ kind, namespace, name, error }, `Failed to mark ${kind} as invalid`);
+    logger.error(
+      { kind, namespace, name, error },
+      `Failed to mark ${kind} as invalid`,
+    );
     throw error;
   }
 }

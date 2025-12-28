@@ -4,8 +4,8 @@
 
 import { logger } from "../lib/logger";
 import { processAlertEvent } from "./alert-engine";
-import { findMatchingPolicies } from "./policy-matcher";
 import { queueAlertsForDelivery } from "./delivery-engine";
+import { findMatchingPolicies } from "./policy-matcher";
 import type { AlertEvent } from "./types";
 
 /**
@@ -18,20 +18,20 @@ export async function handleAlertEvent(event: AlertEvent): Promise<void> {
       state: event.currentState,
       isStateChange: event.isStateChange,
     },
-    "Processing alert event"
+    "Processing alert event",
   );
 
   try {
     // Find policies that match this monitor
     const matchedPolicies = await findMatchingPolicies(
       event.monitorNamespace,
-      event.monitorName
+      event.monitorName,
     );
 
     if (matchedPolicies.length === 0) {
       logger.debug(
         { monitor: `${event.monitorNamespace}/${event.monitorName}` },
-        "No policies matched for monitor"
+        "No policies matched for monitor",
       );
       return;
     }
@@ -42,7 +42,7 @@ export async function handleAlertEvent(event: AlertEvent): Promise<void> {
     if (alertsToDeliver.length === 0) {
       logger.debug(
         { monitor: `${event.monitorNamespace}/${event.monitorName}` },
-        "No alerts need delivery"
+        "No alerts need delivery",
       );
       return;
     }
@@ -55,12 +55,12 @@ export async function handleAlertEvent(event: AlertEvent): Promise<void> {
         monitor: `${event.monitorNamespace}/${event.monitorName}`,
         queuedCount: queued.length,
       },
-      "Alerts queued for delivery"
+      "Alerts queued for delivery",
     );
   } catch (error) {
     logger.error(
       { monitor: `${event.monitorNamespace}/${event.monitorName}`, error },
-      "Failed to process alert event"
+      "Failed to process alert event",
     );
   }
 }

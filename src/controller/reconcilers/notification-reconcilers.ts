@@ -1,13 +1,13 @@
 import { logger } from "../../lib/logger";
 import {
-  NotificationProviderSchema,
   NotificationPolicySchema,
+  NotificationProviderSchema,
 } from "../../types/crd";
-import type { ReconcilerConfig, CRDResource } from "./types";
+import type { CRDResource, ReconcilerConfig } from "./types";
 import {
   commonValidations,
-  createZodValidator,
   composeValidators,
+  createZodValidator,
   validate,
 } from "./validation";
 
@@ -39,7 +39,7 @@ const validateProvider = composeValidators(
   commonValidations.validateName,
   commonValidations.validateSpec,
   createZodValidator(NotificationProviderSchema),
-  validateProviderConfig
+  validateProviderConfig,
 );
 
 const reconcileNotificationProvider = async (resource: CRDResource) => {
@@ -54,8 +54,8 @@ const reconcileNotificationProvider = async (resource: CRDResource) => {
     const { deliverNotification } = require("../../alerting/providers");
     const result = await deliverNotification(
       resource,
-      "[Test] KubeKuma Provider Test",
-      "This is a test notification to verify provider connectivity."
+      "[Test] Yuptime Provider Test",
+      "This is a test notification to verify provider connectivity.",
     );
 
     if (result.success) {
@@ -63,7 +63,7 @@ const reconcileNotificationProvider = async (resource: CRDResource) => {
     } else {
       logger.warn(
         { namespace, name, error: result.error },
-        "Provider connectivity test failed"
+        "Provider connectivity test failed",
       );
     }
 
@@ -82,15 +82,18 @@ const reconcileNotificationProvider = async (resource: CRDResource) => {
         and(
           eq(crdCache.kind, "NotificationProvider"),
           eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name)
-        )
+          eq(crdCache.name, name),
+        ),
       );
 
-    logger.debug({ namespace, name }, "NotificationProvider reconciliation complete");
+    logger.debug(
+      { namespace, name },
+      "NotificationProvider reconciliation complete",
+    );
   } catch (error) {
     logger.error(
       { namespace, name, error },
-      "NotificationProvider reconciliation failed"
+      "NotificationProvider reconciliation failed",
     );
     throw error;
   }
@@ -114,7 +117,7 @@ const validatePolicy = composeValidators(
   commonValidations.validateName,
   commonValidations.validateSpec,
   createZodValidator(NotificationPolicySchema),
-  validatePolicyRouting
+  validatePolicyRouting,
 );
 
 const reconcileNotificationPolicy = async (resource: CRDResource) => {
@@ -137,15 +140,13 @@ const reconcileNotificationPolicy = async (resource: CRDResource) => {
       const [exists] = await db
         .select()
         .from(crdCache)
-        .where(
-          eq(crdCache.kind, "NotificationProvider")
-        )
+        .where(eq(crdCache.kind, "NotificationProvider"))
         .limit(1);
 
       if (!exists) {
         logger.warn(
           { namespace, name, provider: provider.ref.name },
-          "Referenced provider not found"
+          "Referenced provider not found",
         );
       }
     }
@@ -162,7 +163,7 @@ const reconcileNotificationPolicy = async (resource: CRDResource) => {
       const matched = await findMatchingPolicies(
         monitor.namespace,
         monitor.name,
-        monitorSpec.metadata?.labels
+        monitorSpec.metadata?.labels,
       );
 
       if (matched.some((p) => p.name === name)) {
@@ -172,12 +173,12 @@ const reconcileNotificationPolicy = async (resource: CRDResource) => {
 
     logger.info(
       { namespace, name, matchingMonitors: matchCount },
-      "NotificationPolicy reconciliation complete"
+      "NotificationPolicy reconciliation complete",
     );
   } catch (error) {
     logger.error(
       { namespace, name, error },
-      "NotificationPolicy reconciliation failed"
+      "NotificationPolicy reconciliation failed",
     );
     throw error;
   }

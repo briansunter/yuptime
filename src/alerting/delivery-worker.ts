@@ -2,13 +2,17 @@
  * Notification delivery worker - sends queued notifications
  */
 
-import { logger } from "../lib/logger";
+import { and, eq } from "drizzle-orm";
 import { getDatabase } from "../db";
-import { crdCache, } from "../db/schema";
-import { eq, and } from "drizzle-orm";
-import { getPendingNotifications, markAsSent, markAsFailed } from "./delivery-engine";
-import { deliverNotification } from "./providers";
+import { crdCache } from "../db/schema";
+import { logger } from "../lib/logger";
 import type { NotificationProvider } from "../types/crd";
+import {
+  getPendingNotifications,
+  markAsFailed,
+  markAsSent,
+} from "./delivery-engine";
+import { deliverNotification } from "./providers";
 
 /**
  * Start delivery worker loop
@@ -20,9 +24,10 @@ export function startDeliveryWorker(): NodeJS.Timer {
     try {
       await processPendingNotifications();
     } catch (error) {
-      const errorDetails = error instanceof Error
-        ? { message: error.message, stack: error.stack }
-        : { rawError: String(error) };
+      const errorDetails =
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : { rawError: String(error) };
       logger.error({ error: errorDetails }, "Delivery worker error");
     }
   }, 5000); // Check every 5 seconds
@@ -49,12 +54,13 @@ async function processPendingNotifications(): Promise<void> {
     try {
       await deliverNotificationItem(notification);
     } catch (error) {
-      const errorDetails = error instanceof Error
-        ? { message: error.message, stack: error.stack }
-        : { rawError: String(error) };
+      const errorDetails =
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : { rawError: String(error) };
       logger.error(
         { notificationId: notification.id, error: errorDetails },
-        "Failed to deliver notification"
+        "Failed to deliver notification",
       );
     }
   }
@@ -67,27 +73,21 @@ async function deliverNotificationItem(notification: any): Promise<void> {
   const db = getDatabase();
 
   // Get provider from cache
-  const [providerRow] = await db
+  const [providerRow] = (await db
     .select()
     .from(crdCache)
     .where(
       and(
         eq(crdCache.kind, "NotificationProvider"),
-        eq(crdCache.name, notification.providerName)
-      )
+        eq(crdCache.name, notification.providerName),
+      ),
     )
-    .execute() as any[];
+    .execute()) as any[];
 
   if (!providerRow) {
-    logger.warn(
-      { provider: notification.providerName },
-      "Provider not found"
-    );
+    logger.warn({ provider: notification.providerName }, "Provider not found");
 
-    await markAsFailed(
-      notification.id,
-      "Provider not found in cluster"
-    );
+    await markAsFailed(notification.id, "Provider not found in cluster");
     return;
   }
 
@@ -103,7 +103,7 @@ async function deliverNotificationItem(notification: any): Promise<void> {
     }
   }
 
-  const title = metadata.title || "KubeKuma Alert";
+  const title = metadata.title || "Yuptime Alert";
   const body = metadata.body || notification.metadata || "Alert triggered";
 
   logger.debug(
@@ -111,7 +111,7 @@ async function deliverNotificationItem(notification: any): Promise<void> {
       provider: notification.providerName,
       type: notification.providerType,
     },
-    "Delivering notification"
+    "Delivering notification",
   );
 
   try {
@@ -121,24 +121,25 @@ async function deliverNotificationItem(notification: any): Promise<void> {
       await markAsSent(notification.id, result.sentAt);
       logger.info(
         { provider: notification.providerName },
-        "Notification delivered"
+        "Notification delivered",
       );
     } else {
       await markAsFailed(notification.id, result.error || "Unknown error");
       logger.warn(
         { provider: notification.providerName, error: result.error },
-        "Notification delivery failed"
+        "Notification delivery failed",
       );
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorDetails = error instanceof Error
-      ? { message: error.message, stack: error.stack }
-      : { rawError: String(error) };
+    const errorDetails =
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { rawError: String(error) };
     await markAsFailed(notification.id, errorMessage);
     logger.error(
       { provider: notification.providerName, error: errorDetails },
-      "Notification delivery exception"
+      "Notification delivery exception",
     );
   }
 }

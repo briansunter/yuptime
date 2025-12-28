@@ -1,16 +1,16 @@
-import Fastify from "fastify";
-import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
+import fastifyJwt from "@fastify/jwt";
 import fastifyStatic from "@fastify/static";
-import { ZodError } from "zod";
-import { logger } from "../lib/logger";
-import { config } from "../lib/config";
-import { getDatabase } from "../db";
-import { registerStatusPageRoutes } from "./routes/status-pages";
-import { registerAuthRoutes } from "./routes/auth";
-import { sessionMiddleware } from "./middleware/session";
-import { apiKeyAuth } from "./middleware/auth";
+import Fastify from "fastify";
 import path from "path";
+import { ZodError } from "zod";
+import { getDatabase } from "../db";
+import { config } from "../lib/config";
+import { logger } from "../lib/logger";
+import { apiKeyAuth } from "./middleware/auth";
+import { sessionMiddleware } from "./middleware/session";
+import { registerAuthRoutes } from "./routes/auth";
+import { registerStatusPageRoutes } from "./routes/status-pages";
 
 export async function createApp() {
   const app = Fastify({
@@ -48,7 +48,10 @@ export async function createApp() {
       });
     }
 
-    logger.error({ error, url: request.url, method: request.method }, "Unhandled error");
+    logger.error(
+      { error, url: request.url, method: request.method },
+      "Unhandled error",
+    );
 
     return reply.status(500).send({
       error: "Internal server error",
@@ -83,26 +86,29 @@ export async function createApp() {
   await registerAuthRoutes(app as any);
 
   // Register API routes
-  await app.register(async (app) => {
-    // Monitors - list all monitors from CRD cache
-    app.get("/monitors", async (_request, _reply) => {
-      const db = getDatabase();
+  await app.register(
+    async (app) => {
+      // Monitors - list all monitors from CRD cache
+      app.get("/monitors", async (_request, _reply) => {
+        const db = getDatabase();
 
-      // Use etcd-native API to get monitors by kind
-      const monitors = await db.crdCache().getByKind("Monitor");
+        // Use etcd-native API to get monitors by kind
+        const monitors = await db.crdCache().getByKind("Monitor");
 
-      const items = monitors.map((m: any) => ({
-        namespace: m.namespace,
-        name: m.name,
-        spec: JSON.parse(m.spec || "{}"),
-      }));
+        const items = monitors.map((m: any) => ({
+          namespace: m.namespace,
+          name: m.name,
+          spec: JSON.parse(m.spec || "{}"),
+        }));
 
-      return { items, total: items.length };
-    });
+        return { items, total: items.length };
+      });
 
-    // Health check
-    app.get("/health", async () => ({ ok: true }));
-  }, { prefix: "/api/v1" });
+      // Health check
+      app.get("/health", async () => ({ ok: true }));
+    },
+    { prefix: "/api/v1" },
+  );
 
   // Register status page routes (public endpoints)
   await registerStatusPageRoutes(app as any);
@@ -117,7 +123,10 @@ export async function createApp() {
     });
     logger.info({ publicPath }, "Static file serving enabled");
   } catch (err) {
-    logger.warn({ publicPath, error: err }, "Static file serving not available (public folder may not exist)");
+    logger.warn(
+      { publicPath, error: err },
+      "Static file serving not available (public folder may not exist)",
+    );
   }
 
   // SPA fallback: serve index.html for non-API routes

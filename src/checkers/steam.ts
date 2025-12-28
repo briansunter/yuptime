@@ -5,10 +5,10 @@
  * Supports: CS:GO, Dota 2, TF2, L4D, L4D2, and other Source/Source 2 based games
  */
 
+import { createSocket } from "node:dgram";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
-import { createSocket } from "node:dgram";
 
 interface A2SServerInfo {
   name: string;
@@ -30,7 +30,7 @@ interface A2SServerInfo {
 async function queryA2SServer(
   host: string,
   port: number,
-  timeout: number
+  timeout: number,
 ): Promise<{
   success: boolean;
   info?: A2SServerInfo;
@@ -44,10 +44,16 @@ async function queryA2SServer(
 
     // A2S_INFO request packet
     const request = Buffer.from([
-      0xff, 0xff, 0xff, 0xff, // 4-byte header
+      0xff,
+      0xff,
+      0xff,
+      0xff, // 4-byte header
       0x54, // A2S_INFO command
       ...Buffer.from("Source Engine Query\0"), // Payload with null terminator
-      0x11, 0x00, 0x00, 0x00, // Protocol version
+      0x11,
+      0x00,
+      0x00,
+      0x00, // Protocol version
     ]);
 
     const cleanup = () => {
@@ -208,7 +214,7 @@ async function queryA2SServer(
 
 export async function checkSteam(
   monitor: Monitor,
-  timeout: number
+  timeout: number,
 ): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.steam;
@@ -299,7 +305,7 @@ export async function checkSteam(
     const latencyMs = Date.now() - startTime;
     logger.warn(
       { monitor: monitor.metadata.name, error },
-      "Steam check failed"
+      "Steam check failed",
     );
 
     return {

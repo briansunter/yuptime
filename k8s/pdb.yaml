@@ -1,13 +1,13 @@
-# Pod Disruption Budget for KubeKuma
+# Pod Disruption Budget for Yuptime
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: kubekuma-pdb
-  namespace: kubekuma
+  name: yuptime-pdb
+  namespace: yuptime
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: kubekuma
+      app.kubernetes.io/name: yuptime
       app.kubernetes.io/component: api-server

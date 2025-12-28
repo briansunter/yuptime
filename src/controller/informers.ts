@@ -1,8 +1,8 @@
+import { getDatabase } from "../db";
 import { logger } from "../lib/logger";
 import { createCRDWatcher } from "./k8s-client";
-import { getDatabase } from "../db";
 
-const GROUP = "monitoring.kubekuma.io";
+const GROUP = "monitoring.yuptime.io";
 const VERSION = "v1";
 
 /**
@@ -18,7 +18,7 @@ const CRD_DEFINITIONS = {
   Silence: { plural: "silences", namespaced: true },
   LocalUser: { plural: "localusers", namespaced: true },
   ApiKey: { plural: "apikeys", namespaced: true },
-  KubeKumaSettings: { plural: "kubekumasettings", namespaced: false },
+  YuptimeSettings: { plural: "yuptimesettings", namespaced: false },
 };
 
 /**
@@ -49,11 +49,19 @@ const createRegistry = (): Registry => ({
  * Create registry functions (composition over classes)
  */
 const registryFunctions = {
-  registerReconciler: (registry: Registry, kind: string, handler: ReconcileFn) => {
+  registerReconciler: (
+    registry: Registry,
+    kind: string,
+    handler: ReconcileFn,
+  ) => {
     registry.reconcilers.set(kind, handler);
   },
 
-  registerDeleteHandler: (registry: Registry, kind: string, handler: ReconcileDeleteFn) => {
+  registerDeleteHandler: (
+    registry: Registry,
+    kind: string,
+    handler: ReconcileDeleteFn,
+  ) => {
     registry.deleteHandlers.set(kind, handler);
   },
 
@@ -70,7 +78,7 @@ const registryFunctions = {
             namespace: resource.metadata?.namespace,
             error,
           },
-          "Reconciliation failed on add"
+          "Reconciliation failed on add",
         );
       }
     }
@@ -89,7 +97,7 @@ const registryFunctions = {
             namespace: resource.metadata?.namespace,
             error,
           },
-          "Reconciliation failed on modify"
+          "Reconciliation failed on modify",
         );
       }
     }
@@ -108,7 +116,7 @@ const registryFunctions = {
             namespace: resource.metadata?.namespace,
             error,
           },
-          "Deletion handler failed"
+          "Deletion handler failed",
         );
       }
     }
@@ -202,8 +210,8 @@ async function updateCachedResource(resource: any) {
         and(
           eq(crdCache.kind, resource.kind),
           eq(crdCache.namespace, resource.metadata?.namespace || ""),
-          eq(crdCache.name, resource.metadata?.name)
-        )
+          eq(crdCache.name, resource.metadata?.name),
+        ),
       );
   } catch (error) {
     logger.warn({ error }, "Failed to update cached resource");
@@ -213,7 +221,11 @@ async function updateCachedResource(resource: any) {
 /**
  * Remove cached resource
  */
-async function removeCachedResource(kind: string, namespace: string, name: string) {
+async function removeCachedResource(
+  kind: string,
+  namespace: string,
+  name: string,
+) {
   try {
     const db = getDatabase();
     const { crdCache } = require("../db/schema");
@@ -222,7 +234,11 @@ async function removeCachedResource(kind: string, namespace: string, name: strin
     await db
       .delete(crdCache)
       .where(
-        and(eq(crdCache.kind, kind), eq(crdCache.namespace, namespace), eq(crdCache.name, name))
+        and(
+          eq(crdCache.kind, kind),
+          eq(crdCache.namespace, namespace),
+          eq(crdCache.name, name),
+        ),
       );
   } catch (error) {
     logger.warn({ error }, "Failed to remove cached resource");
@@ -247,7 +263,7 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
     }
     logger.info(
       { kind, count: resources.length },
-      `Loaded ${resources.length} existing ${kind} resources`
+      `Loaded ${resources.length} existing ${kind} resources`,
     );
   } catch (error) {
     logger.error({ kind, error }, `Failed to list ${kind} resources`);
@@ -268,7 +284,11 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
           registry.handleModify(informerRegistry, kind, resource);
           break;
         case "DELETED":
-          removeCachedResource(kind, resource.metadata?.namespace, resource.metadata?.name);
+          removeCachedResource(
+            kind,
+            resource.metadata?.namespace,
+            resource.metadata?.name,
+          );
           registry.handleDelete(informerRegistry, kind, resource);
           break;
       }
@@ -276,7 +296,7 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
     (error) => {
       logger.error({ kind, error }, `Watcher error for ${kind}`);
       // Could implement reconnection logic here
-    }
+    },
   );
 
   registry.setWatcher(informerRegistry, kind, watchAbort);

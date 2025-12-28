@@ -5,7 +5,10 @@ import type { CheckResult } from "./index";
 /**
  * TCP connection checker
  */
-export async function checkTcp(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export async function checkTcp(
+  monitor: Monitor,
+  timeout: number,
+): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.tcp;
 

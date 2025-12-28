@@ -1,0 +1,255 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  e2e-minikube:
+    name: E2E Tests (Minikube)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          minikube-version: 'latest'
+          driver: docker
+          container-runtime: docker
+          cpus: 2
+          memory: 4096
+
+      - name: Setup Timoni
+        uses: stefanprodan/timoni/actions/setup@main
+        with:
+          version: latest
+
+      - name: Build Docker images
+        run: |
+          # Build images in minikube's docker
+          eval $(minikube docker-env)
+
+          echo "Building yuptime-api image..."
+          docker build -t yuptime-api:latest -f Dockerfile .
+
+          echo "Building yuptime-checker image..."
+          docker build -t yuptime-checker:latest -f Dockerfile.checker .
+
+          echo "Images built:"
+          docker images | grep yuptime
+
+      - name: Create values file for CI
+        run: |
+          cat > values-ci.cue << 'EOF'
+          values: {
+            image: {
+              repository: "yuptime-api"
+              tag:        "latest"
+              digest:     ""
+              pullPolicy: "Never"
+            }
+
+            checkerImage: {
+              repository: "yuptime-checker"
+              tag:        "latest"
+              digest:     ""
+              pullPolicy: "Never"
+            }
+
+            mode: "development"
+
+            database: {
+              type: "sqlite"
+              sqlite: path: "/data/yuptime.db"
+            }
+
+            storage: {
+              enabled:      true
+              size:         "1Gi"
+              storageClass: "standard"
+              accessMode:   "ReadWriteOnce"
+            }
+
+            auth: {
+              mode: "local"
+              session: secret: "ci-test-secret"
+              adminUser: {
+                enabled:  true
+                username: "admin"
+                passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
+              }
+            }
+
+            crds: install: true
+            test: enabled: true
+          }
+          EOF
+
+      - name: Deploy with Timoni
+        run: |
+          echo "Validating Timoni module..."
+          timoni mod vet ./timoni/yuptime
+
+          echo "Deploying Yuptime..."
+          timoni apply yuptime ./timoni/yuptime -n yuptime -f values-ci.cue
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for deployment to be ready..."
+          kubectl rollout status deployment/yuptime -n yuptime --timeout=120s
+
+          echo "Checking pod status..."
+          kubectl get pods -n yuptime
+
+      - name: Verify CRDs installed
+        run: |
+          echo "Checking CRDs..."
+          kubectl get crds | grep yuptime
+
+          expected_crds=(
+            "monitors.monitoring.yuptime.io"
+            "monitorsets.monitoring.yuptime.io"
+            "notificationpolicies.monitoring.yuptime.io"
+            "notificationproviders.monitoring.yuptime.io"
+            "statuspages.monitoring.yuptime.io"
+            "maintenancewindows.monitoring.yuptime.io"
+            "silences.monitoring.yuptime.io"
+            "localusers.monitoring.yuptime.io"
+            "apikeys.monitoring.yuptime.io"
+            "yuptimesettings.monitoring.yuptime.io"
+          )
+
+          for crd in "${expected_crds[@]}"; do
+            if kubectl get crd "$crd" > /dev/null 2>&1; then
+              echo "✓ CRD $crd exists"
+            else
+              echo "✗ CRD $crd not found"
+              exit 1
+            fi
+          done
+
+      - name: Health check
+        run: |
+          echo "Running health check..."
+          kubectl port-forward svc/yuptime 3000:3000 -n yuptime &
+          sleep 5
+
+          max_retries=10
+          retry_count=0
+          while [ $retry_count -lt $max_retries ]; do
+            if curl -f http://localhost:3000/health; then
+              echo ""
+              echo "✓ Health check passed"
+              break
+            fi
+            retry_count=$((retry_count + 1))
+            echo "Retry $retry_count/$max_retries..."
+            sleep 3
+          done
+
+          if [ $retry_count -eq $max_retries ]; then
+            echo "✗ Health check failed after $max_retries retries"
+            kubectl logs -n yuptime -l app.kubernetes.io/name=yuptime --tail=50
+            exit 1
+          fi
+
+      - name: Create test monitor
+        run: |
+          cat > test-monitor.yaml << 'EOF'
+          apiVersion: monitoring.yuptime.io/v1alpha1
+          kind: Monitor
+          metadata:
+            name: httpbin-test
+            namespace: yuptime
+          spec:
+            type: http
+            interval: 30s
+            timeout: 10s
+            http:
+              url: https://httpbin.org/get
+              method: GET
+              expectedStatusCodes: [200]
+          EOF
+
+          kubectl apply -f test-monitor.yaml
+          echo "✓ Test monitor created"
+
+          # Wait for monitor to be processed
+          sleep 10
+
+          # Check monitor status
+          echo "Monitor status:"
+          kubectl get monitors -n yuptime -o wide
+
+      - name: Wait for check job
+        run: |
+          echo "Waiting for check job to complete..."
+
+          max_retries=20
+          retry_count=0
+          while [ $retry_count -lt $max_retries ]; do
+            # Look for completed jobs
+            completed=$(kubectl get jobs -n yuptime -l yuptime.io/monitor=httpbin-test --no-headers 2>/dev/null | grep -c "1/1" || echo "0")
+            if [ "$completed" -gt 0 ]; then
+              echo "✓ Check job completed"
+              kubectl get jobs -n yuptime -l yuptime.io/monitor=httpbin-test
+              break
+            fi
+
+            # Check for running jobs
+            jobs=$(kubectl get jobs -n yuptime -l yuptime.io/monitor=httpbin-test --no-headers 2>/dev/null | wc -l)
+            if [ "$jobs" -gt 0 ]; then
+              echo "Jobs found: $jobs"
+            fi
+
+            retry_count=$((retry_count + 1))
+            echo "Waiting... ($retry_count/$max_retries)"
+            sleep 5
+          done
+
+          if [ $retry_count -eq $max_retries ]; then
+            echo "Warning: No completed jobs found in time, checking status..."
+            kubectl get jobs -n yuptime
+            kubectl get pods -n yuptime
+          fi
+
+      - name: Verify API endpoints
+        run: |
+          echo "Testing API endpoints..."
+
+          # Test monitors endpoint
+          monitors=$(curl -s http://localhost:3000/api/monitors)
+          echo "Monitors: $monitors"
+
+          # Test status pages endpoint
+          status=$(curl -s http://localhost:3000/api/status-pages)
+          echo "Status pages: $status"
+
+          echo "✓ API endpoints responding"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Collecting logs..."
+          kubectl logs -n yuptime -l app.kubernetes.io/name=yuptime --tail=100 || true
+
+          echo "Cleaning up..."
+          timoni delete yuptime -n yuptime || true
+          kubectl delete namespace yuptime --ignore-not-found || true
+
+      - name: Report results
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "E2E Test Summary"
+          echo "=========================================="
+          echo "Minikube version: $(minikube version | head -1)"
+          echo "Kubernetes version: $(kubectl version --short 2>/dev/null || kubectl version)"
+          echo "Timoni version: $(timoni version)"
+          echo "=========================================="

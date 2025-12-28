@@ -34,11 +34,13 @@ export const MaintenanceWindowStatusSchema = StatusBaseSchema.extend({
   monitorCount: z.number().optional(),
 });
 
-export type MaintenanceWindowStatus = z.infer<typeof MaintenanceWindowStatusSchema>;
+export type MaintenanceWindowStatus = z.infer<
+  typeof MaintenanceWindowStatusSchema
+>;
 
 // Full MaintenanceWindow CRD
 export const MaintenanceWindowSchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
   kind: z.literal("MaintenanceWindow"),
   metadata: z.object({
     name: z.string(),

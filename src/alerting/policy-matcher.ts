@@ -2,16 +2,16 @@
  * Policy matcher - routes monitors to notification policies based on selectors
  */
 
-import { logger } from "../lib/logger";
+import { and, eq } from "drizzle-orm";
 import { getDatabase } from "../db";
 import { crdCache } from "../db/schema";
-import { eq, and } from "drizzle-orm";
-import type { MatchedPolicy } from "./types";
+import { logger } from "../lib/logger";
 import type {
   NotificationPolicy,
   NotificationPolicySpec,
   Selector,
 } from "../types/crd";
+import type { MatchedPolicy } from "./types";
 
 /**
  * Load all active notification policies from cache
@@ -35,7 +35,7 @@ function matchesSelector(
   labels: Record<string, string> | undefined,
   selector: Selector | undefined,
   namespace?: string,
-  name?: string
+  name?: string,
 ): boolean {
   if (!selector) {
     // No selector matches all
@@ -52,7 +52,7 @@ function matchesSelector(
   // Check name matches
   if (selector.matchNames && selector.matchNames.length > 0) {
     const nameMatch = selector.matchNames.some(
-      (m) => m.namespace === namespace && m.name === name
+      (m) => m.namespace === namespace && m.name === name,
     );
     if (!nameMatch) {
       return false;
@@ -64,7 +64,9 @@ function matchesSelector(
     if (!labels) {
       return false;
     }
-    for (const [key, expectedValue] of Object.entries(selector.matchLabels.matchLabels)) {
+    for (const [key, expectedValue] of Object.entries(
+      selector.matchLabels.matchLabels,
+    )) {
       if (labels[key] !== expectedValue) {
         return false;
       }
@@ -80,7 +82,7 @@ function matchesSelector(
 export async function findMatchingPolicies(
   monitorNamespace: string,
   monitorName: string,
-  monitorLabels?: Record<string, string>
+  monitorLabels?: Record<string, string>,
 ): Promise<MatchedPolicy[]> {
   const _db = getDatabase();
   const allPolicies = await loadAllPolicies();
@@ -91,7 +93,12 @@ export async function findMatchingPolicies(
 
     // Check if selector matches
     if (spec.match) {
-      const selectorMatches = matchesSelector(monitorLabels, spec.match, monitorNamespace, monitorName);
+      const selectorMatches = matchesSelector(
+        monitorLabels,
+        spec.match,
+        monitorNamespace,
+        monitorName,
+      );
       if (!selectorMatches) {
         continue;
       }
@@ -123,7 +130,8 @@ export async function findMatchingPolicies(
         windowMinutes: spec.routing?.dedupe?.windowMinutes || 10,
       },
       rateLimit: {
-        minMinutesBetweenAlerts: spec.routing?.rateLimit?.minMinutesBetweenAlerts || 0,
+        minMinutesBetweenAlerts:
+          spec.routing?.rateLimit?.minMinutesBetweenAlerts || 0,
       },
       resend: {
         resendIntervalMinutes: spec.routing?.resend?.resendIntervalMinutes || 0,
@@ -136,8 +144,11 @@ export async function findMatchingPolicies(
   matched.sort((a, b) => b.priority - a.priority);
 
   logger.debug(
-    { monitor: `${monitorNamespace}/${monitorName}`, matchCount: matched.length },
-    "Policies matched"
+    {
+      monitor: `${monitorNamespace}/${monitorName}`,
+      matchCount: matched.length,
+    },
+    "Policies matched",
   );
 
   return matched;
@@ -149,27 +160,27 @@ export async function findMatchingPolicies(
  */
 export async function buildRoutingTable(
   monitorNamespace: string,
-  monitorName: string
+  monitorName: string,
 ): Promise<MatchedPolicy[]> {
   // Get monitor from cache to extract labels
   const db = getDatabase();
 
-  const [monitor] = await db
+  const [monitor] = (await db
     .select()
     .from(crdCache)
     .where(
       and(
         eq(crdCache.kind, "Monitor"),
         eq(crdCache.namespace, monitorNamespace),
-        eq(crdCache.name, monitorName)
-      )
+        eq(crdCache.name, monitorName),
+      ),
     )
-    .execute() as any[];
+    .execute()) as any[];
 
   if (!monitor) {
     logger.warn(
       { monitor: `${monitorNamespace}/${monitorName}` },
-      "Monitor not found for routing"
+      "Monitor not found for routing",
     );
     return [];
   }

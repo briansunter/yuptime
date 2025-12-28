@@ -1,6 +1,13 @@
 import { sql } from "drizzle-orm";
+import {
+  integer,
+  json,
+  pgTable,
+  serial,
+  timestamp,
+  varchar,
+} from "drizzle-orm/pg-core";
 import { int, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { pgTable, timestamp, varchar, integer, json, serial } from "drizzle-orm/pg-core";
 import { config } from "../../lib/config";
 
 const isPostgres = config.isPostgres;
@@ -14,7 +21,9 @@ export const notificationDeliveries = isPostgres
       policyName: varchar("policyName").notNull(),
       providerName: varchar("providerName").notNull(),
       providerType: varchar("providerType").notNull(), // slack, discord, smtp, etc.
-      status: varchar("status", { enum: ["pending", "sent", "failed", "deduped"] }).notNull(),
+      status: varchar("status", {
+        enum: ["pending", "sent", "failed", "deduped"],
+      }).notNull(),
       attempts: integer("attempts").default(0),
       lastAttemptAt: timestamp("lastAttemptAt"),
       lastError: varchar("lastError"),
@@ -29,7 +38,9 @@ export const notificationDeliveries = isPostgres
       policyName: text("policyName").notNull(),
       providerName: text("providerName").notNull(),
       providerType: text("providerType").notNull(), // slack, discord, smtp, etc.
-      status: text("status", { enum: ["pending", "sent", "failed", "deduped"] }).notNull(),
+      status: text("status", {
+        enum: ["pending", "sent", "failed", "deduped"],
+      }).notNull(),
       attempts: int("attempts").default(0),
       lastAttemptAt: text("lastAttemptAt"),
       lastError: text("lastError"),
@@ -39,4 +50,5 @@ export const notificationDeliveries = isPostgres
     });
 
 export type NotificationDelivery = typeof notificationDeliveries.$inferSelect;
-export type NewNotificationDelivery = typeof notificationDeliveries.$inferInsert;
+export type NewNotificationDelivery =
+  typeof notificationDeliveries.$inferInsert;

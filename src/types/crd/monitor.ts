@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SecretRefSchema, StatusBaseSchema, } from "./common";
+import { SecretRefSchema, StatusBaseSchema } from "./common";
 
 // Monitor schedule configuration
 export const MonitorScheduleSchema = z.object({
@@ -21,7 +21,10 @@ export type MonitorSchedule = z.infer<typeof MonitorScheduleSchema>;
 // HTTP target configuration
 export const HttpTargetSchema = z.object({
   url: z.string().url(),
-  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"]).optional().default("GET"),
+  method: z
+    .enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"])
+    .optional()
+    .default("GET"),
   followRedirects: z.boolean().optional().default(true),
   maxRedirects: z.number().min(0).optional().default(10),
   headers: z
@@ -30,7 +33,7 @@ export const HttpTargetSchema = z.object({
         name: z.string(),
         value: z.string().optional(),
         valueFromSecretRef: SecretRefSchema.optional(),
-      })
+      }),
     )
     .optional(),
   body: z
@@ -98,7 +101,7 @@ export const WebSocketTargetSchema = z.object({
       z.object({
         name: z.string(),
         value: z.string(),
-      })
+      }),
     )
     .optional(),
   send: z.string().optional(),
@@ -143,7 +146,11 @@ export const K8sTargetSchema = z.object({
     name: z.string(),
   }),
   check: z.object({
-    type: z.enum(["AvailableReplicasAtLeast", "PodReadiness", "EndpointNonEmpty"]),
+    type: z.enum([
+      "AvailableReplicasAtLeast",
+      "PodReadiness",
+      "EndpointNonEmpty",
+    ]),
     min: z.number().min(0).optional(),
   }),
 });
@@ -323,7 +330,7 @@ export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
 // Full Monitor CRD
 export const MonitorSchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
   kind: z.literal("Monitor"),
   metadata: z.object({
     name: z.string(),

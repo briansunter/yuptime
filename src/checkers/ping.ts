@@ -5,7 +5,10 @@ import type { CheckResult } from "./index";
 /**
  * Ping checker - ICMP echo requests
  */
-export async function checkPing(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export async function checkPing(
+  monitor: Monitor,
+  timeout: number,
+): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.ping;
 
@@ -36,14 +39,22 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
     const platform = process.platform;
     if (platform === "win32") {
       // Windows
-      args = ["-n", packetCount.toString(), "-w", (timeout * 1000).toString(), host];
+      args = [
+        "-n",
+        packetCount.toString(),
+        "-w",
+        (timeout * 1000).toString(),
+        host,
+      ];
     } else {
       // Linux/macOS
       args = ["-c", packetCount.toString(), "-W", timeout.toString(), host];
     }
 
     try {
-      const { stdout } = await execFileAsync(command, args, { timeout: timeout * 1000 });
+      const { stdout } = await execFileAsync(command, args, {
+        timeout: timeout * 1000,
+      });
 
       const latencyMs = Date.now() - startTime;
 
@@ -63,7 +74,10 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
       }
 
       // If we can't parse latency, just check for success indicators
-      if (stdout.toLowerCase().includes("unreachable") || stdout.includes("100% packet loss")) {
+      if (
+        stdout.toLowerCase().includes("unreachable") ||
+        stdout.includes("100% packet loss")
+      ) {
         return {
           state: "down",
           latencyMs,
@@ -92,7 +106,10 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
 
       // Check stderr for common error messages
       const stderr = error.stderr || "";
-      if (stderr.includes("unknown host") || stderr.includes("Name or service not known")) {
+      if (
+        stderr.includes("unknown host") ||
+        stderr.includes("Name or service not known")
+      ) {
         return {
           state: "down",
           latencyMs,

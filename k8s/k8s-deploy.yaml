@@ -1,9 +1,9 @@
 ---
-# Namespace for KubeKuma
+# Namespace for Yuptime
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: kubekuma
+  name: yuptime
 
 ---
 # Secret with test user password hash
@@ -11,7 +11,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: admin-password
-  namespace: kubekuma
+  namespace: yuptime
 type: Opaque
 stringData:
   # Password: test1234 (min 8 chars required)
@@ -22,39 +22,39 @@ stringData:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kubekuma-config
-  namespace: kubekuma
+  name: yuptime-config
+  namespace: yuptime
 data:
   SESSION_SECRET: "dev-secret-change-in-production"
   NODE_ENV: "development"
   LOG_LEVEL: "info"
-  ETCD_ENDPOINTS: "http://etcd.kubekuma.svc.cluster.local:2379"
+  ETCD_ENDPOINTS: "http://etcd.yuptime.svc.cluster.local:2379"
 
 ---
-# Deployment for KubeKuma API Server
+# Deployment for Yuptime API Server
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kubekuma-api
-  namespace: kubekuma
+  name: yuptime-api
+  namespace: yuptime
   labels:
-    app: kubekuma
+    app: yuptime
     component: api-server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: kubekuma
+      app.kubernetes.io/name: yuptime
       app.kubernetes.io/component: api-server
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: kubekuma
+        app.kubernetes.io/name: yuptime
         app.kubernetes.io/component: api-server
       annotations:
-        description: "KubeKuma API Server"
+        description: "Yuptime API Server"
     spec:
-      serviceAccountName: kubekuma
+      serviceAccountName: yuptime
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -63,7 +63,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: api-server
-        image: kubekuma-api:latest
+        image: yuptime-api:latest
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
@@ -73,26 +73,26 @@ spec:
         - name: NODE_ENV
           valueFrom:
             configMapKeyRef:
-              name: kubekuma-config
+              name: yuptime-config
               key: NODE_ENV
         - name: LOG_LEVEL
           valueFrom:
             configMapKeyRef:
-              name: kubekuma-config
+              name: yuptime-config
               key: LOG_LEVEL
         - name: SESSION_SECRET
           valueFrom:
             configMapKeyRef:
-              name: kubekuma-config
+              name: yuptime-config
               key: SESSION_SECRET
         - name: PORT
           value: "3000"
         - name: DATABASE_URL
-          value: "sqlite:/data/kubekuma.db"
+          value: "sqlite:/data/yuptime.db"
         - name: ETCD_ENDPOINTS
           valueFrom:
             configMapKeyRef:
-              name: kubekuma-config
+              name: yuptime-config
               key: ETCD_ENDPOINTS
         - name: KUBE_NAMESPACE
           valueFrom:
@@ -147,7 +147,7 @@ spec:
       volumes:
       - name: data
         persistentVolumeClaim:
-          claimName: kubekuma-pvc
+          claimName: yuptime-pvc
       - name: tmp
         emptyDir: {}
 
@@ -156,10 +156,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: kubekuma-api
-  namespace: kubekuma
+  name: yuptime-api
+  namespace: yuptime
   labels:
-    app.kubernetes.io/name: kubekuma
+    app.kubernetes.io/name: yuptime
     app.kubernetes.io/component: api-server
 spec:
   type: ClusterIP
@@ -169,5 +169,5 @@ spec:
     targetPort: 3000
     protocol: TCP
   selector:
-    app.kubernetes.io/name: kubekuma
+    app.kubernetes.io/name: yuptime
     app.kubernetes.io/component: api-server

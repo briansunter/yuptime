@@ -1,5 +1,5 @@
 {
-  "name": "kubekuma",
+  "name": "yuptime",
   "version": "0.1.0",
   "description": "Kubernetes-native monitoring where all configuration is CRDs",
   "type": "module",
@@ -9,9 +9,16 @@
     "build": "tsc && bun run web:build",
     "web:build": "cd web && bun run build",
     "start": "node dist/index.js",
+    "test": "bun test",
+    "test:ci": "bun test --ci",
+    "test:coverage": "bun test --coverage",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write src/",
+    "format": "biome format --write src/",
+    "type-check": "tsc --noEmit",
+    "check": "bun run lint && bun run type-check && bun run test",
     "db:push": "drizzle-kit push:sqlite",
-    "db:generate": "drizzle-kit generate:sqlite",
-    "type-check": "tsc --noEmit"
+    "db:generate": "drizzle-kit generate:sqlite"
   },
   "dependencies": {
     "@fastify/cookie": "^8.2.0",

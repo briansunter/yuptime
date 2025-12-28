@@ -40,17 +40,25 @@ export interface ReconcileContext {
 /**
  * Validator function signature (can be sync or async)
  */
-export type ValidatorFn = (resource: CRDResource) => ValidationResult | Promise<ValidationResult>;
+export type ValidatorFn = (
+  resource: CRDResource,
+) => ValidationResult | Promise<ValidationResult>;
 
 /**
  * Reconciler function signature
  */
-export type ReconcilerFn = (resource: CRDResource, ctx: ReconcileContext) => Promise<void>;
+export type ReconcilerFn = (
+  resource: CRDResource,
+  ctx: ReconcileContext,
+) => Promise<void>;
 
 /**
  * Delete handler function signature
  */
-export type DeleteHandlerFn = (namespace: string, name: string) => Promise<void>;
+export type DeleteHandlerFn = (
+  namespace: string,
+  name: string,
+) => Promise<void>;
 
 /**
  * Complete reconciler configuration

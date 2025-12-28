@@ -9,7 +9,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendPushoverNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (
     !config.pushover?.userKeySecretRef ||
@@ -25,13 +25,13 @@ export async function sendPushoverNotification(
     const userKey = await resolveSecret(
       config.pushover.userKeySecretRef.name,
       config.pushover.userKeySecretRef.key,
-      config.pushover.userKeySecretRef.namespace || "monitoring"
+      config.pushover.userKeySecretRef.namespace || "monitoring",
     );
 
     const apiToken = await resolveSecret(
       config.pushover.apiTokenSecretRef.name,
       config.pushover.apiTokenSecretRef.key,
-      config.pushover.apiTokenSecretRef.namespace || "monitoring"
+      config.pushover.apiTokenSecretRef.namespace || "monitoring",
     );
 
     let device: string | undefined;
@@ -39,7 +39,7 @@ export async function sendPushoverNotification(
       device = await resolveSecret(
         config.pushover.deviceSecretRef.name,
         config.pushover.deviceSecretRef.key,
-        config.pushover.deviceSecretRef.namespace || "monitoring"
+        config.pushover.deviceSecretRef.namespace || "monitoring",
       );
     }
 
@@ -75,7 +75,7 @@ export async function sendPushoverNotification(
     });
 
     if (!response.ok) {
-      const errorData = await response.json() as { errors?: string[] };
+      const errorData = (await response.json()) as { errors?: string[] };
       return {
         success: false,
         error: `Pushover error: ${errorData.errors?.[0] || response.statusText}`,

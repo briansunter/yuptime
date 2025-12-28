@@ -10,7 +10,7 @@ export const SilenceSpecSchema = z.object({
         z.object({
           namespace: z.string(),
           name: z.string(),
-        })
+        }),
       )
       .optional(),
     namespaces: z.array(z.string()).optional(),
@@ -33,7 +33,7 @@ export type SilenceStatus = z.infer<typeof SilenceStatusSchema>;
 
 // Full Silence CRD
 export const SilenceSchema = z.object({
-  apiVersion: z.literal("monitoring.kubekuma.io/v1"),
+  apiVersion: z.literal("monitoring.yuptime.io/v1"),
   kind: z.literal("Silence"),
   metadata: z.object({
     name: z.string(),

@@ -1,8 +1,8 @@
-apiVersion: monitoring.kubekuma.io/v1
+apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
   name: test-disabled
-  namespace: kubekuma
+  namespace: yuptime
 spec:
   type: http
   enabled: false

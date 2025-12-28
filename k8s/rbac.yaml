@@ -1,19 +1,19 @@
-# KubeKuma RBAC Configuration
+# Yuptime RBAC Configuration
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kubekuma
-  namespace: kubekuma
+  name: yuptime
+  namespace: yuptime
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: kubekuma-controller
+  name: yuptime-controller
 rules:
   # CRD permissions
-  - apiGroups: ["monitoring.kubekuma.io"]
+  - apiGroups: ["monitoring.yuptime.io"]
     resources:
       - monitors
       - monitorsets
@@ -24,11 +24,11 @@ rules:
       - silences
       - localusers
       - apikeys
-      - kubekumasettings
+      - yuptimesettings
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
   # Status subresource
-  - apiGroups: ["monitoring.kubekuma.io"]
+  - apiGroups: ["monitoring.yuptime.io"]
     resources:
       - monitors/status
       - monitorsets/status
@@ -39,7 +39,7 @@ rules:
       - silences/status
       - localusers/status
       - apikeys/status
-      - kubekumasettings/status
+      - yuptimesettings/status
     verbs: ["get", "update", "patch"]
 
   # Secrets for password hashes and webhook URLs
@@ -81,18 +81,18 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: kubekuma-checker
-  namespace: kubekuma
+  name: yuptime-checker
+  namespace: yuptime
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: kubekuma-checker
-  namespace: kubekuma
+  name: yuptime-checker
+  namespace: yuptime
 rules:
   # Allow reading Monitor CRDs
-  - apiGroups: ["monitoring.kubekuma.io"]
+  - apiGroups: ["monitoring.yuptime.io"]
     resources: ["monitors"]
     verbs: ["get", "list"]
 
@@ -105,27 +105,27 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: kubekuma-checker
-  namespace: kubekuma
+  name: yuptime-checker
+  namespace: yuptime
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: kubekuma-checker
+  name: yuptime-checker
 subjects:
   - kind: ServiceAccount
-    name: kubekuma-checker
-    namespace: kubekuma
+    name: yuptime-checker
+    namespace: yuptime
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: kubekuma-controller
+  name: yuptime-controller
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: kubekuma-controller
+  name: yuptime-controller
 subjects:
   - kind: ServiceAccount
-    name: kubekuma
-    namespace: kubekuma
+    name: yuptime
+    namespace: yuptime

@@ -10,7 +10,7 @@ import type { ProviderDeliveryResult } from "../types";
 export async function sendAppriseNotification(
   config: NotificationProviderConfig,
   title: string,
-  body: string
+  body: string,
 ): Promise<ProviderDeliveryResult> {
   if (!config.apprise?.urlSecretRef) {
     return {
@@ -23,7 +23,7 @@ export async function sendAppriseNotification(
     const appriseUrl = await resolveSecret(
       config.apprise.urlSecretRef.name,
       config.apprise.urlSecretRef.key,
-      config.apprise.urlSecretRef.namespace || "monitoring"
+      config.apprise.urlSecretRef.namespace || "monitoring",
     );
 
     if (!appriseUrl) {

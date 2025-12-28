@@ -6,7 +6,7 @@ import { Database } from "bun:sqlite";
 
 async function testDatabase() {
   console.log("Opening database...");
-  const sqlite = new Database("/data/kubekuma.db");
+  const sqlite = new Database("/data/yuptime.db");
 
   try {
     // Check sessions table exists
