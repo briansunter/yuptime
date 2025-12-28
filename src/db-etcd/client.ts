@@ -31,6 +31,8 @@ export * from "../db/schema";
 
 export class EtcdDatabase {
   private client: Etcd3;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: tracks connection state for future health checks
+  private isConnected = false;
 
   constructor(connectionString?: string) {
     // Connect to Kubernetes etcd by default

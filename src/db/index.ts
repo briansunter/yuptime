@@ -11,8 +11,12 @@ import { config } from "../lib/config";
 import { logger } from "../lib/logger";
 import * as schema from "./schema";
 
-// Type for our database instance
-type DrizzleDb = ReturnType<typeof drizzle> | ReturnType<typeof drizzlePg>;
+// Database type uses 'any' because:
+// 1. etcd and Drizzle (SQLite/Postgres) have different APIs
+// 2. etcd uses db.heartbeats().method() style
+// 3. Drizzle uses db.select().from(table) style
+// Runtime code handles the correct implementation
+type DrizzleDb = any;
 
 let db: DrizzleDb | null = null;
 let sqliteConnection: Database | null = null;
