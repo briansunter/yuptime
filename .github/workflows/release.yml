@@ -3,8 +3,6 @@ name: Release
 on:
   push:
     tags: ['v*']
-  workflow_call:
-    # Called by release-please workflow
   workflow_dispatch:
     inputs:
       version:
