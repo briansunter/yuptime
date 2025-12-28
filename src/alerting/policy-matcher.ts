@@ -163,7 +163,8 @@ export async function buildRoutingTable(
         eq(crdCache.namespace, monitorNamespace),
         eq(crdCache.name, monitorName)
       )
-    );
+    )
+    .execute() as any[];
 
   if (!monitor) {
     logger.warn(

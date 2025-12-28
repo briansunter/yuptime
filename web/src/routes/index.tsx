@@ -1,43 +1,68 @@
+import { useNavigate } from "@tanstack/react-router";
+import { useMonitors } from "@/hooks/use-monitors";
+import { StatusOverview, MonitorGrid } from "@/components/dashboard";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useState, useCallback } from "react";
+
 export default function Dashboard() {
+  const { monitors, loading, refetch } = useMonitors();
+  const navigate = useNavigate();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleSelectMonitor = useCallback(
+    (monitorId: string) => {
+      navigate({
+        to: "/monitors/$monitorId",
+        params: { monitorId },
+      });
+    },
+    [navigate]
+  );
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setTimeout(() => setIsRefreshing(false), 500);
+  }, [refetch]);
+
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Monitor status at a glance
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="gap-2"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Zone 1: Status Overview */}
+      <StatusOverview monitors={monitors} loading={loading} />
+
+      {/* Zone 3: Monitor Cards Grid */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-2">Welcome to KubeKuma monitoring</p>
-      </div>
-
-      {/* Status cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="text-sm text-gray-600">Monitors Up</div>
-          <div className="text-3xl font-bold text-status-up">0</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="text-sm text-gray-600">Monitors Down</div>
-          <div className="text-3xl font-bold text-status-down">0</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="text-sm text-gray-600">Monitors Pending</div>
-          <div className="text-3xl font-bold text-status-pending">0</div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="text-sm text-gray-600">Active Incidents</div>
-          <div className="text-3xl font-bold text-status-down">0</div>
-        </div>
-      </div>
-
-      {/* Placeholder for upcoming features */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h2 className="font-semibold text-blue-900 mb-2">Coming Soon</h2>
-        <p className="text-blue-800">
-          The KubeKuma dashboard is being built. Check back soon for:
-        </p>
-        <ul className="list-disc list-inside text-blue-800 mt-2 space-y-1">
-          <li>Monitor status overview</li>
-          <li>Recent incidents timeline</li>
-          <li>Uptime statistics</li>
-          <li>Alert notifications</li>
-        </ul>
+        <h2 className="text-lg font-semibold text-foreground mb-4">
+          All Monitors
+        </h2>
+        <MonitorGrid
+          monitors={monitors}
+          loading={loading}
+          onSelectMonitor={handleSelectMonitor}
+        />
       </div>
     </div>
   );

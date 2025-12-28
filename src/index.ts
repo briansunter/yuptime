@@ -38,7 +38,7 @@ async function main() {
       {
         port: config.port,
         env: config.env,
-        database: config.isPostgres ? "PostgreSQL" : "SQLite",
+        database: config.dbType === "etcd" ? "etcd" : config.isPostgres ? "PostgreSQL" : "SQLite",
       },
       `KubeKuma server started successfully`
     );

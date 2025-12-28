@@ -38,7 +38,8 @@ export async function checkPush(
       .from(heartbeats)
       .where(eq(heartbeats.monitorId, monitorId))
       .orderBy(desc(heartbeats.checkedAt))
-      .limit(1);
+      .limit(1)
+      .execute() as any[];
 
     if (!recent || recent.length === 0) {
       // No push ever received - report as down until first push
@@ -115,7 +116,8 @@ export async function validatePushToken(
           eq(crdCache.namespace, monitorNamespace),
           eq(crdCache.name, monitorName)
         )
-      );
+      )
+      .execute() as any[];
 
     if (!monitor || monitor.length === 0) {
       return {

@@ -91,7 +91,8 @@ export async function sessionMiddleware(
           eq(sessions.tokenHash, tokenHash),
           gte(sessions.expiresAt, nowISO)
         )
-      );
+      )
+      .execute();
 
     if (!sessionRow) {
       // Session revoked, expired, or doesn't exist

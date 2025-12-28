@@ -18,7 +18,8 @@ export async function getPreviousHeartbeat(monitorId: string) {
     .from(heartbeats)
     .where(eq(heartbeats.monitorId, monitorId))
     .orderBy(desc(heartbeats.checkedAt))
-    .limit(2);
+    .limit(2)
+    .execute();
 
   return previous.length > 1 ? previous[1] : null;
 }
@@ -28,15 +29,16 @@ export async function getPreviousHeartbeat(monitorId: string) {
  */
 export async function getActiveIncident(monitorId: string) {
   const db = getDatabase();
-  const [incident] = await db
+  const results = await db
     .select()
     .from(incidents)
     .where(
       and(eq(incidents.monitorId, monitorId), eq(incidents.state, "down"))
     )
-    .limit(1);
+    .limit(1)
+    .execute() as any[];
 
-  return incident || null;
+  return results[0] || null;
 }
 
 /**
@@ -52,8 +54,9 @@ export async function handleIncident(
     const active = await getActiveIncident(event.monitorId);
     if (active) {
       const now = new Date();
+      const startedAt = typeof active.startedAt === 'string' ? new Date(active.startedAt) : active.startedAt;
       const durationSeconds = Math.floor(
-        (now.getTime() - new Date(active.startedAt).getTime()) / 1000
+        (now.getTime() - startedAt.getTime()) / 1000
       );
 
       await db
@@ -63,7 +66,8 @@ export async function handleIncident(
           duration: durationSeconds,
           updatedAt: now.toISOString(),
         })
-        .where(eq(incidents.id, active.id));
+        .where(eq(incidents.id, active.id))
+        .exec();
 
       logger.info(
         {
@@ -91,7 +95,7 @@ export async function handleIncident(
 
     // Create new incident
     const now = new Date();
-    const result = await db
+    const incidentId = await db
       .insert(incidents)
       .values({
         monitorNamespace: event.monitorNamespace,
@@ -103,16 +107,15 @@ export async function handleIncident(
         acknowledged: false,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
-      })
-      .returning({ id: incidents.id });
+      });
 
-    const incidentId = result[0]?.id || 0;
+    const id = (incidentId as any).id || 0;
     logger.info(
-      { monitorId: event.monitorId, incidentId },
+      { monitorId: event.monitorId, incidentId: id },
       "Incident created"
     );
 
-    return { incidentId, isNew: true };
+    return { incidentId: id, isNew: true };
   }
 
   // For pending/flapping/paused states, handle as state changes

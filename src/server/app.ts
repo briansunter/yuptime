@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
+import fastifyStatic from "@fastify/static";
 import { ZodError } from "zod";
 import { logger } from "../lib/logger";
 import { config } from "../lib/config";
@@ -9,6 +10,7 @@ import { registerStatusPageRoutes } from "./routes/status-pages";
 import { registerAuthRoutes } from "./routes/auth";
 import { sessionMiddleware } from "./middleware/session";
 import { apiKeyAuth } from "./middleware/auth";
+import path from "path";
 
 export async function createApp() {
   const app = Fastify({
@@ -85,13 +87,9 @@ export async function createApp() {
     // Monitors - list all monitors from CRD cache
     app.get("/monitors", async (_request, _reply) => {
       const db = getDatabase();
-      const { crdCache } = require("../db/schema");
-      const { eq } = require("drizzle-orm");
 
-      const monitors = await db
-        .select()
-        .from(crdCache)
-        .where(eq(crdCache.kind, "Monitor"));
+      // Use etcd-native API to get monitors by kind
+      const monitors = await db.crdCache().getByKind("Monitor");
 
       const items = monitors.map((m: any) => ({
         namespace: m.namespace,
@@ -109,13 +107,32 @@ export async function createApp() {
   // Register status page routes (public endpoints)
   await registerStatusPageRoutes(app as any);
 
-  // SPA fallback: route unmatched API requests
-  app.setNotFoundHandler((request, reply) => {
+  // Serve static frontend files
+  const publicPath = path.join(process.cwd(), "public");
+  try {
+    await app.register(fastifyStatic, {
+      root: publicPath,
+      prefix: "/",
+      decorateReply: false,
+    });
+    logger.info({ publicPath }, "Static file serving enabled");
+  } catch (err) {
+    logger.warn({ publicPath, error: err }, "Static file serving not available (public folder may not exist)");
+  }
+
+  // SPA fallback: serve index.html for non-API routes
+  app.setNotFoundHandler(async (request, reply) => {
     if (request.url.startsWith("/api")) {
-      reply.code(404).send({ error: "Not found" });
-    } else {
-      // For non-API requests, return 404 (frontend not served in this setup)
-      reply.code(404).send({ error: "Not found" });
+      return reply.code(404).send({ error: "Not found" });
+    }
+    // Serve index.html for SPA routing
+    try {
+      const indexPath = path.join(publicPath, "index.html");
+      const fs = await import("fs/promises");
+      const content = await fs.readFile(indexPath, "utf-8");
+      return reply.type("text/html").send(content);
+    } catch {
+      return reply.code(404).send({ error: "Not found" });
     }
   });
 

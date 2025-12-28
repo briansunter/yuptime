@@ -67,7 +67,8 @@ export async function registerAuthRoutes(
         const userCrds = await db
           .select()
           .from(crdCache)
-          .where(eq(crdCache.kind, "LocalUser"));
+          .where(eq(crdCache.kind, "LocalUser"))
+          .execute() as any[];
 
         // Linear search through CRDs to find by username (stored in spec)
         let matchedUser: any = null;
@@ -282,7 +283,8 @@ export async function registerAuthRoutes(
         const userCrds = await db
           .select()
           .from(crdCache)
-          .where(eq(crdCache.kind, "LocalUser"));
+          .where(eq(crdCache.kind, "LocalUser"))
+          .execute() as any[];
 
         const userCrd = userCrds.find(
           (u) => u.namespace === namespace && u.name === name

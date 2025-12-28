@@ -20,7 +20,10 @@ export function startDeliveryWorker(): NodeJS.Timer {
     try {
       await processPendingNotifications();
     } catch (error) {
-      logger.error({ error }, "Delivery worker error");
+      const errorDetails = error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { rawError: String(error) };
+      logger.error({ error: errorDetails }, "Delivery worker error");
     }
   }, 5000); // Check every 5 seconds
 }
@@ -46,8 +49,11 @@ async function processPendingNotifications(): Promise<void> {
     try {
       await deliverNotificationItem(notification);
     } catch (error) {
+      const errorDetails = error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { rawError: String(error) };
       logger.error(
-        { notificationId: notification.id, error },
+        { notificationId: notification.id, error: errorDetails },
         "Failed to deliver notification"
       );
     }
@@ -69,7 +75,8 @@ async function deliverNotificationItem(notification: any): Promise<void> {
         eq(crdCache.kind, "NotificationProvider"),
         eq(crdCache.name, notification.providerName)
       )
-    );
+    )
+    .execute() as any[];
 
   if (!providerRow) {
     logger.warn(
@@ -124,10 +131,13 @@ async function deliverNotificationItem(notification: any): Promise<void> {
       );
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error
+      ? { message: error.message, stack: error.stack }
+      : { rawError: String(error) };
     await markAsFailed(notification.id, errorMessage);
     logger.error(
-      { provider: notification.providerName, error },
+      { provider: notification.providerName, error: errorDetails },
       "Notification delivery exception"
     );
   }

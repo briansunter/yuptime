@@ -28,6 +28,7 @@ data:
   SESSION_SECRET: "dev-secret-change-in-production"
   NODE_ENV: "development"
   LOG_LEVEL: "info"
+  ETCD_ENDPOINTS: "http://etcd.kubekuma.svc.cluster.local:2379"
 
 ---
 # Deployment for KubeKuma API Server
@@ -88,6 +89,11 @@ spec:
           value: "3000"
         - name: DATABASE_URL
           value: "sqlite:/data/kubekuma.db"
+        - name: ETCD_ENDPOINTS
+          valueFrom:
+            configMapKeyRef:
+              name: kubekuma-config
+              key: ETCD_ENDPOINTS
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:

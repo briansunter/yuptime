@@ -6,8 +6,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { getDatabase } from "../../db";
-import { heartbeats, incidents, crdCache } from "../../db/schema";
-import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { incidents, crdCache } from "../../db/schema";
+import { eq, desc } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import {
   StatusPageParamsSchema,
@@ -42,24 +42,18 @@ async function getMonitorStatus(
   latency?: number;
 }> {
   const db = getDatabase();
-
   const monitorId = `${namespace}/${name}`;
 
-  const latest = await db
-    .select()
-    .from(heartbeats)
-    .where(eq(heartbeats.monitorId, monitorId))
-    .orderBy(desc(heartbeats.checkedAt))
-    .limit(1);
+  // Use etcd-native API for direct heartbeat lookup
+  const heartbeat = await db.heartbeats().getLatest(monitorId);
 
-  if (!latest || latest.length === 0) {
+  if (!heartbeat) {
     return {
       status: "down",
       lastCheckedAt: undefined,
     };
   }
 
-  const heartbeat = latest[0];
   let status: "operational" | "degraded" | "down" = "operational";
 
   if (heartbeat.state === "down") {
@@ -70,8 +64,8 @@ async function getMonitorStatus(
 
   return {
     status,
-    lastCheckedAt: heartbeat.checkedAt,
-    latency: heartbeat.latencyMs || undefined,
+    lastCheckedAt: heartbeat.checkedAt as string,
+    latency: heartbeat.latencyMs ? Number(heartbeat.latencyMs) : undefined,
   };
 }
 
@@ -101,6 +95,7 @@ function calculateOverallStatus(
 
 /**
  * Calculate uptime percentage for a monitor over time period
+ * Uses simple heartbeat counting for etcd compatibility
  */
 async function calculateUptime(
   monitorId: string,
@@ -110,38 +105,23 @@ async function calculateUptime(
 
   const startTime = new Date();
   startTime.setDate(startTime.getDate() - days);
+  const startTimeIso = startTime.toISOString();
 
-  const results = await db
-    .select({
-      state: heartbeats.state,
-      count: sql<number>`COUNT(*)`,
-    })
-    .from(heartbeats)
-    .where(
-      and(
-        eq(heartbeats.monitorId, monitorId),
-        gte(heartbeats.checkedAt, startTime.toISOString())
-      )
-    )
-    .groupBy(heartbeats.state);
+  // Get all heartbeats for this monitor and filter by time
+  const allHeartbeats = await db.heartbeats().select().execute();
 
-  let totalChecks = 0;
-  let upChecks = 0;
+  // Filter by monitorId and time
+  const filtered = allHeartbeats.filter((hb: any) =>
+    hb.monitorId === monitorId &&
+    hb.checkedAt >= startTimeIso
+  );
 
-  for (const result of results) {
-    const count = Number(result.count);
-    totalChecks += count;
-
-    if (result.state === "up") {
-      upChecks += count;
-    }
+  if (filtered.length === 0) {
+    return 100; // No data means assume 100% uptime
   }
 
-  if (totalChecks === 0) {
-    return 100;
-  }
-
-  return (upChecks / totalChecks) * 100;
+  const upCount = filtered.filter((hb: any) => hb.state === "up").length;
+  return (upCount / filtered.length) * 100;
 }
 
 /**
@@ -153,11 +133,11 @@ export async function registerStatusPageRoutes(
   const app = fastify;
 
   /**
-   * GET /status/:slug
+   * GET /api/v1/status/:slug
    * Get status page data
    */
   app.get(
-    "/status/:slug",
+    "/api/v1/status/:slug",
     async (request, reply) => {
       try {
         const paramsResult = StatusPageParamsSchema.safeParse(request.params);
@@ -174,9 +154,10 @@ export async function registerStatusPageRoutes(
         const pages = await db
           .select()
           .from(crdCache)
-          .where(eq(crdCache.kind, "StatusPage"));
+          .where(eq(crdCache.kind, "StatusPage"))
+          .execute() as any[];
 
-        let pageRow: (typeof pages)[number] | null = null;
+        let pageRow: typeof pages[number] | null = null;
         for (const page of pages) {
           const spec = JSON.parse(page.spec || "{}");
           if (spec.slug === slug) {
@@ -249,11 +230,11 @@ export async function registerStatusPageRoutes(
   );
 
   /**
-   * GET /badge/:slug/:monitor
+   * GET /api/v1/badge/:slug/:monitor
    * Get SVG badge for monitor
    */
   app.get(
-    "/badge/:slug/:monitor",
+    "/api/v1/badge/:slug/:monitor",
     async (request, reply) => {
       try {
         const paramsResult = BadgeParamsSchema.safeParse(request.params);
@@ -305,11 +286,11 @@ export async function registerStatusPageRoutes(
   );
 
   /**
-   * GET /uptime/:monitor
+   * GET /api/v1/uptime/:monitor
    * Get uptime percentage for a monitor
    */
   app.get(
-    "/uptime/:monitor",
+    "/api/v1/uptime/:monitor",
     async (request, reply) => {
       try {
         const paramsResult = UptimeParamsSchema.safeParse(request.params);
@@ -371,7 +352,8 @@ export async function registerStatusPageRoutes(
 
         const results = await query
           .orderBy(desc(incidents.startedAt))
-          .limit(limitValue);
+          .limit(limitValue)
+          .execute() as any[];
 
         const formatted = results.map((incident: Incident) => ({
           id: incident.id,
@@ -388,6 +370,127 @@ export async function registerStatusPageRoutes(
         logger.error({ error }, "Failed to get incidents");
         return reply.status(500).send({
           error: "Failed to retrieve incidents",
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/v1/heartbeats/:monitorId
+   * Get heartbeat history for a monitor (for charts)
+   */
+  app.get(
+    "/api/v1/heartbeats/:monitorId",
+    async (request, reply) => {
+      try {
+        const { monitorId } = request.params as { monitorId: string };
+        const { limit = 100 } = request.query as { limit?: number };
+
+        const db = getDatabase();
+        const decodedMonitorId = decodeURIComponent(monitorId);
+
+        // Get all heartbeats and filter by monitorId
+        const allHeartbeats = await db.heartbeats().select().execute();
+
+        const filtered = allHeartbeats
+          .filter((hb: any) => hb.monitorId === decodedMonitorId)
+          .sort((a: any, b: any) =>
+            new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
+          )
+          .slice(0, Number(limit));
+
+        const heartbeats = filtered.map((hb: any) => ({
+          checkedAt: hb.checkedAt,
+          latencyMs: hb.latencyMs,
+          state: hb.state,
+          reason: hb.reason,
+        }));
+
+        return reply.send({
+          monitorId: decodedMonitorId,
+          heartbeats,
+          total: heartbeats.length,
+        });
+      } catch (error) {
+        logger.error({ error }, "Failed to get heartbeat history");
+        return reply.status(500).send({
+          error: "Failed to retrieve heartbeat history",
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/v1/monitors/:monitorId/stats
+   * Get aggregated statistics for a monitor
+   */
+  app.get(
+    "/api/v1/monitors/:monitorId/stats",
+    async (request, reply) => {
+      try {
+        const { monitorId } = request.params as { monitorId: string };
+        const decodedMonitorId = decodeURIComponent(monitorId);
+
+        const db = getDatabase();
+
+        // Get latest heartbeat
+        const latest = await db.heartbeats().getLatest(decodedMonitorId);
+
+        // Get all heartbeats for the monitor
+        const allHeartbeats = await db.heartbeats().select().execute();
+        const monitorHeartbeats = allHeartbeats.filter(
+          (hb: any) => hb.monitorId === decodedMonitorId
+        );
+
+        const now = new Date();
+        const day1Ago = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const day7Ago = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const day30Ago = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        // Calculate uptime and average latency for different time periods
+        const calculateStats = (startDate: Date) => {
+          const filtered = monitorHeartbeats.filter(
+            (hb: any) => new Date(hb.checkedAt) >= startDate
+          );
+          if (filtered.length === 0) return { uptime: 100, avgLatency: null };
+
+          const upCount = filtered.filter((hb: any) => hb.state === "up").length;
+          const uptime = (upCount / filtered.length) * 100;
+
+          const latencies = filtered
+            .filter((hb: any) => hb.latencyMs != null)
+            .map((hb: any) => hb.latencyMs);
+          const avgLatency =
+            latencies.length > 0
+              ? latencies.reduce((a: number, b: number) => a + b, 0) / latencies.length
+              : null;
+
+          return { uptime, avgLatency };
+        };
+
+        const stats24h = calculateStats(day1Ago);
+        const stats7d = calculateStats(day7Ago);
+        const stats30d = calculateStats(day30Ago);
+
+        return reply.send({
+          monitorId: decodedMonitorId,
+          currentLatency: latest?.latencyMs || null,
+          avgLatency24h: stats24h.avgLatency
+            ? Math.round(stats24h.avgLatency * 100) / 100
+            : null,
+          avgLatency7d: stats7d.avgLatency
+            ? Math.round(stats7d.avgLatency * 100) / 100
+            : null,
+          uptime24h: Math.round(stats24h.uptime * 100) / 100,
+          uptime7d: Math.round(stats7d.uptime * 100) / 100,
+          uptime30d: Math.round(stats30d.uptime * 100) / 100,
+          lastCheckedAt: latest?.checkedAt || null,
+          state: latest?.state || "pending",
+        });
+      } catch (error) {
+        logger.error({ error }, "Failed to get monitor stats");
+        return reply.status(500).send({
+          error: "Failed to retrieve monitor statistics",
         });
       }
     }

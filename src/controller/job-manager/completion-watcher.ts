@@ -1,36 +1,29 @@
 /**
  * Job Completion Watcher
  * Watches for Job completion and updates Monitor status
+ * Also includes stall detection to recover from missed events
  */
 
 import { KubeConfig, BatchV1Api, CustomObjectsApi } from "@kubernetes/client-node";
 import { Watch } from "@kubernetes/client-node/dist/watch";
 import { getDatabase } from "../../db";
-import { heartbeats } from "../../db/schema";
-import { eq, desc } from "drizzle-orm";
 import { updateStatus, createCondition } from "../reconcilers/status-utils";
 import { logger } from "../../lib/logger";
 
+// Stall detection interval (30 seconds)
+const STALL_DETECTION_INTERVAL_MS = 30000;
+
 /**
  * Get the last heartbeat for a monitor
+ * Uses etcd O(1) latest index lookup
  */
 export async function getLastHeartbeat(monitorId: string) {
 	const db = getDatabase();
 
-	const result = await db
-		.select({
-			state: heartbeats.state,
-			latency: heartbeats.latencyMs,
-			reason: heartbeats.reason,
-			message: heartbeats.message,
-			checkedAt: heartbeats.checkedAt,
-		})
-		.from(heartbeats)
-		.where(eq(heartbeats.monitorId, monitorId))
-		.orderBy(desc(heartbeats.checkedAt))
-		.limit(1);
+	// Use O(1) latest heartbeat index lookup
+	const heartbeat = await db.heartbeats().getLatest(monitorId);
 
-	return result[0];
+	return heartbeat;
 }
 
 /**
@@ -69,7 +62,7 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
 			}
 
 			// Update Monitor status
-			const isHealthy = heartbeat.state === "up" || heartbeat.state === "healthy";
+			const isHealthy = heartbeat.state === "up";
 			const conditionType = isHealthy ? "Healthy" : "Unhealthy";
 
 			const status = {
@@ -77,13 +70,13 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
 					createCondition(
 						conditionType,
 						isHealthy ? "True" : "False",
-						heartbeat.reason,
-						heartbeat.message
+						heartbeat.reason || undefined,
+						heartbeat.message || undefined
 					),
 				],
 				lastCheck: heartbeat.checkedAt,
 				lastState: heartbeat.state,
-				latency: heartbeat.latency,
+				latency: heartbeat.latencyMs,
 			};
 
 			await updateStatus("Monitor", "monitors", namespace, name, status);
@@ -92,7 +85,7 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
 				{
 					monitorId,
 					state: heartbeat.state,
-					latency: heartbeat.latency,
+					latency: heartbeat.latencyMs,
 				},
 				"Updated Monitor status after Job completion"
 			);
@@ -149,6 +142,134 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
 			}
 		} catch (error) {
 			logger.error({ monitorId, error }, "Failed to update Monitor status after Job completion");
+		}
+	}
+
+	/**
+	 * Check if there's an active/pending job for a monitor
+	 */
+	async function hasActiveJobForMonitor(namespace: string, name: string): Promise<boolean> {
+		try {
+			const labelSelector = `monitoring.kubekuma.io/monitor=${namespace}-${name}`;
+			const jobs = await batchApi.listNamespacedJob({
+				namespace,
+				labelSelector,
+			});
+
+			return jobs.items.some(job =>
+				(job.status?.active && job.status.active > 0) ||
+				(!job.status?.succeeded && !job.status?.failed)
+			);
+		} catch (error) {
+			logger.debug({ namespace, name, error }, "Failed to check for active jobs");
+			return false;
+		}
+	}
+
+	/**
+	 * Schedule a check for a monitor
+	 * @param monitor - The monitor CRD object
+	 * @param delayMs - Delay before creating the job (0 for immediate)
+	 */
+	async function scheduleCheck(monitor: any, delayMs: number = 0) {
+		const namespace = monitor.metadata?.namespace || "default";
+		const name = monitor.metadata?.name;
+		const monitorId = `${namespace}/${name}`;
+
+		if (schedulingLocks.has(monitorId)) {
+			logger.debug({ monitorId }, "Schedule already pending, skipping");
+			return;
+		}
+
+		const timeoutId = setTimeout(async () => {
+			try {
+				const { buildJobForMonitor } = require("../job-manager/job-builder");
+				const { calculateJitter } = require("../job-manager/jitter");
+
+				const jitterPercent = monitor.spec?.schedule?.jitterPercent || 5;
+				const intervalSeconds = monitor.spec?.schedule?.intervalSeconds || 60;
+				const jitterMs = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
+
+				const job = buildJobForMonitor(monitor, jitterMs);
+
+				await batchApi.createNamespacedJob({
+					namespace,
+					body: job
+				});
+
+				logger.info({ monitorId, delayMs }, "Scheduled check");
+			} catch (error) {
+				logger.error({ monitorId, error }, "Failed to schedule check");
+			} finally {
+				schedulingLocks.delete(monitorId);
+			}
+		}, delayMs);
+
+		schedulingLocks.set(monitorId, timeoutId);
+	}
+
+	/**
+	 * Detect and reschedule stalled monitors
+	 * A monitor is considered stalled if:
+	 * 1. It's enabled
+	 * 2. Its last heartbeat is older than (interval * 2)
+	 * 3. There is no active/pending job for it
+	 */
+	async function detectAndRescheduleStalled() {
+		try {
+			// List all monitors across all namespaces
+			const monitorsResponse = await customObjectsApi.listClusterCustomObject({
+				group: "monitoring.kubekuma.io",
+				version: "v1",
+				plural: "monitors",
+			});
+
+			const monitors = ((monitorsResponse as any).items || []) as any[];
+
+			for (const monitor of monitors) {
+				const namespace = monitor.metadata?.namespace || "default";
+				const name = monitor.metadata?.name;
+				const monitorId = `${namespace}/${name}`;
+				const intervalSeconds = monitor.spec?.schedule?.intervalSeconds || 60;
+
+				// Skip disabled monitors
+				if (monitor.spec?.enabled === false) continue;
+
+				// Skip if already in scheduling locks
+				if (schedulingLocks.has(monitorId)) continue;
+
+				// Get last heartbeat
+				const heartbeat = await getLastHeartbeat(monitorId);
+
+				if (!heartbeat) {
+					// No heartbeat ever - check if there's an active job
+					const hasActiveJob = await hasActiveJobForMonitor(namespace, name);
+					if (!hasActiveJob) {
+						logger.info({ monitorId }, "No heartbeat found and no active job, scheduling initial check");
+						await scheduleCheck(monitor, 0);
+					}
+					continue;
+				}
+
+				const lastCheckTime = new Date(heartbeat.checkedAt).getTime();
+				const now = Date.now();
+				const stalledThreshold = intervalSeconds * 2 * 1000; // 2x interval
+
+				if (now - lastCheckTime > stalledThreshold) {
+					// Check if there's an active job
+					const hasActiveJob = await hasActiveJobForMonitor(namespace, name);
+
+					if (!hasActiveJob) {
+						logger.warn(
+							{ monitorId, lastCheck: heartbeat.checkedAt, stalledFor: Math.round((now - lastCheckTime) / 1000) + "s" },
+							"Monitor stalled, rescheduling"
+						);
+						await scheduleCheck(monitor, 0);
+					}
+				}
+			}
+		} catch (error) {
+			logger.error({ error }, "Failed to detect stalled monitors");
 		}
 	}
 
@@ -211,6 +332,15 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
 			);
 
 			logger.info("Job completion watcher started successfully");
+
+			// Start stall detection loop
+			setInterval(() => {
+				detectAndRescheduleStalled().catch(err => {
+					logger.error({ error: err }, "Stall detection loop failed");
+				});
+			}, STALL_DETECTION_INTERVAL_MS);
+
+			logger.info({ intervalMs: STALL_DETECTION_INTERVAL_MS }, "Stall detection loop started");
 		} catch (error) {
 			logger.error({ error }, "Failed to start Job completion watcher");
 			watching = false;

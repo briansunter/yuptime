@@ -60,7 +60,8 @@ export async function isRateLimited(
           windowStart.toISOString()
         )
       )
-    );
+    )
+    .execute();
 
   return recent.length > 0;
 }
@@ -87,7 +88,8 @@ async function isSuppressed(
           eq(crdCache.namespace, monitorNamespace),
           eq(crdCache.name, monitorName)
         )
-      );
+      )
+      .execute() as any[];
 
     if (!monitor || monitor.length === 0) {
       return { suppressed: false };
@@ -147,7 +149,7 @@ export async function queueAlertForDelivery(
       "Alert suppressed"
     );
 
-    const item = await db
+    await db
       .insert(notificationDeliveries)
       .values({
         incidentId: alert.incidentId,
@@ -162,11 +164,10 @@ export async function queueAlertForDelivery(
           dedupKey: alert.dedupKey,
           reason: suppression.reason || "suppressed",
         }),
-      })
-      .returning();
+      });
 
     return {
-      incidentId: item[0]?.incidentId || alert.incidentId,
+      incidentId: alert.incidentId,
       monitorId: alert.event.monitorId,
       policyName: alert.policyName,
       providerName: alert.providerName,
@@ -191,7 +192,7 @@ export async function queueAlertForDelivery(
       "Alert deduplicated"
     );
 
-    const item = await db
+    await db
       .insert(notificationDeliveries)
       .values({
         incidentId: alert.incidentId,
@@ -206,11 +207,10 @@ export async function queueAlertForDelivery(
           dedupKey: alert.dedupKey,
           reason: "duplicate_in_window",
         }),
-      })
-      .returning();
+      });
 
     return {
-      incidentId: item[0]?.incidentId || alert.incidentId,
+      incidentId: alert.incidentId,
       monitorId: alert.event.monitorId,
       policyName: alert.policyName,
       providerName: alert.providerName,
@@ -236,7 +236,7 @@ export async function queueAlertForDelivery(
       "Alert rate limited"
     );
 
-    const item = await db
+    await db
       .insert(notificationDeliveries)
       .values({
         incidentId: alert.incidentId,
@@ -251,11 +251,10 @@ export async function queueAlertForDelivery(
           dedupKey: alert.dedupKey,
           reason: "rate_limited",
         }),
-      })
-      .returning();
+      });
 
     return {
-      incidentId: item[0]?.incidentId || alert.incidentId,
+      incidentId: alert.incidentId,
       monitorId: alert.event.monitorId,
       policyName: alert.policyName,
       providerName: alert.providerName,
@@ -267,7 +266,7 @@ export async function queueAlertForDelivery(
   }
 
   // Queue for delivery
-  const item = await db
+  await db
     .insert(notificationDeliveries)
     .values({
       incidentId: alert.incidentId,
@@ -284,8 +283,7 @@ export async function queueAlertForDelivery(
         dedupKey: alert.dedupKey,
         ...alert.metadata,
       }),
-    })
-    .returning();
+    });
 
   logger.debug(
     {
@@ -297,8 +295,7 @@ export async function queueAlertForDelivery(
   );
 
   return {
-    id: item[0]?.id,
-    incidentId: item[0]?.incidentId || alert.incidentId,
+    incidentId: alert.incidentId,
     monitorId: alert.event.monitorId,
     policyName: alert.policyName,
     providerName: alert.providerName,

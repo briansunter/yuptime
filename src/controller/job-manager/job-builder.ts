@@ -86,8 +86,8 @@ export function buildJobForMonitor(
 									value: "production",
 								},
 								{
-									name: "DATABASE_URL",
-									value: "sqlite:/data/kubekuma.db",
+									name: "ETCD_ENDPOINTS",
+									value: process.env.ETCD_ENDPOINTS || "http://etcd.kubekuma.svc.cluster.local:2379",
 								},
 								{
 									name: "NODE_TLS_REJECT_UNAUTHORIZED",
@@ -95,10 +95,6 @@ export function buildJobForMonitor(
 								},
 							],
 							volumeMounts: [
-								{
-									name: "data",
-									mountPath: "/data",
-								},
 								{
 									name: "tmp",
 									mountPath: "/tmp",
@@ -124,12 +120,6 @@ export function buildJobForMonitor(
 						},
 					],
 					volumes: [
-						{
-							name: "data",
-							persistentVolumeClaim: {
-								claimName: "kubekuma-pvc",
-							},
-						},
 						{
 							name: "tmp",
 							emptyDir: {},

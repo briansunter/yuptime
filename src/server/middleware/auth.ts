@@ -67,7 +67,8 @@ export async function apiKeyAuth(
     const apiKeyCrds = await db
       .select()
       .from(crdCache)
-      .where(eq(crdCache.kind, "ApiKey"));
+      .where(eq(crdCache.kind, "ApiKey"))
+      .execute() as any[];
 
     if (apiKeyCrds.length === 0) {
       logger.debug("No API keys configured");
@@ -129,7 +130,8 @@ export async function apiKeyAuth(
       const userCrds = await db
         .select()
         .from(crdCache)
-        .where(eq(crdCache.kind, "LocalUser"));
+        .where(eq(crdCache.kind, "LocalUser"))
+        .execute() as any[];
 
       const userCrd = userCrds.find(
         (u) => u.namespace === userNamespace && u.name === userName

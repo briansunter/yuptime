@@ -51,7 +51,7 @@ export default function PublicStatusPage() {
     const fetchPageData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/status/${slug}`);
+        const response = await fetch(`/api/v1/status/${slug}`);
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -92,7 +92,7 @@ export default function PublicStatusPage() {
           for (const monitor of group.monitors || []) {
             try {
               const uptimeRes = await fetch(
-                `/uptime/${encodeURIComponent(
+                `/api/v1/uptime/${encodeURIComponent(
                   `${monitor.namespace}/${monitor.name}`
                 )}?days=30`
               );

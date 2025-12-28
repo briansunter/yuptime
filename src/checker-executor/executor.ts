@@ -85,7 +85,8 @@ export async function executeCheck(
 }
 
 /**
- * Write heartbeat with retry for SQLite lock errors
+ * Write heartbeat to etcd
+ * etcd handles concurrent writes natively, no retry needed for locks
  */
 export async function writeHeartbeat(
 	namespace: string,
@@ -95,41 +96,25 @@ export async function writeHeartbeat(
 	const db = getDatabase();
 	const monitorId = `${namespace}/${name}`;
 
-	const maxRetries = 5;
-	const baseDelay = 100; // 100ms
+	try {
+		await db.heartbeats().insert({
+			monitorNamespace: namespace,
+			monitorName: name,
+			monitorId,
+			state: result.state,
+			latencyMs: result.latencyMs,
+			reason: result.reason || null,
+			message: result.message || null,
+			checkedAt: new Date().toISOString(),
+			attempts: null,
+		});
 
-	for (let attempt = 1; attempt <= maxRetries; attempt++) {
-		try {
-			await db.insert(heartbeats).values({
-				monitorNamespace: namespace,
-				monitorName: name,
-				monitorId,
-				state: result.state,
-				latencyMs: result.latencyMs,
-				reason: result.reason || null,
-				message: result.message || null,
-				checkedAt: new Date().toISOString(),
-			});
-
-			logger.debug(`Wrote heartbeat for ${monitorId}`);
-			return;
-		} catch (error: any) {
-			const isLockedError = error?.code === "SQLITE_BUSY" || error?.errno === 5;
-
-			if (isLockedError && attempt < maxRetries) {
-				const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
-				logger.debug(
-					{ monitorId, attempt, delay },
-					"Database locked, retrying..."
-				);
-				await new Promise((resolve) => setTimeout(resolve, delay));
-			} else {
-				logger.error(
-					{ monitorId, attempt, error },
-					"Failed to write heartbeat after retries"
-				);
-				throw error;
-			}
-		}
+		logger.debug(`Wrote heartbeat for ${monitorId}`);
+	} catch (error) {
+		logger.error(
+			{ monitorId, error },
+			"Failed to write heartbeat"
+		);
+		throw error;
 	}
 }

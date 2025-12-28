@@ -1,5 +1,12 @@
 import { logger } from "./logger";
 
+// Determine database type from environment
+const getDbType = () => {
+  if (process.env.ETCD_ENDPOINTS) return "etcd";
+  if ((process.env.DATABASE_URL || "").startsWith("postgresql://")) return "postgresql";
+  return "sqlite";
+};
+
 // Load environment variables
 export const config = {
   // Server
@@ -10,6 +17,9 @@ export const config = {
   // Database
   databaseUrl: process.env.DATABASE_URL || "sqlite:./kubekuma.db",
   isPostgres: (process.env.DATABASE_URL || "").startsWith("postgresql://"),
+  isEtcd: !!process.env.ETCD_ENDPOINTS,
+  dbType: getDbType(),
+  etcdEndpoints: process.env.ETCD_ENDPOINTS,
 
   // Kubernetes
   kubeConfig: process.env.KUBECONFIG,
@@ -57,7 +67,7 @@ export function validateConfig(): void {
     {
       env: config.env,
       port: config.port,
-      database: config.isPostgres ? "PostgreSQL" : "SQLite",
+      database: config.dbType === "etcd" ? "etcd" : config.isPostgres ? "PostgreSQL" : "SQLite",
       auth: config.authMode,
     },
     "Configuration loaded"
