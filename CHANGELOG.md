@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.14](https://github.com/briansunter/yuptime/compare/v0.0.13...v0.0.14) (2025-12-28)
+
+
+### Bug Fixes
+
+* skip kubectl validation (covered by Helm/Timoni/E2E) ([1ed77f0](https://github.com/briansunter/yuptime/commit/1ed77f0cca0c355f8f5cf12f4ebf505af6b48ea7))
+
 ## [0.0.13](https://github.com/briansunter/yuptime/compare/v0.0.12...v0.0.13) (2025-12-28)
 
 
