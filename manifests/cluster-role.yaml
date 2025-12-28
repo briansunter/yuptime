@@ -1,0 +1,117 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
+  name: yuptime-controller
+rules:
+- apiGroups:
+  - monitoring.yuptime.io
+  resources:
+  - monitors
+  - monitorsets
+  - notificationproviders
+  - notificationpolicies
+  - statuspages
+  - maintenancewindows
+  - silences
+  - localusers
+  - apikeys
+  - yuptimesettings
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - monitoring.yuptime.io
+  resources:
+  - monitors/status
+  - monitorsets/status
+  - notificationproviders/status
+  - notificationpolicies/status
+  - statuspages/status
+  - maintenancewindows/status
+  - silences/status
+  - localusers/status
+  - apikeys/status
+  - yuptimesettings/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  - endpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  - daemonsets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  - jobs/status
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/log
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+

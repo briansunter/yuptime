@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+  name: {{ include "yuptime.fullname" . }}

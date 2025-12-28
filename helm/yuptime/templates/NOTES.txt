@@ -1,0 +1,33 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+1. Get the application URL by running these commands:
+{{- if .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "yuptime.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 3000:$CONTAINER_PORT
+  echo "Visit http://127.0.0.1:3000 to use your application"
+{{- end }}
+
+2. Create your first Monitor:
+  kubectl apply -f - <<EOF
+  apiVersion: monitoring.yuptime.io/v1
+  kind: Monitor
+  metadata:
+    name: example
+    namespace: {{ .Release.Namespace }}
+  spec:
+    type: http
+    http:
+      url: https://example.com
+    schedule:
+      intervalSeconds: 60
+  EOF
+
+For more information, visit: https://docs.yuptime.io

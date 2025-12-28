@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-KubeKuma is a Kubernetes-native monitoring solution where all configuration is managed through Custom Resource Definitions (CRDs). It's designed as a single-instance application that runs entirely within Kubernetes with GitOps-ready workflows.
+Yuptime is a Kubernetes-native monitoring solution where all configuration is managed through Custom Resource Definitions (CRDs). It's designed as a single-instance application that runs entirely within Kubernetes with GitOps-ready workflows.
 
 **Key Architecture Principle**: The controller only writes to status subresources, never to spec. The spec is the source of truth from CRDs.
 
@@ -51,8 +51,10 @@ cd web && bun run dev
 
 ### Code Quality
 ```bash
-npx @biomejs/biome check src/     # Lint backend
-npx @biomejs/biome check --write src/  # Auto-fix issues
+bun run lint          # Run Biome linter
+bun run lint:fix      # Auto-fix linting issues
+bun run format        # Format code with Biome
+bun run type-check    # TypeScript type check without emitting
 ```
 
 ## Architecture
@@ -111,11 +113,20 @@ Key pattern: Alert events are queued and processed by delivery worker with dedup
 - **Vite**: Build system with hot module replacement
 - **Embedding**: Built assets are served by Fastify from `dist/` directory
 
+#### 6. Checker Executor (`src/checker-executor/`)
+- **Job-Based Execution**: Each monitor check runs in isolated Kubernetes Job pod
+- **Direct K8s API Updates**: Updates Monitor CRD status via service account token (no database)
+- **In-Cluster Authentication**: Reads service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token`
+- **RBAC Requirements**: Needs `monitors/status` patch/update permissions (see `timoni/yuptime/templates/rbac.cue`)
+- **Fallback**: Falls back to kubeconfig when not running in-cluster (for local testing)
+
+**Important**: The checker executor has NO database access. Check results are written directly to Monitor CRD status subresource via Kubernetes API using merge patch format.
+
 ## CRD Types (10 Custom Resources)
 
 All CRDs are defined in `src/types/crd/` with Zod schemas:
 
-1. **KubeKumaSettings** (`settings.ts`): Cluster-scoped global config
+1. **YuptimeSettings** (`settings.ts`): Cluster-scoped global config
 2. **Monitor** (`monitor.ts`): Single health check definition
 3. **MonitorSet** (`monitor-set.ts`): Bulk monitor definitions (inline, not child CRDs)
 4. **NotificationProvider** (`notification-provider.ts`): Alert destination credentials
@@ -182,6 +193,13 @@ When adding new features:
 - Jitter is deterministic based on job ID (consistent across restarts)
 - Uses hash-based scheduling with configurable jitter window
 
+### Checker Executor Architecture
+- **Isolated Execution**: Each monitor check runs in a separate Kubernetes Job pod
+- **Stateless**: No database connection; writes results directly to Monitor CRD status
+- **Service Account Auth**: Uses in-cluster service account token for Kubernetes API access
+- **Merge Patch Format**: Status updates use `application/merge-patch+json` content-type
+- **RBAC Isolation**: Checker service account has minimal permissions (monitors get/update, monitors/status patch/update)
+
 ## Adding a New Monitor Type
 
 1. Create checker in `src/checkers/{type}.ts`:
@@ -215,7 +233,40 @@ When adding new features:
    - Add new provider type to `NotificationProvider` Zod schema
    - Update CRD YAML
 
-## Testing Status
+## Testing
+
+### Running Tests
+```bash
+bun run test           # Run all tests (watch mode)
+bun run test:ci        # Run tests in CI mode (no watch)
+bun run test:coverage  # Run with coverage report
+```
+
+### Testing Checker Executor Locally
+The checker executor can be tested locally against a Kubernetes cluster:
+```bash
+# Uses kubeconfig for authentication when not in-cluster
+bun src/checker-executor/cli.ts <namespace> <monitor-name>
+```
+
+When running in Kubernetes Jobs, it automatically uses service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token`.
+
+Test files use Bun's built-in test runner and are placed alongside source files:
+- `src/controller/job-manager/jitter.test.ts`
+- `src/lib/crypto.test.ts`
+- `src/lib/rrule.test.ts`
+- `src/lib/selectors.test.ts`
+- `src/lib/uptime.test.ts`
+
+### Pre-commit Hooks
+Husky automatically runs before commits:
+- `bun run lint` - Biome linting
+- `bun run type-check` - TypeScript type checking
+- `bun run test:ci` - Run tests in CI mode
+
+**Note**: E2E tests are NOT run in pre-commit (only in CI workflow)
+
+## Implementation Status
 
 **Phases 1-5: COMPLETE**
 - Foundation, database, CRDs
@@ -224,16 +275,14 @@ When adding new features:
 - 8 monitor checker types
 - Status pages with public API
 - Suppressions (silences + maintenance windows)
+- Database-free checker executor (direct K8s API updates)
+- Pre-commit hooks with lint, type-check, and tests
 
 **Phases 6-9: In Progress**
 - Authentication (OIDC, local users, API keys)
 - Metrics & observability
 - Frontend dashboard
 - Timoni packaging
-
-No test runner is currently configured. When adding tests:
-- Use Bun's built-in test runner (`bun test`)
-- Place tests alongside source files (e.g., `src/scheduler/index.test.ts`)
 
 ## Important File Locations
 

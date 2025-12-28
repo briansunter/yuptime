@@ -1,0 +1,15 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+    app.kubernetes.io/version: 0.0.0-devel
+  name: {{ include "yuptime.fullname" . }}-pdb
+  namespace: {{ .Release.Namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api-server
+      app.kubernetes.io/name: {{ include "yuptime.fullname" . }}

@@ -1,0 +1,19 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
+  name: yuptime-checker
+  namespace: yuptime
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: yuptime-checker
+subjects:
+- kind: ServiceAccount
+  name: yuptime-checker
+  namespace: yuptime
+

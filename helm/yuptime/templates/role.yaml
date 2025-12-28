@@ -1,0 +1,30 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+    app.kubernetes.io/version: 0.0.0-devel
+  name: {{ include "yuptime.fullname" . }}-checker
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - monitoring.yuptime.io
+  resources:
+  - monitors
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - monitoring.yuptime.io
+  resources:
+  - monitors/status
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create

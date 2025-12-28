@@ -1,0 +1,130 @@
+# Default values for yuptime
+# This is generated from timoni/yuptime/values.cue - DO NOT EDIT MANUALLY
+
+image:
+  repository: ghcr.io/yuptime/yuptime-api
+  pullPolicy: IfNotPresent
+  tag: "" # Defaults to .Chart.AppVersion
+
+checkerImage:
+  repository: ghcr.io/yuptime/yuptime-checker
+  pullPolicy: IfNotPresent
+  tag: "" # Defaults to .Chart.AppVersion
+
+# Application mode
+mode: production
+
+# Database configuration
+database:
+  type: sqlite # sqlite | postgresql | etcd
+
+  # SQLite configuration
+  sqlite:
+    path: /data/yuptime.db
+
+  # PostgreSQL configuration
+  postgresql:
+    host: ""
+    port: 5432
+    database: yuptime
+    username: yuptime
+    passwordSecretRef:
+      name: ""
+      key: password
+    sslMode: require
+
+  # etcd configuration
+  etcd:
+    endpoints: http://etcd:2379
+    deploy: false
+
+# Storage configuration
+storage:
+  enabled: true
+  size: 1Gi
+  storageClass: "" # Uses default storage class if empty
+  accessMode: ReadWriteOnce
+
+# Authentication configuration
+auth:
+  mode: local # local | oidc | disabled
+
+  # Session configuration
+  session:
+    secret: "" # Generated if empty
+    maxAgeHours: 168
+
+  # OIDC configuration
+  oidc:
+    issuerUrl: ""
+    clientId: ""
+    redirectUrl: ""
+    clientSecretRef:
+      name: ""
+      key: client-secret
+
+  # Admin user configuration (local mode)
+  adminUser:
+    enabled: true
+    username: admin
+    passwordHash: "" # Default password hash for: test1234
+
+# Logging configuration
+logging:
+  level: info # debug | info | warn | error
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3000
+  # Annotations for the service
+  annotations: {}
+
+# Health probes
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 2
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Optional features
+networkPolicy:
+  enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# CRD installation
+crds:
+  install: false # CRDs should be applied separately
+
+# Test job configuration
+testResources:
+  enabled: false

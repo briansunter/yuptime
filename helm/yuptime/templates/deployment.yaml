@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: api-server
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+    app.kubernetes.io/version: 0.0.0-devel
+  name: {{ include "yuptime.fullname" . }}-api
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api-server
+      app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: api-server
+        app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+    spec:
+      containers:
+      - env:
+        - name: NODE_ENV
+          value: development
+        - name: LOG_LEVEL
+          value: info
+        - name: PORT
+          value: "3000"
+        - name: AUTH_MODE
+          value: local
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: session-secret
+              name: {{ include "yuptime.fullname" . }}-config
+        - name: KUBE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          value: sqlite:/data/yuptime.db
+        - name: NODE_TLS_REJECT_UNAUTHORIZED
+          value: "0"
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+        name: api-server
+        ports:
+        - containerPort: 3000
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /data
+          name: data
+        - mountPath: /tmp
+          name: tmp
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: yuptime
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: yuptime-pvc
+      - emptyDir: {}
+        name: tmp

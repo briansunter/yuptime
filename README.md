@@ -1,149 +1,456 @@
-# KubeKuma
+# Yuptime
 
 **Kubernetes-native monitoring where all configuration is CRDs.**
 
-A single-instance monitoring solution that runs entirely within Kubernetes, with all configuration managed through Custom Resource Definitions (CRDs) and GitOps workflows.
+A single-instance monitoring solution that runs entirely within Kubernetes. All configuration is managed through Custom Resource Definitions (CRDs) — perfect for GitOps workflows with Flux or Argo CD.
 
 ## Key Features
 
-- **CRD-Driven Configuration**: All monitors, alerts, status pages, and users are Kubernetes resources
-- **GitOps-Ready**: Configuration lives in Git; the app reconciles and executes
-- **Multiple Monitor Types**: HTTP, TCP, DNS, Ping, WebSocket, JSON queries, Kubernetes endpoints, and more
-- **Intelligent Alerting**: Policy-based routing to Slack, Discord, Telegram, SMTP, webhooks, and more
-- **Status Pages**: Public-facing status pages with custom domains and SVG badges
-- **Single Instance**: One pod runs API, UI, scheduler, and controller with Kubernetes-enforced singleton semantics
-- **No Hidden State**: Only runtime data (heartbeats, incidents) in database; spec is law
+- **CRD-Driven**: Monitors, alerts, status pages, and users are Kubernetes resources
+- **GitOps-Native**: Configuration lives in Git; the app reconciles and executes
+- **10 Monitor Types**: HTTP, TCP, DNS, Ping, WebSocket, JSON queries, Kubernetes endpoints, Steam, and more
+- **8 Alert Providers**: Slack, Discord, Telegram, SMTP, webhooks, PagerDuty, Pushover, Mattermost
+- **Status Pages**: Public-facing pages with custom domains and SVG badges
+- **Smart Suppression**: Maintenance windows with RRULE scheduling and ad-hoc silences
+- **Isolated Execution**: Each monitor check runs in isolated Kubernetes Jobs
+- **Authentication**: OIDC, local users, and API key support
 
 ## Architecture
 
+Yuptime runs as a single pod with integrated API server, UI, controller, scheduler, and notification worker. Each monitor check runs in an isolated Kubernetes Job pod.
+
 ```
-KubeKuma Pod
-├── Fastify API Server (port 3000)
-├── React SPA Frontend (embedded)
+Yuptime Pod
+├── Fastify API + React UI (port 3000)
 ├── Kubernetes Controller (watches CRDs)
-├── Monitor Scheduler (executes checks)
-└── SQLite/PostgreSQL Database (for runtime data)
+├── Monitor Scheduler (priority queue + lease locking)
+└── Notification Worker (state transitions)
+
+Checker Jobs (isolated pods)
+├── Job 1: Run check → Update Monitor CRD status (no DB)
+└── Job 2: Run check → Update Monitor CRD status (no DB)
 ```
 
-## Tech Stack
-
-- **Runtime**: Bun
-- **API**: Fastify
-- **Frontend**: React + TanStack Router + shadcn/ui
-- **ORM**: Drizzle (SQLite + PostgreSQL)
-- **Kubernetes**: @kubernetes/client-node
-- **Deployment**: Timoni + CUE
-
-## CRD Types (10 Custom Resources)
-
-### Global Configuration
-- **KubeKumaSettings**: Cluster-scoped global configuration, auth, scheduler, retention, etc.
-
-### Monitoring
-- **Monitor**: Single health check with schedule, target, and success criteria
-- **MonitorSet**: Bulk declarative monitor definitions (inline, no child CRDs)
-
-### Alerting
-- **NotificationProvider**: Webhook/API credentials (Slack, Discord, SMTP, etc.)
-- **NotificationPolicy**: Routes monitor events to providers based on selectors
-
-### Status Pages
-- **StatusPage**: Public-facing status page with groups and badges
-
-### Maintenance
-- **MaintenanceWindow**: Planned maintenance suppression (with RRULE scheduling)
-- **Silence**: Ad-hoc alert silencing (time-bounded, selector-based)
-
-### Authentication
-- **LocalUser**: Local user accounts (only if auth.mode=local)
-- **ApiKey**: API access tokens with scopes
+**Design Principles:**
+- Controller only updates status, never spec (source of truth)
+- Stateless checkers with no database access
+- Status updates use merge-patch format
+- GitOps-native with declarative configuration
 
 ## Quick Start
 
-### Prerequisites
+**Prerequisites:** Kubernetes cluster (1.26+)
 
-- Kubernetes cluster (1.24+)
-- Bun 1.1+
-- Node.js 20+ (for web development)
+Choose your installation method:
 
-### Development
+### Option 1: Timoni (Recommended)
 
-```bash
-# Install dependencies
-bun install
-
-# Setup environment
-cp .env.example .env.local
-
-# Run backend server
-bun run dev
-
-# In another terminal, build frontend
-cd web
-bun install
-bun run dev
-```
-
-### Deployment
-
-Use the Timoni module to deploy to Kubernetes:
+Timoni is a CUE-based package manager — most flexible and GitOps-friendly.
 
 ```bash
-timoni mod pull oci://ghcr.io/kubekuma/timoni/kubekuma -o ./timoni/kubekuma
-timoni bundle apply kubekuma -n monitoring -f values.yaml
+# Install Timoni
+brew install timoni  # macOS
+# or: curl -Lo timoni https://github.com/stefanprodan/timoni/...
+
+# Pull the module
+timoni mod pull oci://ghcr.io/yuptime/timoni/yuptime -o ./timoni/yuptime
+
+# Create values file
+cat > values.yaml <<EOF
+namespace: yuptime
+image:
+  repository: ghcr.io/yuptime/yuptime
+  tag: v0.0.8
+database:
+  type: sqlite  # or postgresql
+auth:
+  mode: local  # or 'oidc'
+EOF
+
+# Install
+timoni bundle apply yuptime -n yuptime -f values.yaml
 ```
 
-## Project Structure
+### Option 2: Helm
 
-```
-.
-├── src/                    # Backend source code
-│   ├── index.ts           # Entry point
-│   ├── server/            # Fastify API
-│   ├── controller/        # Kubernetes controller
-│   ├── scheduler/         # Check scheduler
-│   ├── checkers/          # Monitor type implementations
-│   ├── alerting/          # Notification system
-│   ├── db/                # Drizzle schema and migrations
-│   ├── types/             # TypeScript type definitions
-│   └── lib/               # Shared utilities
-├── web/                   # React frontend (TanStack Router)
-├── k8s/                   # CRD definitions
-├── timoni/                # Timoni deployment module
-└── docs/                  # Documentation
+Standard Helm 3 installation with OCI registry support.
+
+```bash
+# Login to GitHub Container Registry
+helm registry login ghcr.io
+
+# Install from OCI
+helm install yuptime oci://ghcr.io/yuptime/charts/yuptime --version v0.0.8
+
+# With custom values
+helm install yuptime oci://ghcr.io/yuptime/charts/yuptime \
+  --set database.type=postgresql \
+  --set auth.mode=oidc \
+  --set auth.oidc.issuerUrl=https://your-oidc.com
 ```
 
-## Implementation Status
+### Option 3: kubectl (Static Manifests)
 
-### Phase 1: Foundation ✅
-- [x] Project setup (Bun, TypeScript, Fastify)
-- [x] Database schema (Drizzle with SQLite/PostgreSQL)
-- [x] CRD type definitions (all 10 CRDs with Zod schemas)
-- [x] HTTP checker implementation
-- [x] Basic utilities (logger, config, secrets, selectors, uptime)
+Direct Kubernetes resource application — no tools required.
 
-### Phase 2-11: In Progress
-- [ ] Kubernetes controller and informers
-- [ ] Scheduler with priority queue
-- [ ] Additional checkers (TCP, DNS, Ping, WebSocket, etc.)
-- [ ] Alerting system and providers
-- [ ] Status pages
-- [ ] Maintenance windows and silencing
-- [ ] Full authentication (OIDC + local)
-- [ ] Prometheus metrics endpoint
-- [ ] Frontend with React/TanStack Router
-- [ ] Timoni module packaging
+```bash
+# Apply CRDs first
+kubectl apply -f manifests/crds.yaml
+
+# Create namespace
+kubectl create namespace yuptime
+
+# Apply all resources
+kubectl apply -f manifests/all.yaml
+```
+
+**Verify Installation:**
+
+```bash
+kubectl get pods -n yuptime
+kubectl port-forward -n yuptime svc/yuptime 3000:3000
+open http://localhost:3000
+```
+
+## Usage
+
+### Create a Monitor
+
+```yaml
+# monitor.yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: example-website
+  namespace: yuptime
+spec:
+  type: http
+  http:
+    url: "https://example.com"
+    method: GET
+    expectedStatus: 200
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 30
+  alert:
+    threshold: 3
+    reopenAfter: "5m"
+```
+
+```bash
+kubectl apply -f monitor.yaml
+```
+
+### Set Up Alerts
+
+**1. Notification Provider:**
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: NotificationProvider
+metadata:
+  name: slack
+  namespace: yuptime
+spec:
+  type: slack
+  slack:
+    webhookUrl: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+```
+
+**2. Notification Policy:**
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: NotificationPolicy
+metadata:
+  name: critical-alerts
+  namespace: yuptime
+spec:
+  selector:
+    matchLabels:
+      severity: critical
+  providers:
+    - name: slack
+      namespace: yuptime
+```
+
+### Bulk Monitors (MonitorSet)
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: MonitorSet
+metadata:
+  name: api-endpoints
+  namespace: yuptime
+spec:
+  monitors:
+    - name: users-api
+      type: http
+      http:
+        url: "https://api.example.com/users"
+      labels:
+        team: backend
+        severity: critical
+
+    - name: orders-api
+      type: http
+      http:
+        url: "https://api.example.com/orders"
+      labels:
+        team: backend
+        severity: high
+```
+
+### Status Pages & Suppression
+
+**StatusPage:**
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: StatusPage
+metadata:
+  name: public-status
+  namespace: yuptime
+spec:
+  title: "My Service Status"
+  customDomain: "status.example.com"
+  groups:
+    - name: "Core Services"
+      monitors:
+        - name: website
+          namespace: yuptime
+```
+
+**MaintenanceWindow (RRULE):**
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: MaintenanceWindow
+metadata:
+  name: weekly-maintenance
+  namespace: yuptime
+spec:
+  schedule: "RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=2"
+  selector:
+    matchLabels:
+      environment: production
+  duration: "2h"
+```
+
+**Silence (ad-hoc):**
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Silence
+metadata:
+  name: emergency-silence
+  namespace: yuptime
+spec:
+  start: "2025-12-28T10:00:00Z"
+  end: "2025-12-28T12:00:00Z"
+  selector:
+    matchLabels:
+      severity: critical
+```
+
+## CRD Reference
+
+Yuptime defines 10 CRDs:
+
+- **YuptimeSettings**: Global configuration (auth, scheduler, retention)
+- **Monitor**: Single health check (type, schedule, alerting)
+- **MonitorSet**: Bulk monitor definitions (inline, no child CRDs)
+- **NotificationProvider**: Alert credentials (8 provider types)
+- **NotificationPolicy**: Event routing (label selectors)
+- **StatusPage**: Public status page (groups, custom domain)
+- **MaintenanceWindow**: Recurring suppression (RRULE)
+- **Silence**: Ad-hoc alert muting (time-bounded)
+- **LocalUser**: Local accounts (argon2 hashing)
+- **ApiKey**: API tokens with scopes
+
+## Monitor Types
+
+**HTTP:** Endpoints with validation (headers, body, TLS)
+
+```yaml
+type: http
+http:
+  url: "https://api.example.com/health"
+  method: GET
+  headers:
+    Authorization: "Bearer TOKEN"
+  expectedStatus: 200
+  bodyContains: "healthy"
+```
+
+**TCP:** Port connectivity
+
+```yaml
+type: tcp
+tcp:
+  host: "db.example.com"
+  port: 5432
+```
+
+**DNS:** DNS queries
+
+```yaml
+type: dns
+dns:
+  server: "8.8.8.8"
+  query: "example.com"
+  queryType: A
+```
+
+**Ping:** ICMP checks (Linux only)
+
+```yaml
+type: ping
+ping:
+  host: "example.com"
+  count: 3
+```
+
+**WebSocket:** Connection testing
+
+```yaml
+type: websocket
+websocket:
+  url: "wss://example.com/ws"
+```
+
+**Kubernetes:** Resource health
+
+```yaml
+type: kubernetes
+kubernetes:
+  resource: deployment
+  name: my-app
+  namespace: production
+```
+
+**JSON Query:** Extract and validate JSON responses
+
+```yaml
+type: http
+http:
+  url: "https://api.example.com/health"
+jsonQuery:
+  - path: "status"
+    equals: "ok"
+```
+
+## Development
+
+**Prerequisites:** Bun 1.1+, Node.js 20+, Kubernetes cluster
+
+**Setup:**
+
+```bash
+git clone https://github.com/yuptime/yuptime.git
+cd yuptime
+bun install
+
+# Terminal 1: Backend
+bun run dev
+
+# Terminal 2: Frontend
+cd web && bun install && bun run dev
+```
+
+**Commands:**
+
+```bash
+bun run dev              # Development server
+bun run build            # Build TypeScript + frontend
+bun run type-check       # TypeScript check
+bun run lint             # Biome linter
+bun run lint:fix         # Auto-fix issues
+bun run db:push          # Push schema changes
+bun run test             # Run tests
+bun run test:ci          # CI mode
+```
+
+**Pre-commit hooks:** Lint, type-check, and tests run automatically.
+
+**Test checker executor locally:**
+
+```bash
+bun src/checker-executor/cli.ts <namespace> <monitor-name>
+```
+
+## Deployment
+
+**Production:**
+- Use PostgreSQL (not SQLite)
+- PersistentVolumeClaim for storage
+- Set CPU/memory requests and limits
+- Enable Prometheus metrics
+
+**Environment Variables:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | Database connection | SQLite file |
+| `KUBERNETES_NAMESPACE` | Namespace (auto-detected) | - |
+| `NODE_ENV` | Environment | `production` |
+| `PORT` | API server port | `3000` |
+
+**Build images:**
+
+```bash
+docker build -t yuptime:yuptime .
+docker build -f Dockerfile.checker -t yuptime:checker .
+```
+
+## Troubleshooting
+
+**Checker jobs not running:**
+
+```bash
+kubectl describe role yuptime-checker -n yuptime
+kubectl logs -n yuptime <scheduler-pod>
+```
+
+**Alerts not sending:**
+
+```bash
+kubectl get notificationproviders -n yuptime
+kubectl logs -n yuptime <yuptime-pod>
+```
+
+**Database issues:**
+
+```bash
+kubectl get secret yuptime-db -n yuptime
+kubectl exec -n yuptime <pod> -- env | grep DATABASE
+```
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Tech Stack
+
+- **Runtime**: Bun 1.1+
+- **Backend**: Fastify
+- **Frontend**: React + TanStack Router + shadcn/ui + Tailwind
+- **Database**: Drizzle ORM (SQLite/PostgreSQL)
+- **Kubernetes**: @kubernetes/client-node with informers
+- **Deployment**: Timoni + CUE
+
+## Implementation Status
+
+**Complete:** CRDs, controller, scheduler, 8 checker types, 8 notification providers, status pages, suppressions, database-free checker executor, pre-commit hooks
+
+**In Progress:** Authentication (OIDC + local + API keys), Prometheus metrics, frontend dashboard, Timoni module packaging
 
 ## License
 
-Apache License 2.0 - See LICENSE file for details.
+Apache License 2.0
 
 ## Support
 
-- Documentation: [docs/](docs/)
-- Issues: [GitHub Issues](https://github.com/kubekuma/kubekuma/issues)
-- Discussions: [GitHub Discussions](https://github.com/kubekuma/kubekuma/discussions)
+- [docs/](docs/)
+- [GitHub Issues](https://github.com/yuptime/yuptime/issues)
+- [GitHub Discussions](https://github.com/yuptime/yuptime/discussions)
