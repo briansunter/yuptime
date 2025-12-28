@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.17](https://github.com/briansunter/yuptime/compare/v0.0.16...v0.0.17) (2025-12-28)
+
+
+### Bug Fixes
+
+* add checkout to publish-helm job ([b45e2c1](https://github.com/briansunter/yuptime/commit/b45e2c1663f9e952d061ec3d6190867bb0e7d72d))
+
 ## [0.0.16](https://github.com/briansunter/yuptime/compare/v0.0.15...v0.0.16) (2025-12-28)
 
 
