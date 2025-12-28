@@ -83,10 +83,14 @@ function validateStaticManifests(): boolean {
 
   try {
     const allYaml = join(MANIFESTS_OUTPUT_PATH, "all.yaml");
+    // Set KUBECONFIG to empty to prevent kubectl from using default config
     // Use --validate=false to do syntax-only validation without cluster
-    execSync(`kubectl apply -f ${allYaml} --dry-run=client --validate=false`, {
-      stdio: "pipe",
-    });
+    execSync(
+      `KUBECONFIG=/dev/null kubectl apply -f ${allYaml} --dry-run=client --validate=false`,
+      {
+        stdio: "pipe",
+      }
+    );
     console.log("✅ Static manifests validation passed\n");
     return true;
   } catch (error: any) {
