@@ -39,22 +39,6 @@ jobs:
           manifest-file: .release-please-manifest.json
           target-branch: master
 
-  fetch-secrets:
-    name: Fetch Secrets from BWS
-    runs-on: ubuntu-latest
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    outputs:
-      dockerhub_token: ${{ steps.secrets.outputs.dockerhub_token }}
-    steps:
-      - name: Get secrets from Bitwarden Secrets Manager
-        uses: bitwarden/sm-action@v2
-        id: secrets
-        with:
-          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
-          secrets: |
-            e2fbf88a-2cd4-4540-9bb1-b3c1008c5642 > dockerhub_token
-
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -84,13 +68,21 @@ jobs:
   build-api:
     name: Build API Image
     runs-on: ubuntu-latest
-    needs: [release-please, test, fetch-secrets]
+    needs: [release-please, test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get secrets from Bitwarden Secrets Manager
+        uses: bitwarden/sm-action@v2
+        id: secrets
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          secrets: |
+            e2fbf88a-2cd4-4540-9bb1-b3c1008c5642 > dockerhub_token
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -103,7 +95,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ needs.fetch-secrets.outputs.dockerhub_token }}
+          password: ${{ steps.secrets.outputs.dockerhub_token }}
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -142,13 +134,21 @@ jobs:
   build-checker:
     name: Build Checker Image
     runs-on: ubuntu-latest
-    needs: [release-please, test, fetch-secrets]
+    needs: [release-please, test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get secrets from Bitwarden Secrets Manager
+        uses: bitwarden/sm-action@v2
+        id: secrets
+        with:
+          access_token: ${{ secrets.BWS_ACCESS_TOKEN }}
+          secrets: |
+            e2fbf88a-2cd4-4540-9bb1-b3c1008c5642 > dockerhub_token
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -161,7 +161,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ needs.fetch-secrets.outputs.dockerhub_token }}
+          password: ${{ steps.secrets.outputs.dockerhub_token }}
 
       - name: Login to GHCR
         uses: docker/login-action@v3
