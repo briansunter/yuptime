@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.6](https://github.com/briansunter/yuptime/compare/v0.0.5...v0.0.6) (2025-12-28)
+
+
+### Bug Fixes
+
+* require E2E tests before release and fix deployment names ([b6814af](https://github.com/briansunter/yuptime/commit/b6814af9b65cc71bdb57f988d3ae0ca4ad9aa36e))
+
 ## [0.0.5](https://github.com/briansunter/yuptime/compare/v0.0.4...v0.0.5) (2025-12-28)
 
 
