@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.16](https://github.com/briansunter/yuptime/compare/v0.0.15...v0.0.16) (2025-12-28)
+
+
+### Bug Fixes
+
+* fetch tags before creating GitHub release ([0a6c51d](https://github.com/briansunter/yuptime/commit/0a6c51d61ba9e7ab1988bf9a6e17f2789b5d2802))
+
 ## [0.0.15](https://github.com/briansunter/yuptime/compare/v0.0.14...v0.0.15) (2025-12-28)
 
 
