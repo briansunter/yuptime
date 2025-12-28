@@ -14,8 +14,8 @@ permissions:
 env:
   REGISTRY: docker.io
   DOCKERHUB_USERNAME: briansunter
-  API_IMAGE_NAME: yuptime/yuptime-api
-  CHECKER_IMAGE_NAME: yuptime/yuptime-checker
+  API_IMAGE_NAME: briansunter/yuptime-api
+  CHECKER_IMAGE_NAME: briansunter/yuptime-checker
   GHCR_REGISTRY: ghcr.io
   TIMONI_MODULE_NAME: yuptime
 
