@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.12](https://github.com/briansunter/yuptime/compare/v0.0.11...v0.0.12) (2025-12-28)
+
+
+### Bug Fixes
+
+* use --validate=false for kubectl syntax-only validation ([2f7af26](https://github.com/briansunter/yuptime/commit/2f7af26247a659ea1ff155fbe11720d79807b746))
+
 ## [0.0.11](https://github.com/briansunter/yuptime/compare/v0.0.10...v0.0.11) (2025-12-28)
 
 
