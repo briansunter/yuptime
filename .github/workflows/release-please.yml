@@ -412,3 +412,29 @@ jobs:
           git add helm/yuptime/ manifests/
           git diff --staged --quiet || git commit -m "chore: auto-generate Helm chart and manifests [skip ci]"
           git push
+
+  make-packages-public:
+    name: Make Packages Public
+    runs-on: ubuntu-latest
+    needs: [publish-timoni-module, publish-helm]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    steps:
+      - name: Make packages public
+        run: |
+          # Make API image public
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/user/packages/container/yuptime-api \
+            -d '{"visibility":"public"}' || echo "Failed to make yuptime-api public (may need manual action)"
+
+          # Make checker image public
+          curl -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/user/packages/container/yuptime-checker \
+            -d '{"visibility":"public"}' || echo "Failed to make yuptime-checker public (may need manual action)"
+
+          echo "Note: If the above commands failed, please manually make packages public at:"
+          echo "- https://github.com/users/briansunter/packages/container/yuptime-api/settings"
+          echo "- https://github.com/users/briansunter/packages/container/yuptime-checker/settings"
