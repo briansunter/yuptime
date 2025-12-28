@@ -197,19 +197,23 @@ jobs:
       - name: Create test monitor
         run: |
           cat > test-monitor.yaml << 'EOF'
-          apiVersion: monitoring.yuptime.io/v1alpha1
+          apiVersion: monitoring.yuptime.io/v1
           kind: Monitor
           metadata:
             name: httpbin-test
             namespace: yuptime
           spec:
             type: http
-            interval: 30s
-            timeout: 10s
-            http:
-              url: https://httpbin.org/get
-              method: GET
-              expectedStatusCodes: [200]
+            schedule:
+              intervalSeconds: 30
+              timeoutSeconds: 10
+            target:
+              http:
+                url: https://httpbin.org/get
+                method: GET
+            successCriteria:
+              http:
+                acceptedStatusCodes: [200]
           EOF
 
           kubectl apply -f test-monitor.yaml
