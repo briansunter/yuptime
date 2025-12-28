@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.9](https://github.com/briansunter/yuptime/compare/v0.0.8...v0.0.9) (2025-12-28)
+
+
+### Features
+
+* publish all artifacts to GHCR with auto-generated Helm chart ([85560b5](https://github.com/briansunter/yuptime/commit/85560b5b604bd6aefe2132c5814735b105673023))
+* publish all artifacts to GHCR with auto-generated Helm chart ([ab43a85](https://github.com/briansunter/yuptime/commit/ab43a85e04291ef7a472aa02c8bf006d62ea832c))
+* remove database dependency from checker executor ([#20](https://github.com/briansunter/yuptime/issues/20)) ([18eadb4](https://github.com/briansunter/yuptime/commit/18eadb44a26ce5ceeccfe981cd1a08d3d72d7ac4))
+
 ## [0.0.8](https://github.com/briansunter/yuptime/compare/v0.0.7...v0.0.8) (2025-12-28)
 
 
