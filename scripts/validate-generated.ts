@@ -83,22 +83,14 @@ function validateStaticManifests(): boolean {
 
   try {
     const allYaml = join(MANIFESTS_OUTPUT_PATH, "all.yaml");
-    execSync(`kubectl apply -f ${allYaml} --dry-run=client`, {
+    // Use --validate=false to do syntax-only validation without cluster
+    execSync(`kubectl apply -f ${allYaml} --dry-run=client --validate=false`, {
       stdio: "pipe",
     });
     console.log("✅ Static manifests validation passed\n");
     return true;
   } catch (error: any) {
     const errorMsg = error.stdout?.toString() || error.stderr?.toString() || error.message || "";
-    // Skip validation if kubectl can't connect to a cluster (common in CI)
-    if (
-      errorMsg.includes("connect: connection refused") ||
-      errorMsg.includes("failed to download openapi") ||
-      errorMsg.includes("localhost")
-    ) {
-      console.warn("⚠️  kubectl cannot connect to cluster. Skipping manifest validation.");
-      return true;
-    }
     console.error("❌ Static manifests validation failed:");
     console.error(errorMsg);
     return false;
