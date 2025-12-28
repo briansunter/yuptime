@@ -2,8 +2,8 @@ apiVersion: v2
 name: yuptime
 description: Kubernetes-native monitoring where all configuration is CRDs
 type: application
-version: 0.0.8
-appVersion: 0.0.8
+version: 0.0.18
+appVersion: 0.0.18
 kubeVersion: ">=1.26.0"
 keywords:
   - monitoring
