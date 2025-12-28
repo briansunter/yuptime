@@ -4,7 +4,7 @@
  * Updates Monitor CRD status directly via Kubernetes API
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { KubeConfig } from "@kubernetes/client-node";
 import type { CheckResult } from "../checkers";
 import { executeCheck as runCheck } from "../checkers";
@@ -71,10 +71,15 @@ async function k8sRequest(
       method,
       headers,
     });
-    Object.assign(headers, Object.fromEntries(Object.entries(authOpts.headers || {})));
+    Object.assign(
+      headers,
+      Object.fromEntries(Object.entries(authOpts.headers || {})),
+    );
   }
 
-  logger.debug(`Making ${method} request to ${path}, auth present: ${!!headers.Authorization}`);
+  logger.debug(
+    `Making ${method} request to ${path}, auth present: ${!!headers.Authorization}`,
+  );
 
   return fetch(url, {
     method,
