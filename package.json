@@ -1,6 +1,6 @@
 {
   "name": "yuptime",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Kubernetes-native monitoring where all configuration is CRDs",
   "type": "module",
   "main": "dist/index.js",

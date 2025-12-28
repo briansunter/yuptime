@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5](https://github.com/briansunter/yuptime/compare/v0.0.4...v0.0.5) (2025-12-28)
+
+
+### Bug Fixes
+
+* use briansunter namespace for Docker Hub images ([ce8be60](https://github.com/briansunter/yuptime/commit/ce8be60c97010805e26e79d04fc3f1f7dceb9d89))
+
 ## [0.0.4](https://github.com/briansunter/yuptime/compare/v0.0.3...v0.0.4) (2025-12-28)
 
 
