@@ -387,6 +387,9 @@ jobs:
           VERSION=${{ needs.release-please.outputs.version }}
           helm push yuptime-${VERSION}.tgz oci://ghcr.io/${{ github.repository }}/charts
 
+      - name: Fetch tags
+        run: git fetch --tags --force
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
