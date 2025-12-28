@@ -1,5 +1,5 @@
 import { logger } from "../lib/logger";
-import { initializeK8sClient } from "./k8s-client";
+import { initializeK8sClient, getK8sClient } from "./k8s-client";
 import { startAllWatchers, stopAllWatchers, informerRegistry, registry } from "./informers";
 import { createReconciliationHandler } from "./reconcilers/handler";
 import {
@@ -14,6 +14,12 @@ import {
   createApiKeyReconciler,
   createSettingsReconciler,
 } from "./reconcilers";
+import { createJobManager } from "./job-manager";
+import { createJobCompletionWatcher } from "./job-manager/completion-watcher";
+
+// Global instances
+let jobManager: any = null;
+let jobCompletionWatcher: any = null;
 
 /**
  * Initialize and start the Kubernetes controller
@@ -24,9 +30,24 @@ export async function startController() {
     logger.info("Starting Kubernetes controller...");
 
     // Initialize Kubernetes client
-    initializeK8sClient();
+    const kubeConfig = initializeK8sClient();
 
-    // Register all reconcilers
+    // Create and start Job Manager
+    jobManager = createJobManager({
+      kubeConfig,
+      concurrency: 10, // Configurable via Settings CRD later
+      jobTTL: 3600, // 1 hour
+      namespace: "kubekuma",
+    });
+    await jobManager.start();
+    logger.info("Job Manager started");
+
+    // Create and start Job Completion Watcher
+    jobCompletionWatcher = createJobCompletionWatcher(kubeConfig);
+    await jobCompletionWatcher.start();
+    logger.info("Job Completion Watcher started");
+
+    // Register all reconcilers with job manager context
     registerAllReconcilers();
 
     // Start watching all CRD types
@@ -45,6 +66,19 @@ export async function startController() {
 export async function stopController() {
   try {
     logger.info("Stopping Kubernetes controller...");
+
+    // Stop Job Completion Watcher
+    if (jobCompletionWatcher) {
+      await jobCompletionWatcher.stop();
+      jobCompletionWatcher = null;
+    }
+
+    // Stop Job Manager
+    if (jobManager) {
+      await jobManager.stop();
+      jobManager = null;
+    }
+
     await stopAllWatchers();
     logger.info("Kubernetes controller stopped");
   } catch (error) {
@@ -58,6 +92,11 @@ export async function stopController() {
  */
 function registerAllReconcilers() {
   logger.debug("Registering reconcilers...");
+
+  // Create reconciliation context with job manager
+  const reconcileContext = {
+    jobManager,
+  };
 
   // Create reconciler configs using factory functions
   const reconcilers = [
@@ -75,8 +114,8 @@ function registerAllReconcilers() {
 
   // Register each reconciler
   for (const config of reconcilers) {
-    // Create the reconciliation handler with error handling
-    const handler = createReconciliationHandler(config);
+    // Create the reconciliation handler with error handling and context
+    const handler = createReconciliationHandler(config, reconcileContext);
 
     // Register with the informer registry
     registry.registerReconciler(informerRegistry, config.kind, handler);

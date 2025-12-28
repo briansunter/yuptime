@@ -9,13 +9,15 @@ import type { CRDResource, ReconcilerConfig, ReconcileContext } from "./types";
  * - Updates status accordingly
  */
 export const createReconciliationHandler =
-  (config: ReconcilerConfig, statusUpdater = { markValid, markInvalid }) =>
+  (config: ReconcilerConfig, additionalContext?: Partial<ReconcileContext>, statusUpdater = { markValid, markInvalid }) =>
   async (resource: CRDResource, context?: ReconcileContext) => {
-    // Create default context if not provided
-    const ctx: ReconcileContext = context || {
+    // Merge contexts: default + additional + runtime
+    const ctx: ReconcileContext = {
       crdWatcher: null,
       statusUpdater,
       secretResolver: async () => "",
+      ...additionalContext,
+      ...context,
     };
     const namespace = resource.metadata?.namespace || "";
     const name = resource.metadata.name;

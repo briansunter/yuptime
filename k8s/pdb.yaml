@@ -1,0 +1,13 @@
+# Pod Disruption Budget for KubeKuma
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kubekuma-pdb
+  namespace: kubekuma
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubekuma
+      app.kubernetes.io/component: api-server

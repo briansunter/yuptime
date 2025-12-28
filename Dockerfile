@@ -31,13 +31,12 @@ COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./
 COPY --from=builder /build/src ./src
 COPY --from=builder /build/tsconfig.json ./
+COPY --from=builder /build/drizzle.config.ts ./
 
-# Copy helper scripts
-COPY seed-test-data.ts ./
+# Fix permissions and use existing bun user (uid 1000)
+RUN chmod -R 755 /app
 
-# Create non-root user
-RUN useradd -m -u 1001 kubekuma && chown -R kubekuma:kubekuma /app
-USER kubekuma
+USER bun
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

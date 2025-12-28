@@ -1,0 +1,14 @@
+# Persistent Volume Claim for KubeKuma
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kubekuma-pvc
+  namespace: kubekuma
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path

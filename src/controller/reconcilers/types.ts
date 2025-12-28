@@ -9,6 +9,7 @@ export interface CRDResource {
   metadata: {
     name: string;
     namespace?: string;
+    uid?: string;
     generation?: number;
     resourceVersion?: string;
     labels?: Record<string, string>;
@@ -30,9 +31,10 @@ export interface ValidationResult {
  * Reconciliation context - passed to reconcilers
  */
 export interface ReconcileContext {
-  crdWatcher: any; // CRD watcher instance
-  statusUpdater: any; // Status updater functions
-  secretResolver: (ns: string, name: string, key: string) => Promise<string>;
+  crdWatcher?: any; // CRD watcher instance
+  statusUpdater?: any; // Status updater functions
+  secretResolver?: (ns: string, name: string, key: string) => Promise<string>;
+  jobManager?: any; // Job Manager instance for scheduling checks
 }
 
 /**

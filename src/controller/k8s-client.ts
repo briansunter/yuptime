@@ -5,6 +5,7 @@ import {
   CoordinationV1Api,
   CoreV1Api,
   AppsV1Api,
+  BatchV1Api,
 } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
 
@@ -35,6 +36,11 @@ export function initializeK8sClient(): KubeConfig {
       );
     }
   }
+
+  // Accept self-signed certificates (for local development clusters like OrbStack, minikube)
+  // Note: skipTLSVerify is read-only in newer versions, must be set via environment
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  logger.info("Kubernetes client: accepting self-signed certificates");
 
   return kubeConfig;
 }
@@ -249,6 +255,14 @@ export function getAppsApiClient() {
 export function getCoordinationApiClient() {
   const kc = getK8sClient();
   return kc.makeApiClient(CoordinationV1Api);
+}
+
+/**
+ * Get Batch API client for Jobs, CronJobs
+ */
+export function getBatchApiClient() {
+  const kc = getK8sClient();
+  return kc.makeApiClient(BatchV1Api);
 }
 
 /**

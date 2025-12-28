@@ -3,7 +3,6 @@ import { config, validateConfig } from "./lib/config";
 import { createApp } from "./server/app";
 import { initializeDatabase } from "./db";
 import { controller } from "./controller";
-import { scheduler } from "./scheduler";
 import { startDeliveryWorker, stopDeliveryWorker } from "./alerting";
 
 let deliveryWorker: NodeJS.Timer | null = null;
@@ -18,15 +17,10 @@ async function main() {
     await initializeDatabase();
     logger.info("Database initialized");
 
-    // Start Kubernetes controller
+    // Start Kubernetes controller (includes job manager and completion watcher)
     logger.info("Starting Kubernetes controller...");
     await controller.start();
     logger.info("Kubernetes controller started");
-
-    // Start scheduler
-    logger.info("Starting scheduler...");
-    await scheduler.start();
-    logger.info("Scheduler started");
 
     // Start notification delivery worker
     logger.info("Starting notification delivery worker...");
@@ -62,7 +56,6 @@ const gracefulShutdown = async () => {
     stopDeliveryWorker(deliveryWorker);
   }
 
-  await scheduler.stop();
   await controller.stop();
   process.exit(0);
 };

@@ -1,0 +1,14 @@
+apiVersion: monitoring.kubekuma.io/v1
+kind: Monitor
+metadata:
+  name: test-disabled
+  namespace: kubekuma
+spec:
+  type: http
+  enabled: false
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+  target:
+    http:
+      url: "https://www.google.com"

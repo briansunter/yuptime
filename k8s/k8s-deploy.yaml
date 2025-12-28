@@ -43,17 +43,23 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kubekuma
-      component: api-server
+      app.kubernetes.io/name: kubekuma
+      app.kubernetes.io/component: api-server
   template:
     metadata:
       labels:
-        app: kubekuma
-        component: api-server
+        app.kubernetes.io/name: kubekuma
+        app.kubernetes.io/component: api-server
       annotations:
         description: "KubeKuma API Server"
     spec:
       serviceAccountName: kubekuma
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: api-server
         image: kubekuma-api:latest
@@ -86,6 +92,15 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: NODE_TLS_REJECT_UNAUTHORIZED
+          value: "0"
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
 
         # Health checks
         livenessProbe:
@@ -115,17 +130,20 @@ spec:
             memory: "512Mi"
             cpu: "500m"
 
-        # Volume for SQLite database
+        # Volume mounts
         volumeMounts:
         - name: data
           mountPath: /data
+        - name: tmp
+          mountPath: /tmp
 
-      # Volume for persistent database
+      # Volumes
       volumes:
       - name: data
-        hostPath:
-          path: /tmp/kubekuma-data
-          type: DirectoryOrCreate
+        persistentVolumeClaim:
+          claimName: kubekuma-pvc
+      - name: tmp
+        emptyDir: {}
 
 ---
 # Service to expose the API
@@ -135,8 +153,8 @@ metadata:
   name: kubekuma-api
   namespace: kubekuma
   labels:
-    app: kubekuma
-    component: api-server
+    app.kubernetes.io/name: kubekuma
+    app.kubernetes.io/component: api-server
 spec:
   type: ClusterIP
   ports:
@@ -145,5 +163,5 @@ spec:
     targetPort: 3000
     protocol: TCP
   selector:
-    app: kubekuma
-    component: api-server
+    app.kubernetes.io/name: kubekuma
+    app.kubernetes.io/component: api-server

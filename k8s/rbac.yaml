@@ -61,6 +61,61 @@ rules:
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
+  # Jobs for monitor check execution
+  - apiGroups: ["batch"]
+    resources: ["jobs", "jobs/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Pods for checking Job status
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+
+  # Events for recording important occurrences
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+---
+# ServiceAccount for checker-executor Jobs
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubekuma-checker
+  namespace: kubekuma
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubekuma-checker
+  namespace: kubekuma
+rules:
+  # Allow reading Monitor CRDs
+  - apiGroups: ["monitoring.kubekuma.io"]
+    resources: ["monitors"]
+    verbs: ["get", "list"]
+
+  # Allow creating Events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubekuma-checker
+  namespace: kubekuma
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubekuma-checker
+subjects:
+  - kind: ServiceAccount
+    name: kubekuma-checker
+    namespace: kubekuma
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
