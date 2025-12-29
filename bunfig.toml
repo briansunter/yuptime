@@ -5,8 +5,10 @@ outdir = "dist"
 [test]
 # Tests are colocated with source files
 root = "src"
-coverage = false
+coverage = true
 coverageDir = "./coverage"
+coverage_threshold = 80
+coverage_reporter = ["text", "lcov", "html"]
 
 [package]
 # Allow importing from web package
