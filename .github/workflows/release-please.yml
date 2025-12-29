@@ -350,7 +350,7 @@ jobs:
         run: bun run validate:generated
 
       - name: Upload Helm chart artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: helm-chart
           path: helm/yuptime/
