@@ -64,17 +64,26 @@ describe("getNextOccurrence", () => {
   test("returns null for UNTIL in the past", () => {
     const config = parseRRule("RRULE:FREQ=DAILY;UNTIL=2020-01-01");
     expect(config).not.toBeNull();
-    const next = getNextOccurrence(config!);
+    if (!config) {
+      throw new Error("Config should not be null");
+    }
+    const next = getNextOccurrence(config);
     expect(next).toBeNull();
   });
 
   test("returns future date for valid DAILY rule", () => {
     const config = parseRRule("RRULE:FREQ=DAILY;INTERVAL=1");
     expect(config).not.toBeNull();
+    if (!config) {
+      throw new Error("Config should not be null");
+    }
     const now = new Date();
-    const next = getNextOccurrence(config!, now);
+    const next = getNextOccurrence(config, now);
     expect(next).not.toBeNull();
-    expect(next!.getTime()).toBeGreaterThan(now.getTime());
+    if (!next) {
+      throw new Error("Next occurrence should not be null");
+    }
+    expect(next.getTime()).toBeGreaterThan(now.getTime());
   });
 
   test("respects COUNT limit", () => {
@@ -88,10 +97,16 @@ describe("getNextOccurrence", () => {
   test("applies BYHOUR correctly", () => {
     const config = parseRRule("RRULE:FREQ=DAILY;BYHOUR=14");
     expect(config).not.toBeNull();
+    if (!config) {
+      throw new Error("Config should not be null");
+    }
     const now = new Date();
-    const next = getNextOccurrence(config!, now);
+    const next = getNextOccurrence(config, now);
     expect(next).not.toBeNull();
-    expect(next!.getHours()).toBe(14);
+    if (!next) {
+      throw new Error("Next occurrence should not be null");
+    }
+    expect(next.getHours()).toBe(14);
   });
 });
 
@@ -100,6 +115,9 @@ describe("isInMaintenanceWindow", () => {
     // Create a rule that starts daily at 3 AM
     const config = parseRRule("RRULE:FREQ=DAILY;BYHOUR=3;BYMINUTE=0");
     expect(config).not.toBeNull();
+    if (!config) {
+      throw new Error("Config should not be null");
+    }
 
     // Check at 1 AM (before the window)
     const checkTime = new Date();
@@ -108,14 +126,17 @@ describe("isInMaintenanceWindow", () => {
     // Since maintenance windows are calculated based on historical occurrences,
     // and we're checking at 1 AM, the last occurrence was yesterday at 3 AM
     // Duration 60 minutes would have ended at 4 AM yesterday
-    const result = isInMaintenanceWindow(config!, 60, checkTime);
+    const result = isInMaintenanceWindow(config, 60, checkTime);
     expect(typeof result).toBe("boolean");
   });
 
   test("function returns boolean type", () => {
     const config = parseRRule("RRULE:FREQ=DAILY");
     expect(config).not.toBeNull();
-    const result = isInMaintenanceWindow(config!, 60);
+    if (!config) {
+      throw new Error("Config should not be null");
+    }
+    const result = isInMaintenanceWindow(config, 60);
     expect(typeof result).toBe("boolean");
   });
 });

@@ -10,12 +10,13 @@
       "suspicious": {
         "recommended": true,
         "noExplicitAny": "error",
-        "noConsole": "warn"
+        "noConsole": "error"
       },
       "style": {
         "recommended": true,
-        "noParameterAssign": "warn",
-        "noDefaultExport": "off"
+        "noParameterAssign": "error",
+        "noDefaultExport": "off",
+        "noNonNullAssertion": "error"
       },
       "complexity": {
         "recommended": true
@@ -45,37 +46,5 @@
   },
   "files": {
     "includes": ["src/**/*.ts", "src/**/*.tsx"]
-  },
-  "overrides": [
-    {
-      "includes": ["src/checker-executor/**/*.ts", "src/checkers/**/*.ts"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "warn"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["src/lib/rrule.ts", "src/lib/secrets.ts", "src/db/index.ts"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "warn"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["**/*.test.ts", "**/*.test.tsx"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noNonNullAssertion": "warn"
-          }
-        }
-      }
-    }
-  ]
+  }
 }
