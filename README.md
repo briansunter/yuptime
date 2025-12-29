@@ -1,5 +1,7 @@
 # Yuptime
 
+[![Test Coverage](https://img.shields.io/badge/coverage-91.6%25-brightgreen)](https://github.com/briansunter/yuptime/actions/workflows/ci.yml)
+
 **Kubernetes-native monitoring where all configuration is CRDs.**
 
 A single-instance monitoring solution that runs entirely within Kubernetes. All configuration is managed through Custom Resource Definitions (CRDs) — perfect for GitOps workflows with Flux or Argo CD.
