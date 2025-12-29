@@ -21,6 +21,7 @@
     "check": "bun run lint && bun run type-check && bun run test",
     "db:push": "drizzle-kit push:sqlite",
     "db:generate": "drizzle-kit generate:sqlite",
+    "hash-password": "bun run scripts/gen-password-hash.mjs",
     "prepare": "husky",
     "generate:helm": "bun run scripts/generate-helm.ts",
     "generate:manifests": "bun run scripts/generate-manifests.ts",

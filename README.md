@@ -52,23 +52,46 @@ Timoni is a CUE-based package manager — most flexible and GitOps-friendly.
 brew install timoni  # macOS
 # or: curl -Lo timoni https://github.com/stefanprodan/timoni/...
 
-# Pull the module
-timoni mod pull oci://ghcr.io/yuptime/timoni/yuptime -o ./timoni/yuptime
+# Pull the module from GHCR
+timoni mod pull oci://ghcr.io/briansunter/yuptime/timoni-module --version 0.0.18 -o ./timoni/yuptime
 
-# Create values file
-cat > values.yaml <<EOF
-namespace: yuptime
-image:
-  repository: ghcr.io/yuptime/yuptime
-  tag: v0.0.8
-database:
-  type: sqlite  # or postgresql
-auth:
-  mode: local  # or 'oidc'
+# Create a values file
+cat > values.cue <<EOF
+values: {
+  image: {
+    repository: "ghcr.io/briansunter/yuptime-api"
+    tag: "0.0.18"  # Use 'latest' for auto-updates
+    pullPolicy: "Always"
+  }
+  checkerImage: {
+    repository: "ghcr.io/briansunter/yuptime-checker"
+    tag: "0.0.18"
+    pullPolicy: "Always"
+  }
+  mode: "production"
+  database: {
+    type: "sqlite"
+    sqlite: path: "/data/yuptime.db"
+  }
+  storage: {
+    enabled: true
+    size: "10Gi"
+    storageClass: "standard"  # Adjust for your cluster
+  }
+  auth: {
+    mode: "local"  # or 'oidc'
+    session: secret: "CHANGE-THIS-SECRET"
+    adminUser: {
+      enabled: true
+      username: "admin"
+      passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
+    }
+  }
+}
 EOF
 
 # Install
-timoni bundle apply yuptime -n yuptime -f values.yaml
+timoni apply yuptime ./timoni/yuptime -n yuptime -f values.cue
 ```
 
 ### Option 2: Helm
@@ -76,14 +99,52 @@ timoni bundle apply yuptime -n yuptime -f values.yaml
 Standard Helm 3 installation with OCI registry support.
 
 ```bash
-# Login to GitHub Container Registry
-helm registry login ghcr.io
+# Install from GHCR (public, no login required)
+helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime --version 0.0.18
 
-# Install from OCI
-helm install yuptime oci://ghcr.io/yuptime/charts/yuptime --version v0.0.8
+# With custom values file
+cat > values.yaml <<EOF
+image:
+  repository: ghcr.io/briansunter/yuptime-api
+  tag: 0.0.18
+  pullPolicy: Always
 
-# With custom values
-helm install yuptime oci://ghcr.io/yuptime/charts/yuptime \
+checkerImage:
+  repository: ghcr.io/briansunter/yuptime-checker
+  tag: 0.0.18
+  pullPolicy: Always
+
+mode: production
+logging:
+  level: info
+
+database:
+  type: sqlite
+  sqlite:
+    path: /data/yuptime.db
+
+storage:
+  enabled: true
+  size: 10Gi
+  storageClass: standard
+
+auth:
+  mode: local
+  session:
+    secret: CHANGE-THIS-SECRET
+  adminUser:
+    enabled: true
+    username: admin
+    passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
+EOF
+
+helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
+  --version 0.0.18 \
+  -f values.yaml
+
+# Or with --set flags
+helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
+  --version 0.0.18 \
   --set database.type=postgresql \
   --set auth.mode=oidc \
   --set auth.oidc.issuerUrl=https://your-oidc.com
@@ -251,6 +312,379 @@ spec:
   selector:
     matchLabels:
       severity: critical
+```
+
+## Configuration
+
+### Timoni Values Reference
+
+When using Timoni, customize your deployment with a CUE values file:
+
+```cue
+values: {
+  // Container images
+  image: {
+    repository: "ghcr.io/briansunter/yuptime-api"
+    tag: "0.0.18"          // or 'latest' for auto-updates
+    digest: ""             // optional: pin by digest
+    pullPolicy: "Always"   // 'Always', 'IfNotPresent', or 'Never'
+  }
+  checkerImage: {
+    repository: "ghcr.io/briansunter/yuptime-checker"
+    tag: "0.0.18"
+    digest: ""
+    pullPolicy: "Always"
+  }
+
+  // Deployment mode
+  mode: "production"       // 'development' or 'production'
+
+  // Logging configuration
+  logging: level: "info"   // 'debug', 'info', 'warn', 'error'
+
+  // Database configuration
+  database: {
+    type: "sqlite"         // 'sqlite' or 'postgresql'
+    sqlite: path: "/data/yuptime.db"
+    postgresql: {
+      host: "postgresql.yptime.svc.cluster.local"
+      port: 5432
+      database: "yuptime"
+      user: "yuptime"
+      // password: from secretRef
+    }
+  }
+
+  // Persistent storage
+  storage: {
+    enabled: true
+    size: "10Gi"
+    storageClass: "standard"    // adjust for your cluster
+    accessMode: "ReadWriteOnce"
+  }
+
+  // Authentication
+  auth: {
+    mode: "local"         // 'local', 'oidc', or 'disabled'
+    session: secret: "your-session-secret-here"
+    adminUser: {
+      enabled: true
+      username: "admin"
+      // Generate password hash with: bun run hash-password <password>
+      passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$..."
+    }
+    oidc: {
+      issuerUrl: "https://your-oidc-provider.com"
+      clientId: "yuptime"
+      // clientSecret: from secretRef
+      redirectUrl: "http://localhost:3000/auth/callback"
+    }
+  }
+
+  // Health probes
+  probes: {
+    liveness: {
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 30
+      timeoutSeconds: 10
+      failureThreshold: 3
+    }
+    readiness: {
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    }
+  }
+
+  // CRD installation
+  crds: install: true     // set to false if CRDs are pre-installed
+
+  // Test resources
+  test: enabled: false    // disable test resources in production
+}
+```
+
+### Helm Values Reference
+
+When using Helm, customize with a YAML values file or `--set` flags:
+
+```yaml
+# Container images
+image:
+  repository: ghcr.io/briansunter/yuptime-api
+  tag: 0.0.18
+  digest: ""
+  pullPolicy: Always
+
+checkerImage:
+  repository: ghcr.io/briansunter/yuptime-checker
+  tag: 0.0.18
+  digest: ""
+  pullPolicy: Always
+
+# Deployment mode
+mode: production
+
+# Logging
+logging:
+  level: info
+
+# Database configuration
+database:
+  type: sqlite                    # sqlite or postgresql
+  sqlite:
+    path: /data/yuptime.db
+  postgresql:
+    host: postgresql.yuptime.svc.cluster.local
+    port: 5432
+    database: yuptime
+    user: yuptime
+    existingSecret: yptime-db     # optional: use existing secret
+
+# Persistent storage
+storage:
+  enabled: true
+  size: 10Gi
+  storageClass: standard          # adjust for your cluster
+  accessMode: ReadWriteOnce
+
+# Authentication
+auth:
+  mode: local                     # local, oidc, or disabled
+  session:
+    secret: change-this-secret
+    existingSecret: ""            # optional: use existing secret
+  adminUser:
+    enabled: true
+    username: admin
+    passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$..."
+  oidc:
+    issuerUrl: https://your-oidc.com
+    clientId: yuptime
+    clientSecret: ""
+    existingSecret: ""            # optional: use existing secret
+    redirectUrl: http://localhost:3000/auth/callback
+
+# Resource limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Health probes
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# Service configuration
+service:
+  type: ClusterIP               # ClusterIP, NodePort, or LoadBalancer
+  port: 3000
+  annotations: {}
+
+# Ingress
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: yuptime.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: yuptime-tls
+      hosts:
+        - yuptime.example.com
+
+# CRD installation
+crds:
+  install: true                  # set to false if CRDs are pre-installed
+```
+
+### Common Customization Examples
+
+**PostgreSQL Database:**
+
+```yaml
+# Timoni (CUE)
+database: {
+  type: "postgresql"
+  postgresql: {
+    host: "postgres.yuptime.svc.cluster.local"
+    port: 5432
+    database: "yuptime"
+    user: "yuptime"
+    existingSecret: "yuptime-db-credentials"
+  }
+  storage: enabled: false  # Disable if using external PostgreSQL
+}
+
+# Helm (YAML)
+database:
+  type: postgresql
+  postgresql:
+    host: postgres.yuptime.svc.cluster.local
+    port: 5432
+    database: yuptime
+    user: yuptime
+    existingSecret: yuptime-db-credentials
+storage:
+  enabled: false
+```
+
+**OIDC Authentication:**
+
+```yaml
+# Timoni (CUE)
+auth: {
+  mode: "oidc"
+  session: secret: "your-session-secret"
+  oidc: {
+    issuerUrl: "https://accounts.google.com"
+    clientId: "your-client-id.apps.googleusercontent.com"
+    existingSecret: "yuptime-oidc"
+    redirectUrl: "https://yuptime.example.com/auth/callback"
+  }
+}
+
+# Helm (YAML)
+auth:
+  mode: oidc
+  session:
+    secret: your-session-secret
+  oidc:
+    issuerUrl: https://accounts.google.com
+    clientId: your-client-id.apps.googleusercontent.com
+    existingSecret: yuptime-oidc
+    redirectUrl: https://yuptime.example.com/auth/callback
+```
+
+**Ingress with TLS:**
+
+```yaml
+# Helm only (configure via values.yaml)
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: yuptime.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: yuptime-tls
+      hosts:
+        - yuptime.example.com
+```
+
+**Resource Limits:**
+
+```yaml
+# Timoni (CUE) - add to values
+resources: {
+  limits: {
+    cpu: "2000m"
+    memory: "2Gi"
+  }
+  requests: {
+    cpu: "1000m"
+    memory: "1Gi"
+  }
+}
+
+# Helm (YAML)
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+```
+
+### Generating Password Hashes
+
+Yuptime uses Argon2id for password hashing. Generate a hash with:
+
+```bash
+bun run hash-password <your-password>
+```
+
+Example output:
+```
+$ bun run hash-password mysecretpassword
+$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU
+```
+
+Use this hash in your `passwordHash` field.
+
+### Upgrading
+
+**Timoni:**
+
+```bash
+# Pull new module version
+timoni mod pull oci://ghcr.io/briansunter/yuptime/timoni-module --version 0.0.19 -o ./timoni/yuptime
+
+# Upgrade deployment
+timoni apply yuptime ./timoni/yuptime -n yuptime -f values.cue
+```
+
+**Helm:**
+
+```bash
+# Upgrade with new version
+helm upgrade yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
+  --version 0.0.19 \
+  -f values.yaml
+
+# Or reuse existing values
+helm upgrade yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
+  --version 0.0.19 \
+  --reuse-values
+```
+
+### Uninstalling
+
+**Timoni:**
+
+```bash
+timoni delete yuptime -n yuptime
+```
+
+**Helm:**
+
+```bash
+helm uninstall yuptime -n yuptime
 ```
 
 ## CRD Reference
@@ -437,13 +871,24 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Frontend**: React + TanStack Router + shadcn/ui + Tailwind
 - **Database**: Drizzle ORM (SQLite/PostgreSQL)
 - **Kubernetes**: @kubernetes/client-node with informers
-- **Deployment**: Timoni + CUE
+- **Deployment**: Timoni (CUE) + Helm (OCI) to GHCR
 
 ## Implementation Status
 
-**Complete:** CRDs, controller, scheduler, 8 checker types, 8 notification providers, status pages, suppressions, database-free checker executor, pre-commit hooks
+**Complete:**
+- ✅ CRDs, controller, scheduler, priority queue
+- ✅ 8 checker types (HTTP, TCP, DNS, Ping, WebSocket, JSON query, Kubernetes, Steam)
+- ✅ 8 notification providers (Slack, Discord, Telegram, SMTP, Webhook, PagerDuty, Pushover, Mattermost)
+- ✅ Status pages with custom domains
+- ✅ Suppressions (MaintenanceWindows with RRULE, Silences)
+- ✅ Database-free checker executor (direct K8s API updates)
+- ✅ Authentication (OIDC + local users + API keys)
+- ✅ Pre-commit hooks (lint, type-check, tests)
+- ✅ CI/CD with GHCR publishing (images + Helm chart + Timoni module)
 
-**In Progress:** Authentication (OIDC + local + API keys), Prometheus metrics, frontend dashboard, Timoni module packaging
+**In Progress:**
+- 🚧 Prometheus metrics and observability
+- 🚧 Frontend dashboard polish
 
 ## License
 
