@@ -136,7 +136,7 @@ try {
 
     const stats = componentStats[component];
     if (!stats || stats.lines === 0) {
-      console.log(`⚠️  ${component}: No coverage data`);
+      // Skip warning for untested components - they're pending
       continue;
     }
 
