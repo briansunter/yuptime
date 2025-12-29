@@ -7,13 +7,7 @@ import { logger } from "../../lib/logger";
 import { getBatchApiClient } from "../k8s-client";
 import { calculateJitter } from "./jitter";
 import { buildJobForMonitor, buildJobLabelSelector } from "./job-builder";
-import type {
-  JobManager,
-  JobManagerConfig,
-  JobResult,
-  JobStatus,
-  Monitor,
-} from "./types";
+import type { JobManager, JobManagerConfig, JobResult, JobStatus, Monitor } from "./types";
 
 /**
  * Create a new Job Manager instance
@@ -37,17 +31,9 @@ export function createJobManager(config: JobManagerConfig): JobManager {
       // Calculate jitter (5% default, configurable via monitor spec)
       const jitterPercent = monitor.spec.schedule?.jitterPercent || 5;
       const intervalSeconds = monitor.spec.schedule?.intervalSeconds || 60;
-      const jitterMs = calculateJitter(
-        namespace,
-        name,
-        jitterPercent,
-        intervalSeconds,
-      );
+      const jitterMs = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
 
-      logger.debug(
-        { monitorId, jitterMs, namespace, name },
-        "Calculated jitter for monitor",
-      );
+      logger.debug({ monitorId, jitterMs, namespace, name }, "Calculated jitter for monitor");
 
       // Build Job manifest
       const job = buildJobForMonitor(monitor, jitterMs);
@@ -59,9 +45,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
 
       // Create the Job
       if (!namespace || namespace === "") {
-        throw new Error(
-          `Namespace is invalid: "${namespace}" for monitor ${monitorId}`,
-        );
+        throw new Error(`Namespace is invalid: "${namespace}" for monitor ${monitorId}`);
       }
 
       // Debug logging
@@ -81,8 +65,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
         body: job,
       });
 
-      const responseJobName =
-        response.metadata?.name || job.metadata?.name || "unknown";
+      const responseJobName = response.metadata?.name || job.metadata?.name || "unknown";
 
       logger.info(
         {
@@ -107,10 +90,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
   /**
    * Cancel pending jobs for a monitor
    */
-  async function cancelJob(
-    namespace: string,
-    monitorName: string,
-  ): Promise<void> {
+  async function cancelJob(namespace: string, monitorName: string): Promise<void> {
     const monitorId = `${namespace}/${monitorName}`;
     const labelSelector = buildJobLabelSelector(monitorId);
 
@@ -143,10 +123,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
         }
       }
 
-      logger.debug(
-        { monitorId, count: jobs.length },
-        "Cancelled Jobs for monitor",
-      );
+      logger.debug({ monitorId, count: jobs.length }, "Cancelled Jobs for monitor");
     } catch (error) {
       logger.error({ monitorId, error }, "Failed to cancel Jobs for monitor");
       throw error;
@@ -156,10 +133,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
   /**
    * Get status of a job
    */
-  async function getJobStatus(
-    jobName: string,
-    namespace: string,
-  ): Promise<JobStatus> {
+  async function getJobStatus(jobName: string, namespace: string): Promise<JobStatus> {
     try {
       const job = await batchApi.readNamespacedJob({
         name: jobName,

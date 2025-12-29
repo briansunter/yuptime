@@ -79,17 +79,12 @@ export function createTypeSafeReconciler<T extends object>(
 /**
  * Typed validator function
  */
-export type TypedValidatorFn<T> = (
-  resource: T,
-) => ValidationResult | Promise<ValidationResult>;
+export type TypedValidatorFn<T> = (resource: T) => ValidationResult | Promise<ValidationResult>;
 
 /**
  * Typed reconciler function
  */
-export type TypedReconcilerFn<T> = (
-  resource: T,
-  ctx: ReconcileContext,
-) => Promise<void>;
+export type TypedReconcilerFn<T> = (resource: T, ctx: ReconcileContext) => Promise<void>;
 
 /**
  * Base interface for resources with metadata

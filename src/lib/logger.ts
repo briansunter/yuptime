@@ -20,5 +20,3 @@ export const logger = pino(
         level: logLevel,
       },
 );
-
-export default logger;

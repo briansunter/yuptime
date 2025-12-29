@@ -104,15 +104,9 @@ export async function sendAlertToAlertmanager(
       return;
     }
 
-    logger.info(
-      { monitorId, toState, fromState, alertmanagerUrl },
-      "Sent alert to Alertmanager",
-    );
+    logger.info({ monitorId, toState, fromState, alertmanagerUrl }, "Sent alert to Alertmanager");
   } catch (error) {
-    logger.warn(
-      { monitorId, toState, error },
-      "Failed to send alert to Alertmanager",
-    );
+    logger.warn({ monitorId, toState, error }, "Failed to send alert to Alertmanager");
   }
 }
 

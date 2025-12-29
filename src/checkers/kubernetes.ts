@@ -10,10 +10,7 @@ import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
 
-export async function checkKubernetes(
-  monitor: Monitor,
-  _timeout: number,
-): Promise<CheckResult> {
+export async function checkKubernetes(monitor: Monitor, _timeout: number): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.kubernetes;
 
@@ -179,17 +176,13 @@ export async function checkKubernetes(
     };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "Kubernetes check failed",
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "Kubernetes check failed");
 
     return {
       state: "down",
       latencyMs,
       reason: "ERROR",
-      message:
-        error instanceof Error ? error.message : "Kubernetes check failed",
+      message: error instanceof Error ? error.message : "Kubernetes check failed",
     };
   }
 }

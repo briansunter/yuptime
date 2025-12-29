@@ -77,8 +77,7 @@ export function buildJobForMonitor(
             {
               name: "checker",
               image,
-              imagePullPolicy:
-                image === "yuptime-checker:latest" ? "Never" : "Always",
+              imagePullPolicy: image === "yuptime-checker:latest" ? "Never" : "Always",
               args: ["--monitor", monitorId],
               env: [
                 {

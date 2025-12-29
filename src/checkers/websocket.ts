@@ -16,7 +16,7 @@ interface WebSocketResult {
 /**
  * Connect to WebSocket and optionally send/receive message
  */
-async function connectWebSocket(
+function connectWebSocket(
   url: string,
   timeout: number,
   sendMessage?: string,
@@ -143,10 +143,7 @@ async function connectWebSocket(
   });
 }
 
-export async function checkWebSocket(
-  monitor: Monitor,
-  timeout: number,
-): Promise<CheckResult> {
+export async function checkWebSocket(monitor: Monitor, timeout: number): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.websocket;
 
@@ -172,12 +169,7 @@ export async function checkWebSocket(
       };
     }
 
-    const result = await connectWebSocket(
-      url,
-      timeout,
-      target.send,
-      target.expect,
-    );
+    const result = await connectWebSocket(url, timeout, target.send, target.expect);
 
     const latencyMs = result.latencyMs;
 
@@ -197,17 +189,13 @@ export async function checkWebSocket(
     };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "WebSocket check failed",
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "WebSocket check failed");
 
     return {
       state: "down",
       latencyMs,
       reason: "ERROR",
-      message:
-        error instanceof Error ? error.message : "WebSocket check failed",
+      message: error instanceof Error ? error.message : "WebSocket check failed",
     };
   }
 }

@@ -20,10 +20,7 @@ function getK8sClient(): KubeConfig {
       // Also read the token directly for use in fetch calls
       if (fs.existsSync(SA_TOKEN_PATH)) {
         inClusterToken = fs.readFileSync(SA_TOKEN_PATH, "utf-8").trim();
-        logger.debug(
-          { tokenLength: inClusterToken.length },
-          "Secrets: Loaded in-cluster token",
-        );
+        logger.debug({ tokenLength: inClusterToken.length }, "Secrets: Loaded in-cluster token");
       }
       logger.debug("Secrets: Using in-cluster K8s configuration");
     } catch {
@@ -80,10 +77,7 @@ export async function resolveSecret(
 
     const url = `${cluster.server}/api/v1/namespaces/${namespace}/secrets/${secretName}`;
 
-    logger.debug(
-      { namespace, secretName, key, url },
-      "Resolving secret from K8s",
-    );
+    logger.debug({ namespace, secretName, key, url }, "Resolving secret from K8s");
 
     // Use fetch with TLS workaround for self-signed certs (like controller does)
     const response = await fetch(url, {
@@ -103,9 +97,7 @@ export async function resolveSecret(
         { status: response.status, statusText: response.statusText, errorText },
         "HTTP error from K8s",
       );
-      throw new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`,
-      );
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
     }
 
     const secret = (await response.json()) as { data?: Record<string, string> };
@@ -116,10 +108,7 @@ export async function resolveSecret(
 
     // Secret data is base64 encoded
     const value = Buffer.from(secret.data[key], "base64").toString("utf-8");
-    logger.debug(
-      { secretName, key, valueLength: value.length },
-      "Secret resolved successfully",
-    );
+    logger.debug({ secretName, key, valueLength: value.length }, "Secret resolved successfully");
     return value;
   } catch (error: unknown) {
     // Type narrow to access error properties

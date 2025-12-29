@@ -24,10 +24,7 @@ export interface CronJobBuilderConfig {
 /**
  * Build a CronJob for a monitor
  */
-export function buildCronJobForMonitor(
-  monitor: Monitor,
-  config: CronJobBuilderConfig,
-): V1CronJob {
+export function buildCronJobForMonitor(monitor: Monitor, config: CronJobBuilderConfig): V1CronJob {
   const namespace = monitor.metadata.namespace || "default";
   const name = monitor.metadata.name;
   const monitorId = `${namespace}/${name}`;
@@ -96,8 +93,7 @@ export function buildCronJobForMonitor(
             },
             spec: {
               restartPolicy: "Never",
-              serviceAccountName:
-                config.serviceAccountName || "yuptime-checker",
+              serviceAccountName: config.serviceAccountName || "yuptime-checker",
               securityContext: {
                 runAsNonRoot: true,
                 runAsUser: 1000,
@@ -128,8 +124,7 @@ export function buildCronJobForMonitor(
                       value: name,
                     },
                     // Add sleep interval if sub-minute checks
-                    ...(cronConfig.needsSubMinuteSleep &&
-                    cronConfig.sleepSeconds
+                    ...(cronConfig.needsSubMinuteSleep && cronConfig.sleepSeconds
                       ? [
                           {
                             name: "YUPTIME_SLEEP_SECONDS",

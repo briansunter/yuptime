@@ -59,10 +59,7 @@ export function calculateSLA(
     if (incidentStart > now) continue; // Future incident
 
     const incidentEnd = incident.endedAt || now;
-    const periodStart = Math.max(
-      incidentStart.getTime(),
-      windowStart.getTime(),
-    );
+    const periodStart = Math.max(incidentStart.getTime(), windowStart.getTime());
     const periodEnd = Math.min(incidentEnd.getTime(), now.getTime());
 
     if (periodStart < periodEnd) {

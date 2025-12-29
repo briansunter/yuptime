@@ -14,15 +14,9 @@ describe("matchesSelector", () => {
 
   test("matches by namespace", () => {
     const selector = { matchNamespaces: ["production", "staging"] };
-    expect(
-      matchesSelector(selector, { namespace: "production", name: "test" }),
-    ).toBe(true);
-    expect(
-      matchesSelector(selector, { namespace: "staging", name: "test" }),
-    ).toBe(true);
-    expect(
-      matchesSelector(selector, { namespace: "development", name: "test" }),
-    ).toBe(false);
+    expect(matchesSelector(selector, { namespace: "production", name: "test" })).toBe(true);
+    expect(matchesSelector(selector, { namespace: "staging", name: "test" })).toBe(true);
+    expect(matchesSelector(selector, { namespace: "development", name: "test" })).toBe(false);
   });
 
   test("matches by name reference", () => {
@@ -32,15 +26,9 @@ describe("matchesSelector", () => {
         { namespace: "default", name: "monitor-b" },
       ],
     };
-    expect(
-      matchesSelector(selector, { namespace: "default", name: "monitor-a" }),
-    ).toBe(true);
-    expect(
-      matchesSelector(selector, { namespace: "default", name: "monitor-c" }),
-    ).toBe(false);
-    expect(
-      matchesSelector(selector, { namespace: "other", name: "monitor-a" }),
-    ).toBe(false);
+    expect(matchesSelector(selector, { namespace: "default", name: "monitor-a" })).toBe(true);
+    expect(matchesSelector(selector, { namespace: "default", name: "monitor-c" })).toBe(false);
+    expect(matchesSelector(selector, { namespace: "other", name: "monitor-a" })).toBe(false);
   });
 
   test("matches by labels with matchLabels", () => {
@@ -112,9 +100,7 @@ describe("matchesSelector", () => {
   test("matches with NotIn operator", () => {
     const selector = {
       matchLabels: {
-        matchExpressions: [
-          { key: "tier", operator: "NotIn" as const, values: ["test", "dev"] },
-        ],
+        matchExpressions: [{ key: "tier", operator: "NotIn" as const, values: ["test", "dev"] }],
       },
     };
     expect(
@@ -158,9 +144,7 @@ describe("matchesSelector", () => {
   test("matches with DoesNotExist operator", () => {
     const selector = {
       matchLabels: {
-        matchExpressions: [
-          { key: "skip-monitoring", operator: "DoesNotExist" as const },
-        ],
+        matchExpressions: [{ key: "skip-monitoring", operator: "DoesNotExist" as const }],
       },
     };
     expect(
@@ -231,22 +215,13 @@ describe("matchesSelector", () => {
 
 describe("matchesAnySelectorIn", () => {
   test("returns true for empty selector list", () => {
-    expect(
-      matchesAnySelectorIn([], { namespace: "default", name: "test" }),
-    ).toBe(true);
+    expect(matchesAnySelectorIn([], { namespace: "default", name: "test" })).toBe(true);
   });
 
   test("matches if any selector matches (OR logic)", () => {
-    const selectors = [
-      { matchNamespaces: ["production"] },
-      { matchNamespaces: ["staging"] },
-    ];
-    expect(
-      matchesAnySelectorIn(selectors, { namespace: "staging", name: "test" }),
-    ).toBe(true);
-    expect(
-      matchesAnySelectorIn(selectors, { namespace: "dev", name: "test" }),
-    ).toBe(false);
+    const selectors = [{ matchNamespaces: ["production"] }, { matchNamespaces: ["staging"] }];
+    expect(matchesAnySelectorIn(selectors, { namespace: "staging", name: "test" })).toBe(true);
+    expect(matchesAnySelectorIn(selectors, { namespace: "dev", name: "test" })).toBe(false);
   });
 });
 
@@ -285,10 +260,7 @@ describe("filterBySelector", () => {
     const selector = { matchNamespaces: ["production"] };
     const filtered = filterBySelector(monitors, selector);
     expect(filtered).toHaveLength(2);
-    expect(filtered.map((m) => m.namespace)).toEqual([
-      "production",
-      "production",
-    ]);
+    expect(filtered.map((m) => m.namespace)).toEqual(["production", "production"]);
   });
 
   test("returns all when selector is undefined", () => {

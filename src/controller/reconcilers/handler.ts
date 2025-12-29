@@ -58,26 +58,19 @@ export function createTypeSafeReconciliationHandler<T extends object>(
 
       // Extract metadata for logging (using unknown cast for safety)
       namespace =
-        (typedResource as unknown as { metadata: { namespace?: string } })
-          .metadata?.namespace || "";
-      name = (typedResource as unknown as { metadata: { name: string } })
-        .metadata.name;
+        (typedResource as unknown as { metadata: { namespace?: string } }).metadata?.namespace ||
+        "";
+      name = (typedResource as unknown as { metadata: { name: string } }).metadata.name;
       generation =
-        (typedResource as unknown as { metadata: { generation?: number } })
-          .metadata?.generation || 0;
+        (typedResource as unknown as { metadata: { generation?: number } }).metadata?.generation ||
+        0;
 
       // Step 2: Run validator (receives fully typed resource)
-      const validationResult = await Promise.resolve(
-        config.validator(typedResource),
-      );
+      const validationResult = await Promise.resolve(config.validator(typedResource));
 
       if (!validationResult.valid) {
-        const message =
-          validationResult.errors?.join("; ") || "Validation failed";
-        logger.warn(
-          { kind: config.kind, namespace, name },
-          `Validation failed: ${message}`,
-        );
+        const message = validationResult.errors?.join("; ") || "Validation failed";
+        logger.warn({ kind: config.kind, namespace, name }, `Validation failed: ${message}`);
 
         await statusUpdater.markInvalid(
           config.kind,
@@ -95,13 +88,7 @@ export function createTypeSafeReconciliationHandler<T extends object>(
       await config.reconciler(typedResource, ctx);
 
       // Step 4: Mark as valid and reconciled
-      await statusUpdater.markValid(
-        config.kind,
-        config.plural,
-        namespace,
-        name,
-        generation,
-      );
+      await statusUpdater.markValid(config.kind, config.plural, namespace, name, generation);
 
       logger.debug(
         { kind: config.kind, namespace, name },
@@ -113,10 +100,8 @@ export function createTypeSafeReconciliationHandler<T extends object>(
         typeof resource === "object" && resource !== null
           ? (resource as Record<string, unknown>).metadata
           : null;
-      namespace =
-        ((metadata as Record<string, unknown>)?.namespace as string) || "";
-      name =
-        ((metadata as Record<string, unknown>)?.name as string) || "unknown";
+      namespace = ((metadata as Record<string, unknown>)?.namespace as string) || "";
+      name = ((metadata as Record<string, unknown>)?.name as string) || "unknown";
 
       const message = error instanceof Error ? error.message : "Unknown error";
       logger.error(
@@ -134,10 +119,7 @@ export function createTypeSafeReconciliationHandler<T extends object>(
           message,
         );
       } catch (statusError) {
-        logger.error(
-          { error: statusError },
-          "Failed to update status after error",
-        );
+        logger.error({ error: statusError }, "Failed to update status after error");
       }
     }
   };
@@ -151,19 +133,13 @@ export function createTypeSafeDeleteHandler<T extends object>(
 ): (namespace: string, name: string) => Promise<void> {
   return async (namespace: string, name: string) => {
     if (!config.deleteHandler) {
-      logger.debug(
-        { kind: config.kind, namespace, name },
-        `No delete handler for ${config.kind}`,
-      );
+      logger.debug({ kind: config.kind, namespace, name }, `No delete handler for ${config.kind}`);
       return;
     }
 
     try {
       await config.deleteHandler(namespace, name);
-      logger.debug(
-        { kind: config.kind, namespace, name },
-        `${config.kind} deleted successfully`,
-      );
+      logger.debug({ kind: config.kind, namespace, name }, `${config.kind} deleted successfully`);
     } catch (error) {
       logger.error(
         { kind: config.kind, namespace, name, error },

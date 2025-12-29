@@ -113,16 +113,12 @@ export function recordCheckResult(
   },
 ): void {
   // Record state (0 = down, 1 = up, 0.5 = pending)
-  const stateValue =
-    result.state === "up" ? 1 : result.state === "down" ? 0 : 0.5;
+  const stateValue = result.state === "up" ? 1 : result.state === "down" ? 0 : 0.5;
   monitorState.set({ monitor: monitorName, namespace, type, url }, stateValue);
 
   // Record latency if available
   if (result.latencyMs !== undefined) {
-    monitorLatency.set(
-      { monitor: monitorName, namespace, type },
-      result.latencyMs,
-    );
+    monitorLatency.set({ monitor: monitorName, namespace, type }, result.latencyMs);
   }
 
   // Record check duration if available
@@ -134,10 +130,7 @@ export function recordCheckResult(
   }
 
   // Increment total checks counter
-  monitorChecksTotal.inc(
-    { monitor: monitorName, namespace, type, result: result.state },
-    1,
-  );
+  monitorChecksTotal.inc({ monitor: monitorName, namespace, type, result: result.state }, 1);
 }
 
 /**
@@ -186,10 +179,7 @@ export function decrementActiveIncidents(
  * Reset metrics for a specific monitor
  * Useful when a monitor is deleted
  */
-export function resetMonitorMetrics(
-  monitorName: string,
-  namespace: string,
-): void {
+export function resetMonitorMetrics(monitorName: string, namespace: string): void {
   // Remove all metrics for this monitor
   monitorState.remove({ monitor: monitorName, namespace });
   monitorLatency.remove({ monitor: monitorName, namespace });

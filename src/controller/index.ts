@@ -1,11 +1,6 @@
 import type { KubeConfig } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
-import {
-  informerRegistry,
-  registry,
-  startAllWatchers,
-  stopAllWatchers,
-} from "./informers";
+import { informerRegistry, registry, startAllWatchers, stopAllWatchers } from "./informers";
 import type { JobManager } from "./job-manager";
 import { createJobManager } from "./job-manager";
 import type { JobCompletionWatcher } from "./job-manager/completion-watcher";
@@ -127,10 +122,7 @@ function registerAllReconcilers(kubeConfig: KubeConfig) {
     // Register with the informer registry
     registry.registerReconciler(informerRegistry, config.kind, handler);
 
-    logger.debug(
-      { kind: config.kind },
-      `Registered reconciler for ${config.kind}`,
-    );
+    logger.debug({ kind: config.kind }, `Registered reconciler for ${config.kind}`);
   }
 
   logger.debug("All reconcilers registered");

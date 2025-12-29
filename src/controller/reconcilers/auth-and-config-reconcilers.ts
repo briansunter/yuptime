@@ -69,10 +69,7 @@ const reconcileSilence = async (resource: Silence, _ctx: ReconcileContext) => {
       // Setup expiry timer to remove from cache when silence expires
       setTimeout(() => {
         silenceCache.delete(silenceKey);
-        logger.info(
-          { namespace, name },
-          "Silence expired and removed from cache",
-        );
+        logger.info({ namespace, name }, "Silence expired and removed from cache");
       }, expiresInMs);
 
       logger.debug(
@@ -166,9 +163,7 @@ export const getActiveSilences = (
  */
 const validateSettingsName = (resource: YuptimeSettings): string[] => {
   if (resource.metadata.name !== "yuptime") {
-    return [
-      "metadata.name must be exactly 'yuptime' (only one instance allowed)",
-    ];
+    return ["metadata.name must be exactly 'yuptime' (only one instance allowed)"];
   }
   return [];
 };
@@ -181,10 +176,7 @@ const validateSettingsScheduler = (resource: YuptimeSettings): string[] => {
     errors.push("scheduler.minIntervalSeconds must be >= 1");
   }
 
-  if (
-    scheduler?.maxConcurrentNetChecks &&
-    scheduler.maxConcurrentNetChecks < 1
-  ) {
+  if (scheduler?.maxConcurrentNetChecks && scheduler.maxConcurrentNetChecks < 1) {
     errors.push("scheduler.maxConcurrentNetChecks must be >= 1");
   }
 
@@ -220,10 +212,7 @@ type GlobalSettings = {
 
 let globalSettings: GlobalSettings | null = null;
 
-const reconcileSettings = async (
-  resource: YuptimeSettings,
-  _ctx: ReconcileContext,
-) => {
+const reconcileSettings = async (resource: YuptimeSettings, _ctx: ReconcileContext) => {
   const name = resource.metadata.name;
 
   logger.info({ name }, "Reconciling YuptimeSettings");

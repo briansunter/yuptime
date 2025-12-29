@@ -7,11 +7,7 @@
  * Database-free - all state in Kubernetes CRDs and Prometheus metrics.
  */
 
-import {
-  CustomObjectsApi,
-  type KubeConfig,
-  type V1Job,
-} from "@kubernetes/client-node";
+import { CustomObjectsApi, type KubeConfig, type V1Job } from "@kubernetes/client-node";
 import { Watch } from "@kubernetes/client-node/dist/watch";
 import { sendAlertToAlertmanager } from "../../alerting";
 import { logger } from "../../lib/logger";
@@ -41,10 +37,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
     const monitorId = annotations["monitoring.yuptime.io/monitor"];
 
     if (!monitorId) {
-      logger.debug(
-        { jobName: job.metadata?.name },
-        "Job missing monitor annotation",
-      );
+      logger.debug({ jobName: job.metadata?.name }, "Job missing monitor annotation");
       return;
     }
 
@@ -110,15 +103,10 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
   /**
    * Handle monitor state changes (up → down or down → up)
    */
-  async function handleStateChange(
-    monitor: Monitor,
-    fromState: string,
-    toState: string,
-  ) {
+  async function handleStateChange(monitor: Monitor, fromState: string, toState: string) {
     const monitorName = monitor.metadata.name;
     const reason =
-      monitor.status?.lastResult?.reason ||
-      `State changed from ${fromState} to ${toState}`;
+      monitor.status?.lastResult?.reason || `State changed from ${fromState} to ${toState}`;
 
     // Send alert to Alertmanager if configured
     await sendAlertToAlertmanager(
@@ -128,10 +116,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
       `Monitor ${monitorName} is ${toState}`,
     );
 
-    logger.info(
-      { monitorName, fromState, toState, reason },
-      "Monitor state changed",
-    );
+    logger.info({ monitorName, fromState, toState, reason }, "Monitor state changed");
   }
 
   /**
@@ -203,7 +188,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
   /**
    * Stop watching Jobs
    */
-  async function stop() {
+  function stop() {
     if (!watching) {
       return;
     }
@@ -224,9 +209,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
   };
 }
 
-export type JobCompletionWatcher = ReturnType<
-  typeof createJobCompletionWatcher
->;
+export type JobCompletionWatcher = ReturnType<typeof createJobCompletionWatcher>;
 
 /**
  * Extract monitor URL for metrics labels

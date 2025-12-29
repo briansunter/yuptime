@@ -34,10 +34,7 @@ export const YuptimeSettingsSpecSchema = z.object({
       .optional(),
     ping: z
       .object({
-        mode: z
-          .enum(["icmp", "tcpFallback", "tcpOnly"])
-          .optional()
-          .default("tcpFallback"),
+        mode: z.enum(["icmp", "tcpFallback", "tcpOnly"]).optional().default("tcpFallback"),
         tcpFallbackPort: z.number().min(1).max(65535).optional().default(443),
       })
       .optional(),

@@ -48,19 +48,11 @@ const createRegistry = (): Registry => ({
  * Create registry functions (composition over classes)
  */
 const registryFunctions = {
-  registerReconciler: (
-    registry: Registry,
-    kind: string,
-    handler: ReconcileFn,
-  ) => {
+  registerReconciler: (registry: Registry, kind: string, handler: ReconcileFn) => {
     registry.reconcilers.set(kind, handler);
   },
 
-  registerDeleteHandler: (
-    registry: Registry,
-    kind: string,
-    handler: ReconcileDeleteFn,
-  ) => {
+  registerDeleteHandler: (registry: Registry, kind: string, handler: ReconcileDeleteFn) => {
     registry.deleteHandlers.set(kind, handler);
   },
 
@@ -140,11 +132,7 @@ const registryFunctions = {
     }
   },
 
-  setWatcher: (
-    registry: Registry,
-    kind: string,
-    watcher: { abort?: () => void },
-  ) => {
+  setWatcher: (registry: Registry, kind: string, watcher: { abort?: () => void }) => {
     registry.watchers.set(kind, watcher);
   },
 
@@ -152,7 +140,7 @@ const registryFunctions = {
     return registry.watchers.get(kind);
   },
 
-  stopAll: async (registry: Registry) => {
+  stopAll: (registry: Registry) => {
     for (const watcher of registry.watchers.values()) {
       if (watcher?.abort) {
         watcher.abort();
@@ -232,9 +220,8 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
           registry.handleModify(informerRegistry, kind, resource);
           break;
         case "DELETED": {
-          const metadata = (
-            resource as { metadata?: { namespace?: string; name?: string } }
-          ).metadata;
+          const metadata = (resource as { metadata?: { namespace?: string; name?: string } })
+            .metadata;
           if (metadata?.namespace && metadata?.name) {
             removeCachedResource(kind, metadata.namespace, metadata.name);
           }

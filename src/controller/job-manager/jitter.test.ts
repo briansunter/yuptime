@@ -11,12 +11,7 @@ describe("calculateJitter", () => {
     const jitterPercent = 10;
     const maxJitterMs = (intervalSeconds * 1000 * jitterPercent) / 100; // 6000ms
 
-    const jitter = calculateJitter(
-      "default",
-      "test-monitor",
-      jitterPercent,
-      intervalSeconds,
-    );
+    const jitter = calculateJitter("default", "test-monitor", jitterPercent, intervalSeconds);
 
     expect(jitter).toBeGreaterThanOrEqual(0);
     expect(jitter).toBeLessThan(maxJitterMs);
@@ -28,24 +23,9 @@ describe("calculateJitter", () => {
     const jitterPercent = 20;
     const intervalSeconds = 30;
 
-    const jitter1 = calculateJitter(
-      namespace,
-      name,
-      jitterPercent,
-      intervalSeconds,
-    );
-    const jitter2 = calculateJitter(
-      namespace,
-      name,
-      jitterPercent,
-      intervalSeconds,
-    );
-    const jitter3 = calculateJitter(
-      namespace,
-      name,
-      jitterPercent,
-      intervalSeconds,
-    );
+    const jitter1 = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
+    const jitter2 = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
+    const jitter3 = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
 
     expect(jitter1).toBe(jitter2);
     expect(jitter2).toBe(jitter3);
@@ -55,24 +35,9 @@ describe("calculateJitter", () => {
     const jitterPercent = 20;
     const intervalSeconds = 60;
 
-    const jitter1 = calculateJitter(
-      "default",
-      "monitor-1",
-      jitterPercent,
-      intervalSeconds,
-    );
-    const jitter2 = calculateJitter(
-      "default",
-      "monitor-2",
-      jitterPercent,
-      intervalSeconds,
-    );
-    const jitter3 = calculateJitter(
-      "default",
-      "monitor-3",
-      jitterPercent,
-      intervalSeconds,
-    );
+    const jitter1 = calculateJitter("default", "monitor-1", jitterPercent, intervalSeconds);
+    const jitter2 = calculateJitter("default", "monitor-2", jitterPercent, intervalSeconds);
+    const jitter3 = calculateJitter("default", "monitor-3", jitterPercent, intervalSeconds);
 
     // Very unlikely all three are the same
     const allSame = jitter1 === jitter2 && jitter2 === jitter3;
@@ -83,18 +48,8 @@ describe("calculateJitter", () => {
     const jitterPercent = 20;
     const intervalSeconds = 60;
 
-    const jitter1 = calculateJitter(
-      "prod",
-      "api",
-      jitterPercent,
-      intervalSeconds,
-    );
-    const jitter2 = calculateJitter(
-      "staging",
-      "api",
-      jitterPercent,
-      intervalSeconds,
-    );
+    const jitter1 = calculateJitter("prod", "api", jitterPercent, intervalSeconds);
+    const jitter2 = calculateJitter("staging", "api", jitterPercent, intervalSeconds);
 
     expect(jitter1).not.toBe(jitter2);
   });
@@ -138,12 +93,8 @@ describe("calculateNextRunTime", () => {
     const after = new Date();
 
     expect(nextRun.getTime()).toBeGreaterThan(before.getTime());
-    expect(nextRun.getTime()).toBeGreaterThanOrEqual(
-      before.getTime() + 60000 + 1000,
-    );
-    expect(nextRun.getTime()).toBeLessThanOrEqual(
-      after.getTime() + 60000 + 1000 + 100,
-    ); // 100ms tolerance
+    expect(nextRun.getTime()).toBeGreaterThanOrEqual(before.getTime() + 60000 + 1000);
+    expect(nextRun.getTime()).toBeLessThanOrEqual(after.getTime() + 60000 + 1000 + 100); // 100ms tolerance
   });
 
   test("adds interval and jitter to current time", () => {
@@ -189,11 +140,7 @@ describe("rescheduleJob", () => {
     const intervalSeconds = 60;
     const jitterMs = 0;
 
-    const nextRun = rescheduleJob(
-      executionCompletedAt,
-      intervalSeconds,
-      jitterMs,
-    );
+    const nextRun = rescheduleJob(executionCompletedAt, intervalSeconds, jitterMs);
 
     // Next run should be interval from when execution completed, not from scheduled time
     expect(nextRun.getTime()).toBe(executionCompletedAt.getTime() + 60000);

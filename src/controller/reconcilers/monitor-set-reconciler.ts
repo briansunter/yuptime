@@ -23,9 +23,7 @@ const validateMonitorSetItems = (resource: MonitorSet): string[] => {
 
   // Check names are unique and valid
   if (spec.items) {
-    errors.push(
-      ...validateUniqueField("item.name", spec.items, (item) => item.name),
-    );
+    errors.push(...validateUniqueField("item.name", spec.items, (item) => item.name));
 
     for (const item of spec.items) {
       if (!item.name || !/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(item.name)) {
@@ -49,10 +47,7 @@ const validateMonitorSet = typedComposeValidators(
 /**
  * MonitorSet reconciliation
  */
-const reconcileMonitorSet = async (
-  resource: MonitorSet,
-  _ctx: ReconcileContext,
-) => {
+const reconcileMonitorSet = async (resource: MonitorSet, _ctx: ReconcileContext) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const itemCount = resource.spec.items?.length;
@@ -61,10 +56,7 @@ const reconcileMonitorSet = async (
 
   // TODO: Register each monitor item with scheduler (inline mode)
 
-  logger.debug(
-    { namespace, name, itemCount },
-    "MonitorSet reconciliation complete",
-  );
+  logger.debug({ namespace, name, itemCount }, "MonitorSet reconciliation complete");
 };
 
 export const createMonitorSetReconciler = () =>

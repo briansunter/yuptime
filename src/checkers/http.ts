@@ -14,10 +14,7 @@ export interface CheckResult {
 /**
  * HTTP/HTTPS monitor checker
  */
-export async function checkHttp(
-  monitor: Monitor,
-  timeout: number,
-): Promise<CheckResult> {
+export async function checkHttp(monitor: Monitor, timeout: number): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.http;
 
@@ -128,10 +125,7 @@ export async function checkHttp(
       }
 
       // Check latency if specified
-      if (
-        successCriteria?.latencyMsUnder &&
-        latencyMs > successCriteria.latencyMsUnder
-      ) {
+      if (successCriteria?.latencyMsUnder && latencyMs > successCriteria.latencyMsUnder) {
         return {
           state: "down",
           latencyMs,
@@ -191,10 +185,7 @@ export async function checkHttp(
       }
     }
 
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "HTTP check failed with error",
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "HTTP check failed with error");
 
     return {
       state: "down",
@@ -208,10 +199,7 @@ export async function checkHttp(
 /**
  * Execute HTTP check with keyword matching
  */
-export async function checkKeyword(
-  monitor: Monitor,
-  timeout: number,
-): Promise<CheckResult> {
+export async function checkKeyword(monitor: Monitor, timeout: number): Promise<CheckResult> {
   // First do the HTTP check
   const httpResult = await checkHttp(monitor, timeout);
 
@@ -300,10 +288,7 @@ export async function checkKeyword(
 
     return httpResult;
   } catch (error) {
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "Keyword check failed",
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "Keyword check failed");
 
     return {
       state: "down",
@@ -317,10 +302,7 @@ export async function checkKeyword(
 /**
  * Execute HTTP check with JSON path validation
  */
-export async function checkJsonQuery(
-  monitor: Monitor,
-  timeout: number,
-): Promise<CheckResult> {
+export async function checkJsonQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
   // First do the HTTP check
   const httpResult = await checkHttp(monitor, timeout);
 

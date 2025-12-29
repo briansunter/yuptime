@@ -14,7 +14,7 @@ function hashString(str: string): number {
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
+    hash &= hash; // Convert to 32-bit integer
   }
   return Math.abs(hash);
 }
@@ -41,10 +41,7 @@ export function calculateJitter(
 /**
  * Calculate the next scheduled run time with jitter
  */
-export function calculateNextRunTime(
-  intervalSeconds: number,
-  jitterMs: number,
-): Date {
+export function calculateNextRunTime(intervalSeconds: number, jitterMs: number): Date {
   const nextRun = new Date();
   nextRun.setTime(nextRun.getTime() + intervalSeconds * 1000 + jitterMs);
   return nextRun;
@@ -53,15 +50,9 @@ export function calculateNextRunTime(
 /**
  * Calculate when a job should be rescheduled after execution
  */
-export function rescheduleJob(
-  currentTime: Date,
-  intervalSeconds: number,
-  jitterMs: number,
-): Date {
+export function rescheduleJob(currentTime: Date, intervalSeconds: number, jitterMs: number): Date {
   // Schedule for interval from now (not from scheduled time)
   // This prevents drift if execution takes time
-  const nextRun = new Date(
-    currentTime.getTime() + intervalSeconds * 1000 + jitterMs,
-  );
+  const nextRun = new Date(currentTime.getTime() + intervalSeconds * 1000 + jitterMs);
   return nextRun;
 }

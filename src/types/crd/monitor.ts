@@ -21,10 +21,7 @@ export type MonitorSchedule = z.infer<typeof MonitorScheduleSchema>;
 // HTTP target configuration
 export const HttpTargetSchema = z.object({
   url: z.string().url(),
-  method: z
-    .enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"])
-    .optional()
-    .default("GET"),
+  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"]).optional().default("GET"),
   followRedirects: z.boolean().optional().default(true),
   maxRedirects: z.number().min(0).optional().default(10),
   headers: z
@@ -146,11 +143,7 @@ export const K8sTargetSchema = z.object({
     name: z.string(),
   }),
   check: z.object({
-    type: z.enum([
-      "AvailableReplicasAtLeast",
-      "PodReadiness",
-      "EndpointNonEmpty",
-    ]),
+    type: z.enum(["AvailableReplicasAtLeast", "PodReadiness", "EndpointNonEmpty"]),
     min: z.number().min(0).optional(),
   }),
 });

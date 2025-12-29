@@ -12,9 +12,7 @@ export const config = {
   kubeNamespace: process.env.KUBE_NAMESPACE || "monitoring",
 
   // Logging
-  logLevel:
-    process.env.LOG_LEVEL ||
-    (process.env.NODE_ENV === "production" ? "info" : "debug"),
+  logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug"),
 };
 
 // Validate required config
@@ -38,5 +36,3 @@ export function validateConfig(): void {
     "Configuration loaded",
   );
 }
-
-export default config;

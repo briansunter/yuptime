@@ -18,9 +18,7 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 const tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token";
 
 if (!existsSync(tokenPath)) {
-  throw new Error(
-    "Not running in-cluster - checker executor requires in-cluster authentication",
-  );
+  throw new Error("Not running in-cluster - checker executor requires in-cluster authentication");
 }
 
 const saToken = readFileSync(tokenPath, "utf-8").trim();
@@ -31,7 +29,7 @@ logger.info(`Loaded in-cluster config, API server: ${apiServerUrl}`);
 /**
  * Make an authenticated request to the Kubernetes API
  */
-async function k8sRequest(
+function k8sRequest(
   method: string,
   path: string,
   body?: unknown,
@@ -45,9 +43,7 @@ async function k8sRequest(
     Authorization: `Bearer ${saToken}`,
   };
 
-  logger.debug(
-    `Making ${method} request to ${path}, auth present: ${!!headers.Authorization}`,
-  );
+  logger.debug(`Making ${method} request to ${path}, auth present: ${!!headers.Authorization}`);
 
   return fetch(url, {
     method,
@@ -59,10 +55,7 @@ async function k8sRequest(
 /**
  * Load a Monitor CRD from Kubernetes API
  */
-export async function loadMonitorCRD(
-  namespace: string,
-  name: string,
-): Promise<Monitor> {
+export async function loadMonitorCRD(namespace: string, name: string): Promise<Monitor> {
   const path = `/apis/monitoring.yuptime.io/v1/namespaces/${namespace}/monitors/${name}`;
 
   try {
@@ -83,10 +76,7 @@ export async function loadMonitorCRD(
 /**
  * Execute a monitor check
  */
-export async function executeCheck(
-  namespace: string,
-  name: string,
-): Promise<CheckResult> {
+export async function executeCheck(namespace: string, name: string): Promise<CheckResult> {
   try {
     // Load Monitor CRD
     const monitor = await loadMonitorCRD(namespace, name);
@@ -148,12 +138,7 @@ export async function updateMonitorStatus(
       },
     };
 
-    const response = await k8sRequest(
-      "PATCH",
-      path,
-      statusPatch,
-      "application/merge-patch+json",
-    );
+    const response = await k8sRequest("PATCH", path, statusPatch, "application/merge-patch+json");
 
     if (!response.ok) {
       const text = await response.text();

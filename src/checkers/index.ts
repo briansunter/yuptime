@@ -1,12 +1,7 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import { checkDns } from "./dns";
-import {
-  type CheckResult,
-  checkHttp,
-  checkJsonQuery,
-  checkKeyword,
-} from "./http";
+import { type CheckResult, checkHttp, checkJsonQuery, checkKeyword } from "./http";
 import { checkKubernetes } from "./kubernetes";
 import { checkPing } from "./ping";
 import { checkPush } from "./push";
@@ -18,18 +13,12 @@ import { checkWebSocket } from "./websocket";
  * Execute a check based on monitor type
  * Functional dispatcher pattern - compose checkers with logging and error handling
  */
-export async function executeCheck(
-  monitor: Monitor,
-  timeout: number,
-): Promise<CheckResult> {
+export async function executeCheck(monitor: Monitor, timeout: number): Promise<CheckResult> {
   const type = monitor.spec.type;
   const start = Date.now();
 
   try {
-    logger.debug(
-      { monitor: monitor.metadata.name, type, timeout },
-      "Executing check",
-    );
+    logger.debug({ monitor: monitor.metadata.name, type, timeout }, "Executing check");
 
     switch (type) {
       // Content-based HTTP checks

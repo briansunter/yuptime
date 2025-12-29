@@ -41,16 +41,10 @@ export function matchesSelector(
 
         switch (expr.operator) {
           case "In":
-            if (
-              !expr.values ||
-              !labelValue ||
-              !expr.values.includes(labelValue)
-            )
-              return false;
+            if (!expr.values || !labelValue || !expr.values.includes(labelValue)) return false;
             break;
           case "NotIn":
-            if (expr.values && labelValue && expr.values.includes(labelValue))
-              return false;
+            if (expr.values && labelValue && expr.values.includes(labelValue)) return false;
             break;
           case "Exists":
             if (labelValue === undefined) return false;
@@ -66,9 +60,7 @@ export function matchesSelector(
   // Check tag match
   if (selector.matchTags && selector.matchTags.length > 0) {
     const monitorTags = monitor.tags || [];
-    const hasMatch = selector.matchTags.some((tag) =>
-      monitorTags.includes(tag),
-    );
+    const hasMatch = selector.matchTags.some((tag) => monitorTags.includes(tag));
     if (!hasMatch) return false;
   }
 

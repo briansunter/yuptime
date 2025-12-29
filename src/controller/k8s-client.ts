@@ -104,10 +104,7 @@ export function createCRDWatcher(
         const data = (await response.json()) as { items?: unknown[] };
         return data.items || [];
       } catch (error) {
-        logger.error(
-          { group, version, plural, namespace, error },
-          "Failed to list CRDs",
-        );
+        logger.error({ group, version, plural, namespace, error }, "Failed to list CRDs");
         throw error;
       }
     },
@@ -134,10 +131,7 @@ export function createCRDWatcher(
               name,
             });
       } catch (error) {
-        logger.error(
-          { group, version, plural, name, namespace: ns, error },
-          "Failed to get CRD",
-        );
+        logger.error({ group, version, plural, name, namespace: ns, error }, "Failed to get CRD");
         throw error;
       }
     },
@@ -164,10 +158,7 @@ export function createCRDWatcher(
               body,
             });
       } catch (error) {
-        logger.error(
-          { group, version, plural, namespace: ns, error },
-          "Failed to create CRD",
-        );
+        logger.error({ group, version, plural, namespace: ns, error }, "Failed to create CRD");
         throw error;
       }
     },
@@ -196,10 +187,7 @@ export function createCRDWatcher(
               body,
             });
       } catch (error) {
-        logger.error(
-          { group, version, plural, name, namespace: ns, error },
-          "Failed to patch CRD",
-        );
+        logger.error({ group, version, plural, name, namespace: ns, error }, "Failed to patch CRD");
         throw error;
       }
     },
@@ -207,11 +195,7 @@ export function createCRDWatcher(
     /**
      * Update status subresource
      */
-    async patchStatus(
-      name: string,
-      body: Record<string, unknown>,
-      ns?: string,
-    ) {
+    async patchStatus(name: string, body: Record<string, unknown>, ns?: string) {
       const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
@@ -273,7 +257,7 @@ export function createCRDWatcher(
     /**
      * Watch for changes to CRDs
      */
-    async watch(
+    watch(
       onEvent: (type: string, obj: unknown) => void,
       onError?: (error: Error) => void,
       ns?: string,
@@ -291,7 +275,7 @@ export function createCRDWatcher(
         (phase, obj) => {
           onEvent(phase, obj);
         },
-        onError || (() => {}),
+        onError || (() => undefined),
       );
     },
   };
@@ -332,7 +316,7 @@ export function getBatchApiClient() {
 /**
  * Get Kubernetes API clients (unified interface)
  */
-export async function getKubernetesClient() {
+export function getKubernetesClient() {
   if (!kubeConfig) {
     initializeK8sClient();
   }

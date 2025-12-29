@@ -27,7 +27,7 @@ interface A2SServerInfo {
 /**
  * Query Steam game server using A2S protocol
  */
-async function queryA2SServer(
+function queryA2SServer(
   host: string,
   port: number,
   timeout: number,
@@ -149,24 +149,16 @@ async function queryA2SServer(
 
         // Read server type and environment
         const serverTypeByte = offset < msg.length ? msg[offset] : undefined;
-        const serverType =
-          serverTypeByte !== undefined
-            ? String.fromCharCode(serverTypeByte)
-            : "?";
+        const serverType = serverTypeByte !== undefined ? String.fromCharCode(serverTypeByte) : "?";
         offset++;
         const environmentByte = offset < msg.length ? msg[offset] : undefined;
         const environment =
-          environmentByte !== undefined
-            ? String.fromCharCode(environmentByte)
-            : "?";
+          environmentByte !== undefined ? String.fromCharCode(environmentByte) : "?";
         offset++;
 
         // Read visibility and VAC
         const visibilityByte = offset < msg.length ? msg[offset] : undefined;
-        const visibility =
-          visibilityByte !== undefined
-            ? String.fromCharCode(visibilityByte)
-            : "?";
+        const visibility = visibilityByte !== undefined ? String.fromCharCode(visibilityByte) : "?";
         offset++;
         const vac = offset < msg.length ? msg.readUInt8(offset) === 1 : false;
 
@@ -227,10 +219,7 @@ async function queryA2SServer(
   });
 }
 
-export async function checkSteam(
-  monitor: Monitor,
-  timeout: number,
-): Promise<CheckResult> {
+export async function checkSteam(monitor: Monitor, timeout: number): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.steam;
 
@@ -318,10 +307,7 @@ export async function checkSteam(
     };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
-    logger.warn(
-      { monitor: monitor.metadata.name, error },
-      "Steam check failed",
-    );
+    logger.warn({ monitor: monitor.metadata.name, error }, "Steam check failed");
 
     return {
       state: "down",

@@ -53,10 +53,7 @@ export function createMetricsServer(config: MetricsServerConfig) {
       return new Promise((resolve, reject) => {
         try {
           server.listen(config.port, config.host, () => {
-            logger.info(
-              { port: config.port, host: config.host },
-              "Metrics server started",
-            );
+            logger.info({ port: config.port, host: config.host }, "Metrics server started");
             listening = true;
             resolve();
           });

@@ -27,18 +27,11 @@ export async function updateStatus(
       },
     ];
 
-    await watcher.patchStatus(
-      name,
-      patch as unknown as Record<string, unknown>,
-      namespace,
-    );
+    await watcher.patchStatus(name, patch as unknown as Record<string, unknown>, namespace);
 
     logger.debug({ kind, namespace, name }, `Updated ${kind} status`);
   } catch (error) {
-    logger.error(
-      { kind, namespace, name, error },
-      `Failed to update ${kind} status`,
-    );
+    logger.error({ kind, namespace, name, error }, `Failed to update ${kind} status`);
     throw error;
   }
 }
@@ -115,12 +108,7 @@ export async function markValid(
     // Set Reconciled condition
     conditions = updateConditions(
       conditions,
-      createCondition(
-        "Reconciled",
-        "True",
-        "ReconcileSuccess",
-        "Resource has been reconciled",
-      ),
+      createCondition("Reconciled", "True", "ReconcileSuccess", "Resource has been reconciled"),
     );
 
     // Set Ready condition
@@ -137,10 +125,7 @@ export async function markValid(
 
     await updateStatus(kind, plural, namespace, name, newStatus);
   } catch (error) {
-    logger.error(
-      { kind, namespace, name, error },
-      `Failed to mark ${kind} as valid`,
-    );
+    logger.error({ kind, namespace, name, error }, `Failed to mark ${kind} as valid`);
     throw error;
   }
 }
@@ -163,20 +148,12 @@ export async function markInvalid(
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition to False
-    conditions = updateConditions(
-      conditions,
-      createCondition("Valid", "False", reason, message),
-    );
+    conditions = updateConditions(conditions, createCondition("Valid", "False", reason, message));
 
     // Set Ready condition to False
     conditions = updateConditions(
       conditions,
-      createCondition(
-        "Ready",
-        "False",
-        "ValidationFailed",
-        "Resource validation failed",
-      ),
+      createCondition("Ready", "False", "ValidationFailed", "Resource validation failed"),
     );
 
     const newStatus = {
@@ -186,15 +163,9 @@ export async function markInvalid(
 
     await updateStatus(kind, plural, namespace, name, newStatus);
 
-    logger.warn(
-      { kind, namespace, name, reason, message },
-      `Marked ${kind} as invalid`,
-    );
+    logger.warn({ kind, namespace, name, reason, message }, `Marked ${kind} as invalid`);
   } catch (error) {
-    logger.error(
-      { kind, namespace, name, error },
-      `Failed to mark ${kind} as invalid`,
-    );
+    logger.error({ kind, namespace, name, error }, `Failed to mark ${kind} as invalid`);
     throw error;
   }
 }

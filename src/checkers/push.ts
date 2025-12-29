@@ -10,10 +10,7 @@ import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
 
-export async function checkPush(
-  monitor: Monitor,
-  _timeout: number,
-): Promise<CheckResult> {
+export async function checkPush(monitor: Monitor, _timeout: number): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.push;
 
@@ -95,10 +92,7 @@ export async function validatePushToken(
 
     return { valid: true };
   } catch (error) {
-    logger.error(
-      { token: `${token.substring(0, 10)}...`, error },
-      "Push token validation failed",
-    );
+    logger.error({ token: `${token.substring(0, 10)}...`, error }, "Push token validation failed");
 
     return {
       valid: false,

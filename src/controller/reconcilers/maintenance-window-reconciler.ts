@@ -10,11 +10,7 @@ import type { MaintenanceWindow } from "../../types/crd";
 import { MaintenanceWindowSchema } from "../../types/crd";
 import type { ReconcileContext } from "./types";
 import { createTypeSafeReconciler } from "./types";
-import {
-  typedCommonValidations,
-  typedComposeValidators,
-  typedValidate,
-} from "./validation";
+import { typedCommonValidations, typedComposeValidators, typedValidate } from "./validation";
 
 /**
  * MaintenanceWindow validators
@@ -96,10 +92,7 @@ type MaintenanceWindowData = {
 
 const maintenanceWindowCache = new Map<string, MaintenanceWindowData>();
 
-const reconcileMaintenanceWindow = async (
-  resource: MaintenanceWindow,
-  _ctx: ReconcileContext,
-) => {
+const reconcileMaintenanceWindow = async (resource: MaintenanceWindow, _ctx: ReconcileContext) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -112,8 +105,7 @@ const reconcileMaintenanceWindow = async (
     const endStr = spec.schedule.end;
     const startDate = new Date(startStr);
     const endDate = new Date(endStr);
-    const durationMinutes =
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60);
+    const durationMinutes = (endDate.getTime() - startDate.getTime()) / (1000 * 60);
 
     // Parse RRULE if provided
     let rruleConfig: ReturnType<typeof parseRRule> = null;
@@ -164,15 +156,9 @@ const reconcileMaintenanceWindow = async (
       "MaintenanceWindow cached",
     );
 
-    logger.debug(
-      { namespace, name },
-      "MaintenanceWindow reconciliation complete",
-    );
+    logger.debug({ namespace, name }, "MaintenanceWindow reconciliation complete");
   } catch (error) {
-    logger.error(
-      { namespace, name, error },
-      "MaintenanceWindow reconciliation failed",
-    );
+    logger.error({ namespace, name, error }, "MaintenanceWindow reconciliation failed");
     throw error;
   }
 };
@@ -180,9 +166,7 @@ const reconcileMaintenanceWindow = async (
 /**
  * Check if a monitor is currently in a maintenance window
  */
-export const isInMaintenanceWindow = (
-  labels: Record<string, string> = {},
-): boolean => {
+export const isInMaintenanceWindow = (labels: Record<string, string> = {}): boolean => {
   const now = new Date();
 
   for (const window of maintenanceWindowCache.values()) {
@@ -214,9 +198,7 @@ export const isInMaintenanceWindow = (
       }
 
       if (match?.matchLabels?.matchLabels) {
-        for (const [key, expectedValue] of Object.entries(
-          match.matchLabels.matchLabels,
-        )) {
+        for (const [key, expectedValue] of Object.entries(match.matchLabels.matchLabels)) {
           if (labels[key] !== expectedValue) {
             matches = false;
             break;
@@ -299,9 +281,7 @@ export const getActiveMaintenanceWindows = (
       }
 
       if (match?.matchLabels?.matchLabels) {
-        for (const [key, expectedValue] of Object.entries(
-          match.matchLabels.matchLabels,
-        )) {
+        for (const [key, expectedValue] of Object.entries(match.matchLabels.matchLabels)) {
           if (labels[key] !== expectedValue) {
             matches = false;
             break;

@@ -82,10 +82,7 @@ const dayAbbr = {
 /**
  * Calculate next occurrence of an RRULE after a given date
  */
-export function getNextOccurrence(
-  rruleConfig: RRuleConfig,
-  after: Date = new Date(),
-): Date | null {
+export function getNextOccurrence(rruleConfig: RRuleConfig, after: Date = new Date()): Date | null {
   const now = new Date(after);
   const candidate = new Date(now);
 
@@ -100,17 +97,13 @@ export function getNextOccurrence(
         candidate.setDate(candidate.getDate() + (rruleConfig.interval || 1));
         break;
       case "WEEKLY":
-        candidate.setDate(
-          candidate.getDate() + 7 * (rruleConfig.interval || 1),
-        );
+        candidate.setDate(candidate.getDate() + 7 * (rruleConfig.interval || 1));
         break;
       case "MONTHLY":
         candidate.setMonth(candidate.getMonth() + (rruleConfig.interval || 1));
         break;
       case "YEARLY":
-        candidate.setFullYear(
-          candidate.getFullYear() + (rruleConfig.interval || 1),
-        );
+        candidate.setFullYear(candidate.getFullYear() + (rruleConfig.interval || 1));
         break;
     }
 

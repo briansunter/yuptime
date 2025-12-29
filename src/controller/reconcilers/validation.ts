@@ -1,8 +1,4 @@
-import type {
-  ResourceWithMetadata,
-  TypedValidatorFn,
-  ValidationResult,
-} from "./types";
+import type { ResourceWithMetadata, TypedValidatorFn, ValidationResult } from "./types";
 
 /**
  * Common validation checks
@@ -45,11 +41,7 @@ export const commonValidations = {
       errors.push(`${endPath} must be a valid ISO 8601 date`);
     }
 
-    if (
-      !Number.isNaN(start.getTime()) &&
-      !Number.isNaN(end.getTime()) &&
-      start >= end
-    ) {
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start >= end) {
       errors.push(`${startPath} must be before ${endPath}`);
     }
 
@@ -95,9 +87,7 @@ export const typedCommonValidations = {
  * Type-safe validator composition
  */
 export const typedComposeValidators =
-  <T>(
-    ...validators: ((resource: T) => string[])[]
-  ): ((resource: T) => string[]) =>
+  <T>(...validators: ((resource: T) => string[])[]): ((resource: T) => string[]) =>
   (resource: T) => {
     const allErrors: string[] = [];
 
@@ -150,10 +140,7 @@ export const validateUniqueField = <T>(
 /**
  * Validate required array is not empty
  */
-export const validateNonEmptyArray = <T>(
-  fieldPath: string,
-  items: T[],
-): string[] => {
+export const validateNonEmptyArray = <T>(fieldPath: string, items: T[]): string[] => {
   if (!items || items.length === 0) {
     return [`${fieldPath} must contain at least one item`];
   }

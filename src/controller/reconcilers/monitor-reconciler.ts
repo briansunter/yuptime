@@ -4,11 +4,7 @@ import { MonitorSchema } from "../../types/crd";
 import { calculateJitter } from "../job-manager/jitter";
 import type { ReconcileContext } from "./types";
 import { createTypeSafeReconciler } from "./types";
-import {
-  typedCommonValidations,
-  typedComposeValidators,
-  typedValidate,
-} from "./validation";
+import { typedCommonValidations, typedComposeValidators, typedValidate } from "./validation";
 
 // Track which monitors have been scheduled to prevent duplicates
 const scheduledMonitors = new Set<string>();
@@ -23,9 +19,7 @@ const validateMonitorSchedule = (resource: Monitor): string[] => {
   if (!spec.schedule) return errors;
 
   if (spec.schedule.timeoutSeconds >= spec.schedule.intervalSeconds) {
-    errors.push(
-      "schedule.timeoutSeconds must be less than schedule.intervalSeconds",
-    );
+    errors.push("schedule.timeoutSeconds must be less than schedule.intervalSeconds");
   }
 
   if (spec.schedule.intervalSeconds < 20) {
@@ -125,10 +119,7 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
   // Get job manager from context
   const jobManager = ctx?.jobManager;
   if (!jobManager) {
-    logger.error(
-      { namespace, name },
-      "JobManager not available in reconciliation context",
-    );
+    logger.error({ namespace, name }, "JobManager not available in reconciliation context");
     return;
   }
 
@@ -137,17 +128,14 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
     const monitorId = `${namespace}/${name}`;
 
     // Only schedule if this monitor hasn't been scheduled yet
-    if (!scheduledMonitors.has(monitorId)) {
+    if (scheduledMonitors.has(monitorId)) {
+      logger.debug({ namespace, name }, "Monitor already scheduled, skipping");
+    } else {
       const intervalSeconds = spec.schedule?.intervalSeconds || 60;
       const jitterPercent = spec.schedule?.jitterPercent || 5;
 
       // Calculate deterministic jitter
-      const jitterMs = calculateJitter(
-        namespace,
-        name,
-        jitterPercent,
-        intervalSeconds,
-      );
+      const jitterMs = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
 
       // Schedule first check with jitter
       setTimeout(async () => {
@@ -158,22 +146,14 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
             "Monitor check scheduled",
           );
         } catch (error) {
-          logger.error(
-            { namespace, name, error },
-            "Failed to schedule monitor check",
-          );
+          logger.error({ namespace, name, error }, "Failed to schedule monitor check");
         }
       }, jitterMs);
 
       // Mark as scheduled
       scheduledMonitors.add(monitorId);
 
-      logger.debug(
-        { namespace, name, jitterMs },
-        "Monitor scheduled with jitter",
-      );
-    } else {
-      logger.debug({ namespace, name }, "Monitor already scheduled, skipping");
+      logger.debug({ namespace, name, jitterMs }, "Monitor scheduled with jitter");
     }
   } else {
     // Cancel pending jobs for disabled monitors
@@ -196,19 +176,13 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
 /**
  * Handle monitor deletion
  */
-export const handleMonitorDeletion = async (
-  namespace: string,
-  name: string,
-) => {
+export const handleMonitorDeletion = async (namespace: string, name: string) => {
   const monitorId = `${namespace}/${name}`;
 
   // Remove from scheduled set
   scheduledMonitors.delete(monitorId);
 
-  logger.debug(
-    { namespace, name },
-    "Monitor deleted, removed from scheduled set",
-  );
+  logger.debug({ namespace, name }, "Monitor deleted, removed from scheduled set");
 };
 
 /**

@@ -4,47 +4,97 @@
     "enabled": true,
     "rules": {
       "recommended": true,
-      "correctness": {
+      "a11y": {
         "recommended": true
-      },
-      "suspicious": {
-        "recommended": true,
-        "noExplicitAny": "error",
-        "noConsole": "error"
-      },
-      "style": {
-        "recommended": true,
-        "noParameterAssign": "error",
-        "noDefaultExport": "off",
-        "noNonNullAssertion": "error"
       },
       "complexity": {
-        "recommended": true
+        "recommended": true,
+        "noForEach": "error",
+        "noStaticOnlyClass": "error",
+        "noUselessConstructor": "error",
+        "noUselessEmptyExport": "error",
+        "noUselessFragments": "error",
+        "noUselessLoneBlockStatements": "error",
+        "noUselessRename": "error",
+        "noUselessTernary": "error",
+        "noVoid": "error",
+        "useLiteralKeys": "error",
+        "noUselessThisAlias": "error",
+        "useArrowFunction": "error",
+        "useRegexLiterals": "error"
+      },
+      "correctness": {
+        "recommended": true,
+        "noUnusedVariables": "error"
       },
       "performance": {
-        "recommended": true
+        "recommended": true,
+        "noAccumulatingSpread": "error"
       },
       "security": {
         "recommended": true
       },
-      "a11y": {
-        "recommended": true
+      "style": {
+        "recommended": true,
+        "noDefaultExport": "error",
+        "noNonNullAssertion": "error",
+        "noParameterAssign": "error",
+        "useConst": "error",
+        "useTemplate": "error",
+        "useNodejsImportProtocol": "error",
+        "noNegationElse": "error",
+        "useLiteralEnumMembers": "error",
+        "useEnumInitializers": "error",
+        "noUselessElse": "error",
+        "useShorthandAssign": "error",
+        "useCollapsedElseIf": "error"
+      },
+      "suspicious": {
+        "recommended": true,
+        "noArrayIndexKey": "error",
+        "noAssignInExpressions": "error",
+        "noAsyncPromiseExecutor": "error",
+        "noConfusingVoidType": "error",
+        "noDoubleEquals": "error",
+        "noDuplicateTestHooks": "error",
+        "noEmptyBlockStatements": "error",
+        "noExportsInTest": "error",
+        "noExplicitAny": "error",
+        "noFocusedTests": "error",
+        "noMisleadingCharacterClass": "error",
+        "noPrototypeBuiltins": "error",
+        "noRedundantUseStrict": "error",
+        "noShorthandPropertyOverrides": "error",
+        "noSuspiciousSemicolonInJsx": "error",
+        "noThenProperty": "error",
+        "noUnsafeDeclarationMerging": "error",
+        "useDefaultSwitchClauseLast": "error",
+        "useGetterReturn": "error",
+        "useIsArray": "error",
+        "noRedeclare": "error",
+        "noSelfCompare": "error",
+        "noConsole": "error"
       }
     }
   },
   "formatter": {
     "enabled": true,
+    "formatWithErrors": false,
     "indentStyle": "space",
-    "indentWidth": 2
+    "indentWidth": 2,
+    "lineWidth": 100
   },
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
       "semicolons": "always",
-      "trailingCommas": "all"
+      "trailingCommas": "all",
+      "jsxQuoteStyle": "double"
     }
   },
-  "files": {
-    "includes": ["src/**/*.ts", "src/**/*.tsx"]
+  "json": {
+    "formatter": {
+      "enabled": true
+    }
   }
 }

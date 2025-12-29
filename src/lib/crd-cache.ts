@@ -85,11 +85,7 @@ export function updateCachedResource(resource: unknown): void {
 /**
  * Remove cached resource
  */
-export function removeCachedResource(
-  kind: string,
-  namespace: string,
-  name: string,
-): void {
+export function removeCachedResource(kind: string, namespace: string, name: string): void {
   const key = cacheKey(kind, namespace, name);
   crdCache.delete(key);
 }
