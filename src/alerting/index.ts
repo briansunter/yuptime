@@ -1,31 +1,11 @@
 /**
- * Alerting system - complete alert handling pipeline
+ * Alerting system - simplified Alertmanager integration
+ *
+ * Direct integration with Prometheus Alertmanager:
+ * - No notification providers
+ * - No policy matching
+ * - POST alerts directly to Alertmanager's /api/v1/alerts
+ * - Users configure Alertmanager routing (receivers, routes, etc.)
  */
 
-export {
-  formatAlertMessage,
-  getPreviousHeartbeat,
-  handleIncident,
-  processAlertEvent,
-  shouldTriggerAlert,
-} from "./alert-engine";
-export { handleAlertEvent } from "./coordinator";
-export {
-  getPendingNotifications,
-  isDuplicate,
-  isRateLimited,
-  markAsFailed,
-  markAsSent,
-  queueAlertForDelivery,
-  queueAlertsForDelivery,
-} from "./delivery-engine";
-export { startDeliveryWorker, stopDeliveryWorker } from "./delivery-worker";
-export { buildRoutingTable, findMatchingPolicies } from "./policy-matcher";
-export { deliverNotification } from "./providers";
-export type {
-  AlertEvent,
-  AlertToDeliver,
-  MatchedPolicy,
-  NotificationDeliveryQueueItem,
-  ProviderDeliveryResult,
-} from "./types";
+export { sendAlertToAlertmanager } from "./alert-engine";

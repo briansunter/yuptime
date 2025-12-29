@@ -5,7 +5,6 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { KubeConfig } from "@kubernetes/client-node";
 import type { CheckResult } from "../checkers";
 import { executeCheck as runCheck } from "../checkers";
 import type { Monitor } from "../types/crd";
@@ -15,28 +14,19 @@ const logger = console;
 // Accept self-signed certificates for local development
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-// Read service account token for in-cluster auth
-let saToken: string | null = null;
-let apiServerUrl: string | null = null;
-
+// Read service account token for in-cluster auth (required)
 const tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token";
-if (existsSync(tokenPath)) {
-  try {
-    saToken = readFileSync(tokenPath, "utf-8").trim();
-    apiServerUrl = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`;
-    logger.info(`Loaded in-cluster config, API server: ${apiServerUrl}`);
-  } catch (e) {
-    logger.warn("Failed to read service account token:", e);
-  }
-} else {
-  logger.info("Not running in-cluster, using kubeconfig");
+
+if (!existsSync(tokenPath)) {
+  throw new Error(
+    "Not running in-cluster - checker executor requires in-cluster authentication",
+  );
 }
 
-// Initialize kubeConfig for fallback
-const kubeConfig = new KubeConfig();
-if (!saToken) {
-  kubeConfig.loadFromDefault();
-}
+const saToken = readFileSync(tokenPath, "utf-8").trim();
+const apiServerUrl = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`;
+
+logger.info(`Loaded in-cluster config, API server: ${apiServerUrl}`);
 
 /**
  * Make an authenticated request to the Kubernetes API
@@ -47,35 +37,13 @@ async function k8sRequest(
   body?: unknown,
   contentType?: string,
 ): Promise<Response> {
-  // Build URL and headers based on whether we're in-cluster
-  let url: string;
+  // In-cluster only: use service account token
+  const url = `${apiServerUrl}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": contentType || "application/json",
     Accept: "application/json",
+    Authorization: `Bearer ${saToken}`,
   };
-
-  if (saToken && apiServerUrl) {
-    // In-cluster: use service account token
-    url = `${apiServerUrl}${path}`;
-    headers.Authorization = `Bearer ${saToken}`;
-  } else {
-    // Out of cluster: use kubeconfig
-    const cluster = kubeConfig.getCurrentCluster();
-    if (!cluster) {
-      throw new Error("No current cluster configured");
-    }
-    url = `${cluster.server}${path}`;
-
-    // Get auth from kubeconfig
-    const authOpts = await kubeConfig.applyToFetchOptions({
-      method,
-      headers,
-    });
-    Object.assign(
-      headers,
-      Object.fromEntries(Object.entries(authOpts.headers || {})),
-    );
-  }
 
   logger.debug(
     `Making ${method} request to ${path}, auth present: ${!!headers.Authorization}`,
@@ -129,7 +97,7 @@ export async function executeCheck(
     logger.info(`Executing check for ${namespace}/${name}`);
 
     // Execute the check
-    const result = await runCheck(monitor as any, timeout);
+    const result = await runCheck(monitor, timeout);
 
     logger.info(
       {

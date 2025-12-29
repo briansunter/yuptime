@@ -6,29 +6,34 @@ A single-instance monitoring solution that runs entirely within Kubernetes. All 
 
 ## Key Features
 
-- **CRD-Driven**: Monitors, alerts, status pages, and users are Kubernetes resources
+- **CRD-Driven**: All monitoring configuration is Kubernetes resources
 - **GitOps-Native**: Configuration lives in Git; the app reconciles and executes
 - **10 Monitor Types**: HTTP, TCP, DNS, Ping, WebSocket, JSON queries, Kubernetes endpoints, Steam, and more
-- **8 Alert Providers**: Slack, Discord, Telegram, SMTP, webhooks, PagerDuty, Pushover, Mattermost
-- **Status Pages**: Public-facing pages with custom domains and SVG badges
+- **Alertmanager Integration**: Direct webhook integration for alert routing
 - **Smart Suppression**: Maintenance windows with RRULE scheduling and ad-hoc silences
 - **Isolated Execution**: Each monitor check runs in isolated Kubernetes Jobs
-- **Authentication**: OIDC, local users, and API key support
+- **Database-Free**: Stateless design using CRD status subresources
+- **Prometheus Metrics**: Native metrics export for Grafana dashboards
 
 ## Architecture
 
-Yuptime runs as a single pod with integrated API server, UI, controller, scheduler, and notification worker. Each monitor check runs in an isolated Kubernetes Job pod.
+Yuptime runs as a single pod with controller, job manager, and metrics server. Each monitor check runs in an isolated Kubernetes Job pod.
 
 ```
 Yuptime Pod
-├── Fastify API + React UI (port 3000)
+├── Metrics Server (Prometheus scraping on port 3000)
 ├── Kubernetes Controller (watches CRDs)
-├── Monitor Scheduler (priority queue + lease locking)
-└── Notification Worker (state transitions)
+├── Job Manager (Kubernetes Job execution)
+└── Notification Worker (sends alerts to Alertmanager)
 
 Checker Jobs (isolated pods)
 ├── Job 1: Run check → Update Monitor CRD status (no DB)
 └── Job 2: Run check → Update Monitor CRD status (no DB)
+
+External:
+├── Prometheus (metrics storage)
+├── Alertmanager (notification routing)
+└── Grafana (dashboards and visualization)
 ```
 
 **Design Principles:**

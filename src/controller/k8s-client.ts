@@ -68,7 +68,7 @@ export function createCRDWatcher(
     /**
      * List all CRDs of this type
      */
-    async list(): Promise<any[]> {
+    async list(): Promise<unknown[]> {
       try {
         // Construct the API path
         const path = namespace
@@ -76,7 +76,7 @@ export function createCRDWatcher(
           : `/apis/${group}/${version}/${plural}`;
 
         // Make a direct request using the KubeConfig
-        const opts: any = {};
+        const opts: Record<string, unknown> = {};
         await kc.applyToHTTPSOptions(opts);
 
         const cluster = kc.getCurrentCluster();
@@ -101,8 +101,8 @@ export function createCRDWatcher(
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
-        return (data as any).items || [];
+        const data = (await response.json()) as { items?: unknown[] };
+        return data.items || [];
       } catch (error) {
         logger.error(
           { group, version, plural, namespace, error },
@@ -145,7 +145,7 @@ export function createCRDWatcher(
     /**
      * Create a CRD
      */
-    async create(body: any, ns?: string) {
+    async create(body: Record<string, unknown>, ns?: string) {
       const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
@@ -175,7 +175,7 @@ export function createCRDWatcher(
     /**
      * Update a CRD
      */
-    async patch(name: string, body: any, ns?: string) {
+    async patch(name: string, body: Record<string, unknown>, ns?: string) {
       const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
@@ -207,7 +207,11 @@ export function createCRDWatcher(
     /**
      * Update status subresource
      */
-    async patchStatus(name: string, body: any, ns?: string) {
+    async patchStatus(
+      name: string,
+      body: Record<string, unknown>,
+      ns?: string,
+    ) {
       const client = kc.makeApiClient(CustomObjectsApi);
 
       try {
@@ -270,7 +274,7 @@ export function createCRDWatcher(
      * Watch for changes to CRDs
      */
     async watch(
-      onEvent: (type: string, obj: any) => void,
+      onEvent: (type: string, obj: unknown) => void,
       onError?: (error: Error) => void,
       ns?: string,
     ) {

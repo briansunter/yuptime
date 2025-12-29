@@ -10,12 +10,16 @@ export async function updateStatus(
   plural: string,
   namespace: string,
   name: string,
-  statusUpdate: Record<string, any>,
+  statusUpdate: Record<string, unknown>,
 ) {
   const watcher = createCRDWatcher("monitoring.yuptime.io", "v1", plural);
 
   try {
-    const patch = [
+    const patch: Array<{
+      op: string;
+      path: string;
+      value: Record<string, unknown>;
+    }> = [
       {
         op: "replace",
         path: "/status",
@@ -23,7 +27,11 @@ export async function updateStatus(
       },
     ];
 
-    await watcher.patchStatus(name, patch, namespace);
+    await watcher.patchStatus(
+      name,
+      patch as unknown as Record<string, unknown>,
+      namespace,
+    );
 
     logger.debug({ kind, namespace, name }, `Updated ${kind} status`);
   } catch (error) {
@@ -69,9 +77,9 @@ export const updateConditions = (
   if (existing >= 0) {
     // Only update transition time if status changed
     const prev = conditions[existing];
-    if (prev.status !== newCondition.status) {
+    if (prev && prev.status !== newCondition.status) {
       conditionToAdd.lastTransitionTime = now;
-    } else {
+    } else if (prev) {
       conditionToAdd.lastTransitionTime = prev.lastTransitionTime;
     }
     conditions[existing] = conditionToAdd;
@@ -96,7 +104,6 @@ export async function markValid(
 
   try {
     const resource = await watcher.get(name, namespace);
-    const _now = new Date().toISOString();
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition
@@ -153,7 +160,6 @@ export async function markInvalid(
 
   try {
     const resource = await watcher.get(name, namespace);
-    const _now = new Date().toISOString();
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition to False

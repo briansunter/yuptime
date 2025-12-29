@@ -1,51 +1,42 @@
 /**
  * Job Completion Watcher
- * Watches for Job completion and updates Monitor status
- * Also includes stall detection to recover from missed events
+ *
+ * Watches for Kubernetes Jobs to complete, updates Monitor CRD status,
+ * exports Prometheus metrics, and manages incidents.
+ *
+ * Database-free - all state in Kubernetes CRDs and Prometheus metrics.
  */
 
 import {
-  BatchV1Api,
   CustomObjectsApi,
   type KubeConfig,
+  type V1Job,
 } from "@kubernetes/client-node";
 import { Watch } from "@kubernetes/client-node/dist/watch";
-import { getDatabase } from "../../db";
+import { sendAlertToAlertmanager } from "../../alerting";
 import { logger } from "../../lib/logger";
-import { createCondition, updateStatus } from "../reconcilers/status-utils";
+import { recordCheckResult } from "../../lib/prometheus";
+import type { Monitor } from "../../types/crd/monitor";
 
-// Stall detection interval (30 seconds)
-const STALL_DETECTION_INTERVAL_MS = 30000;
-
-/**
- * Get the last heartbeat for a monitor
- * Uses etcd O(1) latest index lookup
- */
-export async function getLastHeartbeat(monitorId: string) {
-  const db = getDatabase();
-
-  // Use O(1) latest heartbeat index lookup
-  const heartbeat = await db.heartbeats().getLatest(monitorId);
-
-  return heartbeat;
+export interface JobCompletionWatcherConfig {
+  kubeConfig: KubeConfig;
+  namespace: string;
 }
 
 /**
- * Start the job completion watcher
+ * Create job completion watcher
  */
-export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
-  const batchApi = kubeConfig.makeApiClient(BatchV1Api);
-  const customObjectsApi = kubeConfig.makeApiClient(CustomObjectsApi);
-  let watching = false;
-  let watch: any;
+export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
+  const customObjectsApi = config.kubeConfig.makeApiClient(CustomObjectsApi);
 
-  // Track which monitors are currently being scheduled to prevent duplicates
-  const schedulingLocks = new Map<string, NodeJS.Timeout>();
+  let watching = false;
+  let watch: Watch | null = null;
+  const processedJobs = new Set<string>();
 
   /**
    * Handle Job completion
    */
-  async function handleJobCompletion(job: any) {
+  async function handleJobCompletion(job: V1Job) {
     const annotations = job.metadata?.annotations || {};
     const monitorId = annotations["monitoring.yuptime.io/monitor"];
 
@@ -60,256 +51,87 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
     const [namespace, name] = monitorId.split("/");
 
     try {
-      // Get the latest heartbeat from database
-      const heartbeat = await getLastHeartbeat(monitorId);
+      // Get Monitor CRD to see the check result (written by checker executor)
+      const monitorResponse = await customObjectsApi.getNamespacedCustomObject({
+        group: "monitoring.yuptime.io",
+        version: "v1",
+        namespace: namespace ?? "default",
+        plural: "monitors",
+        name: name ?? "unknown",
+      });
 
-      if (!heartbeat) {
-        logger.warn({ monitorId }, "No heartbeat found for monitor");
+      const monitor = monitorResponse as Monitor;
+      const checkResult = monitor.status?.lastResult;
+
+      if (!checkResult) {
+        logger.warn({ monitorId }, "No check result in Monitor status");
         return;
       }
 
-      // Update Monitor status
-      const isHealthy = heartbeat.state === "up";
-      const conditionType = isHealthy ? "Healthy" : "Unhealthy";
-
-      const status = {
-        conditions: [
-          createCondition(
-            conditionType,
-            isHealthy ? "True" : "False",
-            heartbeat.reason || undefined,
-            heartbeat.message || undefined,
-          ),
-        ],
-        lastCheck: heartbeat.checkedAt,
-        lastState: heartbeat.state,
-        latency: heartbeat.latencyMs,
+      // Export check result to Prometheus metrics
+      const metricsData: {
+        state: "down" | "up" | "flapping" | "pending" | "paused";
+        latencyMs?: number;
+        durationMs?: number;
+      } = {
+        state: checkResult.state,
       };
-
-      await updateStatus("Monitor", "monitors", namespace, name, status);
+      if (checkResult.latencyMs !== undefined) {
+        metricsData.latencyMs = checkResult.latencyMs;
+      }
+      if (!checkResult.attempts) {
+        metricsData.durationMs = 0;
+      }
+      recordCheckResult(
+        name ?? "unknown",
+        namespace ?? "default",
+        monitor.spec.type,
+        getMonitorUrl(monitor),
+        metricsData,
+      );
 
       logger.info(
-        {
-          monitorId,
-          state: heartbeat.state,
-          latency: heartbeat.latencyMs,
-        },
-        "Updated Monitor status after Job completion",
+        { monitorId, state: checkResult.state, latency: checkResult.latencyMs },
+        "Exported Prometheus metrics after Job completion",
       );
 
-      // Schedule next check using the same interval
-      // Load the Monitor CRD to get the interval
-      try {
-        const monitor = await customObjectsApi.getNamespacedCustomObject({
-          group: "monitoring.yuptime.io",
-          version: "v1",
-          namespace: namespace,
-          plural: "monitors",
-          name: name,
-        });
+      // Detect state changes for alerting
+      const currentState = checkResult.state;
+      const previousState = monitor.status?.lastResult?.state;
 
-        const intervalSeconds = monitor.spec?.schedule?.intervalSeconds || 60;
-
-        // Check if already scheduled to prevent duplicates
-        if (schedulingLocks.has(monitorId)) {
-          logger.debug({ monitorId }, "Next check already scheduled, skipping");
-          return;
-        }
-
-        // Schedule next check with full interval delay
-        const timeoutId = setTimeout(async () => {
-          try {
-            // Import here to avoid circular dependency
-            const {
-              buildJobForMonitor,
-            } = require("../job-manager/job-builder");
-            const { calculateJitter } = require("../job-manager/jitter");
-
-            const jitterPercent = monitor.spec?.schedule?.jitterPercent || 5;
-            const jitterMs = calculateJitter(
-              namespace,
-              name,
-              jitterPercent,
-              intervalSeconds,
-            );
-
-            const job = buildJobForMonitor(monitor, jitterMs);
-
-            await batchApi.createNamespacedJob({
-              namespace,
-              body: job,
-            });
-
-            logger.info({ monitorId, intervalSeconds }, "Scheduled next check");
-          } catch (error) {
-            logger.error({ monitorId, error }, "Failed to schedule next check");
-          } finally {
-            // Clear the lock so the next completion can schedule
-            schedulingLocks.delete(monitorId);
-          }
-        }, intervalSeconds * 1000);
-
-        // Store the timeout ID so we can cancel it if needed and track the lock
-        schedulingLocks.set(monitorId, timeoutId);
-      } catch (error) {
-        logger.error(
-          { monitorId, error },
-          "Failed to load Monitor for rescheduling",
-        );
+      if (previousState && previousState !== currentState) {
+        await handleStateChange(monitor, previousState, currentState);
       }
     } catch (error) {
-      logger.error(
-        { monitorId, error },
-        "Failed to update Monitor status after Job completion",
-      );
+      logger.error({ monitorId, error }, "Failed to process Job completion");
     }
   }
 
   /**
-   * Check if there's an active/pending job for a monitor
+   * Handle monitor state changes (up → down or down → up)
    */
-  async function hasActiveJobForMonitor(
-    namespace: string,
-    name: string,
-  ): Promise<boolean> {
-    try {
-      const labelSelector = `monitoring.yuptime.io/monitor=${namespace}-${name}`;
-      const jobs = await batchApi.listNamespacedJob({
-        namespace,
-        labelSelector,
-      });
+  async function handleStateChange(
+    monitor: Monitor,
+    fromState: string,
+    toState: string,
+  ) {
+    const monitorName = monitor.metadata.name;
+    const reason =
+      monitor.status?.lastResult?.reason ||
+      `State changed from ${fromState} to ${toState}`;
 
-      return jobs.items.some(
-        (job) =>
-          (job.status?.active && job.status.active > 0) ||
-          (!job.status?.succeeded && !job.status?.failed),
-      );
-    } catch (error) {
-      logger.debug(
-        { namespace, name, error },
-        "Failed to check for active jobs",
-      );
-      return false;
-    }
-  }
+    // Send alert to Alertmanager if configured
+    await sendAlertToAlertmanager(
+      monitor,
+      toState as "up" | "down" | "pending" | "flapping" | "paused",
+      fromState,
+      `Monitor ${monitorName} is ${toState}`,
+    );
 
-  /**
-   * Schedule a check for a monitor
-   * @param monitor - The monitor CRD object
-   * @param delayMs - Delay before creating the job (0 for immediate)
-   */
-  async function scheduleCheck(monitor: any, delayMs: number = 0) {
-    const namespace = monitor.metadata?.namespace || "default";
-    const name = monitor.metadata?.name;
-    const monitorId = `${namespace}/${name}`;
-
-    if (schedulingLocks.has(monitorId)) {
-      logger.debug({ monitorId }, "Schedule already pending, skipping");
-      return;
-    }
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        const { buildJobForMonitor } = require("../job-manager/job-builder");
-        const { calculateJitter } = require("../job-manager/jitter");
-
-        const jitterPercent = monitor.spec?.schedule?.jitterPercent || 5;
-        const intervalSeconds = monitor.spec?.schedule?.intervalSeconds || 60;
-        const jitterMs = calculateJitter(
-          namespace,
-          name,
-          jitterPercent,
-          intervalSeconds,
-        );
-
-        const job = buildJobForMonitor(monitor, jitterMs);
-
-        await batchApi.createNamespacedJob({
-          namespace,
-          body: job,
-        });
-
-        logger.info({ monitorId, delayMs }, "Scheduled check");
-      } catch (error) {
-        logger.error({ monitorId, error }, "Failed to schedule check");
-      } finally {
-        schedulingLocks.delete(monitorId);
-      }
-    }, delayMs);
-
-    schedulingLocks.set(monitorId, timeoutId);
-  }
-
-  /**
-   * Detect and reschedule stalled monitors
-   * A monitor is considered stalled if:
-   * 1. It's enabled
-   * 2. Its last heartbeat is older than (interval * 2)
-   * 3. There is no active/pending job for it
-   */
-  async function detectAndRescheduleStalled() {
-    try {
-      // List all monitors across all namespaces
-      const monitorsResponse = await customObjectsApi.listClusterCustomObject({
-        group: "monitoring.yuptime.io",
-        version: "v1",
-        plural: "monitors",
-      });
-
-      const monitors = ((monitorsResponse as any).items || []) as any[];
-
-      for (const monitor of monitors) {
-        const namespace = monitor.metadata?.namespace || "default";
-        const name = monitor.metadata?.name;
-        const monitorId = `${namespace}/${name}`;
-        const intervalSeconds = monitor.spec?.schedule?.intervalSeconds || 60;
-
-        // Skip disabled monitors
-        if (monitor.spec?.enabled === false) continue;
-
-        // Skip if already in scheduling locks
-        if (schedulingLocks.has(monitorId)) continue;
-
-        // Get last heartbeat
-        const heartbeat = await getLastHeartbeat(monitorId);
-
-        if (!heartbeat) {
-          // No heartbeat ever - check if there's an active job
-          const hasActiveJob = await hasActiveJobForMonitor(namespace, name);
-          if (!hasActiveJob) {
-            logger.info(
-              { monitorId },
-              "No heartbeat found and no active job, scheduling initial check",
-            );
-            await scheduleCheck(monitor, 0);
-          }
-          continue;
-        }
-
-        const lastCheckTime = new Date(heartbeat.checkedAt).getTime();
-        const now = Date.now();
-        const stalledThreshold = intervalSeconds * 2 * 1000; // 2x interval
-
-        if (now - lastCheckTime > stalledThreshold) {
-          // Check if there's an active job
-          const hasActiveJob = await hasActiveJobForMonitor(namespace, name);
-
-          if (!hasActiveJob) {
-            logger.warn(
-              {
-                monitorId,
-                lastCheck: heartbeat.checkedAt,
-                stalledFor: `${Math.round((now - lastCheckTime) / 1000)}s`,
-              },
-              "Monitor stalled, rescheduling",
-            );
-            await scheduleCheck(monitor, 0);
-          }
-        }
-      }
-    } catch (error) {
-      logger.error({ error }, "Failed to detect stalled monitors");
-    }
+    logger.info(
+      { monitorName, fromState, toState, reason },
+      "Monitor state changed",
+    );
   }
 
   /**
@@ -322,18 +144,18 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
     }
 
     watching = true;
-    logger.info("Starting Job completion watcher");
+    logger.info("Starting Job completion watcher...");
 
     try {
       const path = "/apis/batch/v1/jobs";
-      watch = new Watch(kubeConfig);
+      watch = new Watch(config.kubeConfig);
 
       // Watch for changes to Jobs
       await watch.watch(
         path,
         { labelSelector: "app.kubernetes.io/component=checker" },
         // callback
-        (phase: string, apiObj: any) => {
+        (phase: string, apiObj: V1Job) => {
           // Only process when job is completed (succeeded or failed)
           if (phase === "MODIFIED") {
             const job = apiObj;
@@ -343,27 +165,27 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
 
             // Only process jobs that have actually completed
             if (monitorId && (status?.succeeded || status?.failed)) {
-              // Check if we've already processed this job (track processed jobs)
+              // Check if we've already processed this job
               const processedKey = `${job.metadata?.name}-${status?.succeeded || status?.failed}`;
-              if (!watch.processedJobs) {
-                watch.processedJobs = new Set();
-              }
 
-              if (!watch.processedJobs.has(processedKey)) {
-                watch.processedJobs.add(processedKey);
+              if (!processedJobs.has(processedKey)) {
+                processedJobs.add(processedKey);
                 handleJobCompletion(apiObj);
 
                 // Clean up old processed job keys (keep last 100)
-                if (watch.processedJobs.size > 100) {
-                  const entries = Array.from(watch.processedJobs);
-                  watch.processedJobs = new Set(entries.slice(-100));
+                if (processedJobs.size > 100) {
+                  const entries = Array.from(processedJobs);
+                  processedJobs.clear();
+                  for (const key of entries.slice(-100)) {
+                    processedJobs.add(key);
+                  }
                 }
               }
             }
           }
         },
         // done callback
-        (err: any) => {
+        (err: unknown) => {
           if (err) {
             logger.error({ error: err }, "Job watch error");
           }
@@ -371,18 +193,6 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
       );
 
       logger.info("Job completion watcher started successfully");
-
-      // Start stall detection loop
-      setInterval(() => {
-        detectAndRescheduleStalled().catch((err) => {
-          logger.error({ error: err }, "Stall detection loop failed");
-        });
-      }, STALL_DETECTION_INTERVAL_MS);
-
-      logger.info(
-        { intervalMs: STALL_DETECTION_INTERVAL_MS },
-        "Stall detection loop started",
-      );
     } catch (error) {
       logger.error({ error }, "Failed to start Job completion watcher");
       watching = false;
@@ -412,4 +222,36 @@ export function createJobCompletionWatcher(kubeConfig: KubeConfig) {
     stop,
     handleJobCompletion,
   };
+}
+
+export type JobCompletionWatcher = ReturnType<
+  typeof createJobCompletionWatcher
+>;
+
+/**
+ * Extract monitor URL for metrics labels
+ */
+function getMonitorUrl(monitor: Monitor): string {
+  const target = monitor.spec?.target;
+
+  if (target?.http) {
+    return target.http.url;
+  }
+  if (target?.tcp) {
+    return `${target.tcp.host}:${target.tcp.port}`;
+  }
+  if (target?.dns) {
+    return target.dns.name;
+  }
+  if (target?.ping) {
+    return target.ping.host;
+  }
+  if (target?.websocket) {
+    return target.websocket.url;
+  }
+  if (target?.k8s) {
+    return `${target.k8s.resource.kind}/${target.k8s.resource.name}`;
+  }
+
+  return "unknown";
 }

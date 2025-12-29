@@ -24,24 +24,6 @@ export interface ListResponse<T> {
   offset?: number;
 }
 
-// Auth requests
-export const LoginRequestSchema = z.object({
-  username: z.string(),
-  password: z.string(),
-  totpCode: z.string().optional(),
-});
-
-export type LoginRequest = z.infer<typeof LoginRequestSchema>;
-
-export const LoginResponseSchema = z.object({
-  success: z.boolean(),
-  sessionToken: z.string().optional(),
-  requiresMfa: z.boolean().optional(),
-  error: z.string().optional(),
-});
-
-export type LoginResponse = z.infer<typeof LoginResponseSchema>;
-
 // Monitor query filters
 export const MonitorFilterSchema = z.object({
   namespace: z.string().optional(),
@@ -102,9 +84,12 @@ export function error(
   message: string,
   errors?: Record<string, string>,
 ): ApiResponse<never> {
-  return {
+  const result: ApiResponse<never> = {
     success: false,
     error: message,
-    errors,
   };
+  if (errors) {
+    result.errors = errors;
+  }
+  return result;
 }

@@ -1,3 +1,4 @@
+import * as net from "node:net";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
@@ -24,28 +25,25 @@ export async function checkTcp(
   const startTime = Date.now();
 
   try {
-    // Create a simple TCP connection using node's net module
-    const net = require("node:net");
-    const socket = new net.Socket();
-
-    let completed = false;
-    let _result: CheckResult | null = null;
-
-    // Set timeout
-    const timeoutHandle = setTimeout(() => {
-      if (!completed) {
-        socket.destroy();
-        completed = true;
-        _result = {
-          state: "down",
-          latencyMs: timeout * 1000,
-          reason: "TIMEOUT",
-          message: `TCP connection timeout after ${timeout}s`,
-        };
-      }
-    }, timeout * 1000);
-
     return new Promise((resolve) => {
+      // Create a simple TCP connection using node's net module
+      const socket = new net.Socket();
+
+      let completed = false;
+
+      // Set timeout
+      const timeoutHandle = setTimeout(() => {
+        if (!completed) {
+          socket.destroy();
+          completed = true;
+          resolve({
+            state: "down",
+            latencyMs: timeout * 1000,
+            reason: "TIMEOUT",
+            message: `TCP connection timeout after ${timeout}s`,
+          });
+        }
+      }, timeout * 1000);
       socket.on("connect", () => {
         if (completed) return;
 

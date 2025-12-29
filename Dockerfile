@@ -1,7 +1,7 @@
-# Multi-stage build for KubeKuma
+# Multi-stage build for Yuptime
 
 # Stage 1: Backend Builder
-FROM oven/bun:latest as backend-builder
+FROM oven/bun:latest AS backend-builder
 
 WORKDIR /build
 
@@ -13,26 +13,7 @@ RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY src ./src
-COPY tsconfig.json drizzle.config.ts ./
-
-# Stage 2: Frontend Builder
-FROM oven/bun:latest as frontend-builder
-
-WORKDIR /build
-
-# Copy frontend package files
-COPY web/package.json web/bun.lock ./
-
-# Install frontend dependencies
-RUN bun install --frozen-lockfile
-
-# Copy frontend source
-COPY web/src ./src
-COPY web/index.html web/vite.config.ts web/tsconfig.json web/tsconfig.node.json ./
-COPY web/postcss.config.js web/tailwind.config.ts ./
-
-# Build frontend
-RUN bun run build
+COPY tsconfig.json ./
 
 # Runtime stage
 FROM oven/bun:latest
@@ -50,10 +31,9 @@ COPY --from=backend-builder /build/node_modules ./node_modules
 COPY --from=backend-builder /build/package.json ./
 COPY --from=backend-builder /build/src ./src
 COPY --from=backend-builder /build/tsconfig.json ./
-COPY --from=backend-builder /build/drizzle.config.ts ./
 
-# Copy frontend build
-COPY --from=frontend-builder /build/dist ./public
+# Note: Frontend build will be added when web/ directory is implemented
+# For now, we serve the API without frontend assets
 
 # Fix permissions and use existing bun user (uid 1000)
 RUN chmod -R 755 /app

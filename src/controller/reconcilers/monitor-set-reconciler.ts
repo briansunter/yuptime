@@ -1,11 +1,12 @@
 import { logger } from "../../lib/logger";
+import type { MonitorSet } from "../../types/crd";
 import { MonitorSetSchema } from "../../types/crd";
-import type { CRDResource, ReconcilerConfig } from "./types";
+import type { ReconcileContext } from "./types";
+import { createTypeSafeReconciler } from "./types";
 import {
-  commonValidations,
-  composeValidators,
-  createZodValidator,
-  validate,
+  typedCommonValidations,
+  typedComposeValidators,
+  typedValidate,
   validateNonEmptyArray,
   validateUniqueField,
 } from "./validation";
@@ -13,7 +14,7 @@ import {
 /**
  * MonitorSet-specific validators
  */
-const validateMonitorSetItems = (resource: CRDResource): string[] => {
+const validateMonitorSetItems = (resource: MonitorSet): string[] => {
   const errors: string[] = [];
   const spec = resource.spec;
 
@@ -39,17 +40,19 @@ const validateMonitorSetItems = (resource: CRDResource): string[] => {
 /**
  * MonitorSet validator
  */
-const validateMonitorSet = composeValidators(
-  commonValidations.validateName,
-  commonValidations.validateSpec,
-  createZodValidator(MonitorSetSchema),
+const validateMonitorSet = typedComposeValidators(
+  typedCommonValidations.validateName,
+  typedCommonValidations.validateSpec,
   validateMonitorSetItems,
 );
 
 /**
  * MonitorSet reconciliation
  */
-const reconcileMonitorSet = async (resource: CRDResource) => {
+const reconcileMonitorSet = async (
+  resource: MonitorSet,
+  _ctx: ReconcileContext,
+) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const itemCount = resource.spec.items?.length;
@@ -64,10 +67,13 @@ const reconcileMonitorSet = async (resource: CRDResource) => {
   );
 };
 
-export const createMonitorSetReconciler = (): ReconcilerConfig => ({
-  kind: "MonitorSet",
-  plural: "monitorsets",
-  zodSchema: MonitorSetSchema,
-  validator: validate(validateMonitorSet),
-  reconciler: reconcileMonitorSet,
-});
+export const createMonitorSetReconciler = () =>
+  createTypeSafeReconciler<MonitorSet>(
+    "MonitorSet",
+    "monitorsets",
+    MonitorSetSchema as unknown as import("zod").ZodSchema<MonitorSet>,
+    {
+      validator: typedValidate(validateMonitorSet),
+      reconciler: reconcileMonitorSet,
+    },
+  );

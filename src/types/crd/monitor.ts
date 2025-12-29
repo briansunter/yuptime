@@ -39,7 +39,7 @@ export const HttpTargetSchema = z.object({
   body: z
     .object({
       type: z.enum(["none", "json", "text"]).optional(),
-      json: z.record(z.any()).optional(),
+      json: z.record(z.string(), z.unknown()).optional(),
       text: z.string().optional(),
     })
     .optional(),
@@ -176,7 +176,7 @@ export const SuccessCriteriaSchema = z.object({
     .object({
       mode: z.literal("jsonpath"),
       path: z.string(),
-      equals: z.any().optional(),
+      equals: z.unknown().optional(),
       exists: z.boolean().optional(),
     })
     .optional(),
@@ -253,7 +253,7 @@ export const MonitorTargetSchema = z.object({
       target: z.union([HttpTargetSchema, z.object({ url: z.string() })]),
       mode: z.literal("jsonpath"),
       path: z.string(),
-      equals: z.any().optional(),
+      equals: z.unknown().optional(),
       exists: z.boolean().optional(),
     })
     .optional(),
@@ -281,6 +281,7 @@ export const MonitorSpecSchema = z.object({
   target: MonitorTargetSchema,
   successCriteria: SuccessCriteriaSchema.optional(),
   alerting: AlertingSchema.optional(),
+  alertmanagerUrl: z.string().url().optional(),
   tags: z.array(z.string()).optional(),
   annotations: z.record(z.string()).optional(),
 });

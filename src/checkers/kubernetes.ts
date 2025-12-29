@@ -170,14 +170,13 @@ export async function checkKubernetes(
         reason: "K8S_HEALTHY",
         message,
       };
-    } else {
-      return {
-        state: "down",
-        latencyMs,
-        reason: "K8S_UNHEALTHY",
-        message: `${message} (minimum required: ${minReplicas})`,
-      };
     }
+    return {
+      state: "down",
+      latencyMs,
+      reason: "K8S_UNHEALTHY",
+      message: `${message} (minimum required: ${minReplicas})`,
+    };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
     logger.warn(

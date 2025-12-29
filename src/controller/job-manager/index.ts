@@ -3,7 +3,6 @@
  * Creates and manages Kubernetes Jobs for monitor check execution
  */
 
-import { CoreV1Api } from "@kubernetes/client-node";
 import { logger } from "../../lib/logger";
 import { getBatchApiClient } from "../k8s-client";
 import { calculateJitter } from "./jitter";
@@ -21,7 +20,6 @@ import type {
  */
 export function createJobManager(config: JobManagerConfig): JobManager {
   const batchApi = getBatchApiClient();
-  const _coreApi = config.kubeConfig.makeApiClient(CoreV1Api);
 
   const defaultNamespace = config.namespace || "default";
 
@@ -179,7 +177,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
       }
       return "pending";
     } catch (err) {
-      const error = err as any;
+      const error = err as { statusCode?: number };
       if (error.statusCode === 404) {
         return "pending";
       }

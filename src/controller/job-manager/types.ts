@@ -3,6 +3,9 @@
  * Types for Kubernetes Job-based monitor check execution
  */
 
+import type { KubeConfig } from "@kubernetes/client-node";
+import type { MonitorSpec, MonitorStatus } from "../../types/crd/monitor";
+
 /**
  * Monitor CRD resource (simplified)
  */
@@ -12,13 +15,13 @@ export interface Monitor {
   metadata: {
     name: string;
     namespace?: string;
-    uid: string;
+    uid?: string; // Optional during initial creation
     resourceVersion?: string;
     deletionTimestamp?: string;
     finalizers?: string[];
   };
-  spec: any;
-  status?: any;
+  spec: MonitorSpec;
+  status?: MonitorStatus;
 }
 
 /**
@@ -30,7 +33,7 @@ export type JobStatus = "pending" | "running" | "succeeded" | "failed";
  * Job manager configuration
  */
 export interface JobManagerConfig {
-  kubeConfig: any;
+  kubeConfig: KubeConfig;
   concurrency: number; // Max parallel Jobs (default: 10)
   jobTTL: number; // Cleanup after seconds (default: 3600)
   namespace: string; // Default namespace for Jobs

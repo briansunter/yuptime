@@ -24,14 +24,16 @@ interface RRuleConfig {
 export function parseRRule(rruleString: string): RRuleConfig | null {
   try {
     const parts = rruleString.replace(/^RRULE:/, "").split(";");
-    const config: any = { interval: 1 };
+    const config: Partial<RRuleConfig> = { interval: 1 };
 
     for (const part of parts) {
       const [key, value] = part.split("=");
 
+      if (!value) continue;
+
       switch (key) {
         case "FREQ":
-          config.freq = value;
+          config.freq = value as RRuleConfig["freq"];
           break;
         case "INTERVAL":
           config.interval = parseInt(value, 10);
@@ -145,12 +147,12 @@ export function getNextOccurrence(
     }
 
     // Set time constraints
-    if (rruleConfig.byHour) {
+    if (rruleConfig.byHour && rruleConfig.byHour[0] !== undefined) {
       candidate.setHours(rruleConfig.byHour[0], 0, 0, 0);
     }
 
     if (rruleConfig.byMinute) {
-      const minutes = rruleConfig.byMinute[0] || 0;
+      const minutes = rruleConfig.byMinute[0] ?? 0;
       candidate.setMinutes(minutes, 0, 0);
     }
 

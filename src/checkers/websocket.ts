@@ -70,7 +70,7 @@ async function connectWebSocket(
 
         // Send message and wait for response
         try {
-          ws!.send(sendMessage);
+          ws?.send(sendMessage);
         } catch (error) {
           resolveWithTimeout({
             connected: false,
@@ -188,14 +188,13 @@ export async function checkWebSocket(
         reason: "WEBSOCKET_OK",
         message: `${result.message}${result.responseMessage ? ` - Received: ${result.responseMessage}` : ""}`,
       };
-    } else {
-      return {
-        state: "down",
-        latencyMs,
-        reason: "WEBSOCKET_ERROR",
-        message: result.message || "WebSocket check failed",
-      };
     }
+    return {
+      state: "down",
+      latencyMs,
+      reason: "WEBSOCKET_ERROR",
+      message: result.message || "WebSocket check failed",
+    };
   } catch (error) {
     const latencyMs = Date.now() - startTime;
     logger.warn(

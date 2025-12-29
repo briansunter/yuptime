@@ -16,12 +16,6 @@ export const MaintenanceWindowSpecSchema = z.object({
   match: SelectorSchema.optional(),
   behavior: z.object({
     suppressNotifications: z.boolean().optional().default(true),
-    statusPage: z
-      .object({
-        showBanner: z.boolean().optional().default(true),
-        bannerText: z.string().optional(),
-      })
-      .optional(),
   }),
 });
 

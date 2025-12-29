@@ -117,14 +117,17 @@ async function queryA2SServer(
         offset++; // Skip command byte
 
         // Read protocol version
-        const _protocol = msg.readUInt8(offset);
+        msg.readUInt8(offset); // Protocol version (not currently used)
         offset++;
 
         // Read strings until null terminator
         const readString = (): string => {
           let str = "";
           while (offset < msg.length && msg[offset] !== 0) {
-            str += String.fromCharCode(msg[offset]);
+            const charCode = msg[offset];
+            if (charCode !== undefined) {
+              str += String.fromCharCode(charCode);
+            }
             offset++;
           }
           offset++; // Skip null terminator
@@ -136,24 +139,36 @@ async function queryA2SServer(
         const folder = readString();
         const game = readString();
 
-        // Read player counts
-        const players = msg.readUInt8(offset);
+        // Read player counts with bounds checking
+        const players = offset < msg.length ? msg.readUInt8(offset) : 0;
         offset++;
-        const maxPlayers = msg.readUInt8(offset);
+        const maxPlayers = offset < msg.length ? msg.readUInt8(offset) : 0;
         offset++;
-        const bots = msg.readUInt8(offset);
+        const bots = offset < msg.length ? msg.readUInt8(offset) : 0;
         offset++;
 
         // Read server type and environment
-        const serverType = String.fromCharCode(msg[offset]);
+        const serverTypeByte = offset < msg.length ? msg[offset] : undefined;
+        const serverType =
+          serverTypeByte !== undefined
+            ? String.fromCharCode(serverTypeByte)
+            : "?";
         offset++;
-        const environment = String.fromCharCode(msg[offset]);
+        const environmentByte = offset < msg.length ? msg[offset] : undefined;
+        const environment =
+          environmentByte !== undefined
+            ? String.fromCharCode(environmentByte)
+            : "?";
         offset++;
 
         // Read visibility and VAC
-        const visibility = String.fromCharCode(msg[offset]);
+        const visibilityByte = offset < msg.length ? msg[offset] : undefined;
+        const visibility =
+          visibilityByte !== undefined
+            ? String.fromCharCode(visibilityByte)
+            : "?";
         offset++;
-        const vac = msg.readUInt8(offset) === 1;
+        const vac = offset < msg.length ? msg.readUInt8(offset) === 1 : false;
 
         respond({
           success: true,

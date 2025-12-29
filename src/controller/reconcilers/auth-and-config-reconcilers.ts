@@ -1,37 +1,46 @@
 import { logger } from "../../lib/logger";
+import type { Silence, YuptimeSettings } from "../../types/crd";
+import { SilenceSchema, YuptimeSettingsSchema } from "../../types/crd";
+import type { ReconcileContext } from "./types";
+import { createTypeSafeReconciler } from "./types";
 import {
-  ApiKeySchema,
-  LocalUserSchema,
-  SilenceSchema,
-  YuptimeSettingsSchema,
-} from "../../types/crd";
-import type { CRDResource, ReconcilerConfig } from "./types";
-import {
-  commonValidations,
-  composeValidators,
-  createZodValidator,
-  validate,
+  typedCommonValidations,
+  typedComposeValidators,
+  typedValidate,
   validateFutureDate,
 } from "./validation";
 
 /**
  * Silence validators
  */
-const validateSilenceExpiry = (resource: CRDResource): string[] => {
+const validateSilenceExpiry = (resource: Silence): string[] => {
   const expiresAt = resource.spec.expiresAt;
   return validateFutureDate(expiresAt, "spec.expiresAt");
 };
 
-const validateSilence = composeValidators(
-  commonValidations.validateName,
-  commonValidations.validateSpec,
-  createZodValidator(SilenceSchema),
+const validateSilence = typedComposeValidators(
+  typedCommonValidations.validateName,
+  typedCommonValidations.validateSpec,
   validateSilenceExpiry,
 );
 
-const silenceCache = new Map<string, any>();
+const silenceCache = new Map<
+  string,
+  {
+    namespace: string;
+    name: string;
+    expiresAt: Date;
+    match: {
+      names?: Array<{ namespace: string; name: string }> | undefined;
+      namespaces?: string[] | undefined;
+      labels?: Record<string, string> | undefined;
+      tags?: string[] | undefined;
+    };
+    reason?: string | undefined;
+  }
+>();
 
-const reconcileSilence = async (resource: CRDResource) => {
+const reconcileSilence = async (resource: Silence, _ctx: ReconcileContext) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -44,16 +53,15 @@ const reconcileSilence = async (resource: CRDResource) => {
     const silenceData = {
       namespace,
       name,
-      startsAt: new Date(spec.startsAt),
-      endsAt: new Date(spec.expiresAt || spec.endsAt),
-      matchers: spec.matchers || [],
-      comment: spec.comment,
+      expiresAt: new Date(spec.expiresAt),
+      match: spec.match,
+      reason: spec.reason,
     };
 
     silenceCache.set(silenceKey, silenceData);
 
     // Calculate expiry time
-    const endsAt = new Date(spec.expiresAt || spec.endsAt);
+    const endsAt = new Date(spec.expiresAt);
     const now = new Date();
     const expiresInMs = endsAt.getTime() - now.getTime();
 
@@ -77,24 +85,6 @@ const reconcileSilence = async (resource: CRDResource) => {
       silenceCache.delete(silenceKey);
     }
 
-    // Update crd_cache status
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq, and } = require("drizzle-orm");
-
-    await db
-      .update(crdCache)
-      .set({
-        lastReconcile: new Date().toISOString(),
-      })
-      .where(
-        and(
-          eq(crdCache.kind, "Silence"),
-          eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name),
-        ),
-      );
-
     logger.debug({ namespace, name }, "Silence reconciliation complete");
   } catch (error) {
     logger.error({ namespace, name, error }, "Silence reconciliation failed");
@@ -107,19 +97,58 @@ const reconcileSilence = async (resource: CRDResource) => {
  */
 export const getActiveSilences = (
   labels: Record<string, string> = {},
-): any[] => {
+): Array<{
+  namespace: string;
+  name: string;
+  expiresAt: Date;
+  match: {
+    names?: Array<{ namespace: string; name: string }>;
+    namespaces?: string[];
+    labels?: Record<string, string>;
+    tags?: string[];
+  };
+  reason?: string;
+}> => {
   const now = new Date();
-  const matchingSilences: any[] = [];
+  const matchingSilences: Array<{
+    namespace: string;
+    name: string;
+    expiresAt: Date;
+    match: {
+      names?: Array<{ namespace: string; name: string }>;
+      namespaces?: string[];
+      labels?: Record<string, string>;
+      tags?: string[];
+    };
+    reason?: string;
+  }> = [];
 
   for (const silence of silenceCache.values()) {
-    // Check if silence is currently active
-    if (silence.startsAt <= now && now <= silence.endsAt) {
-      // Check if matchers match the labels
+    // Check if silence is currently active (before expiry time)
+    if (now <= silence.expiresAt) {
+      // Check if match matches the labels
+      const match = silence.match;
       let matches = true;
-      for (const matcher of silence.matchers) {
-        if (matcher.name && labels[matcher.name] !== matcher.value) {
-          matches = false;
-          break;
+
+      if (match?.names && match.names.length > 0) {
+        // Check name-based matching
+        // This would require namespace/name context
+        // For now, continue if names are specified
+        continue;
+      }
+
+      if (match?.namespaces && match.namespaces.length > 0) {
+        // Would need namespace context
+        continue;
+      }
+
+      if (match?.labels) {
+        // Check label matching
+        for (const [key, expectedValue] of Object.entries(match.labels)) {
+          if (labels[key] !== expectedValue) {
+            matches = false;
+            break;
+          }
         }
       }
 
@@ -133,73 +162,9 @@ export const getActiveSilences = (
 };
 
 /**
- * LocalUser validators
- */
-const validateLocalUserName = (resource: CRDResource): string[] => {
-  const errors: string[] = [];
-  const username = resource.spec.username;
-
-  if (!username || !/^[a-zA-Z0-9_-]{3,}$/.test(username)) {
-    errors.push("spec.username must be 3+ alphanumeric characters");
-  }
-
-  return errors;
-};
-
-const validateLocalUser = composeValidators(
-  commonValidations.validateName,
-  commonValidations.validateSpec,
-  createZodValidator(LocalUserSchema),
-  validateLocalUserName,
-);
-
-const reconcileLocalUser = async (resource: CRDResource) => {
-  const namespace = resource.metadata.namespace || "";
-  const name = resource.metadata.name;
-  const username = resource.spec.username;
-
-  logger.debug({ namespace, name, username }, "Reconciling LocalUser");
-
-  // TODO: Verify password hash secret
-  // TODO: Cache user credentials
-  // TODO: Setup MFA if enabled
-
-  logger.debug({ namespace, name }, "LocalUser reconciliation complete");
-};
-
-/**
- * ApiKey validators
- */
-const validateApiKeyExpiry = (resource: CRDResource): string[] => {
-  if (!resource.spec.expiresAt) return [];
-  return validateFutureDate(resource.spec.expiresAt, "spec.expiresAt");
-};
-
-const validateApiKey = composeValidators(
-  commonValidations.validateName,
-  commonValidations.validateSpec,
-  createZodValidator(ApiKeySchema),
-  validateApiKeyExpiry,
-);
-
-const reconcileApiKey = async (resource: CRDResource) => {
-  const namespace = resource.metadata.namespace || "";
-  const name = resource.metadata.name;
-  const owner = resource.spec.ownerRef?.name;
-
-  logger.debug({ namespace, name, owner }, "Reconciling ApiKey");
-
-  // TODO: Verify key hash secret
-  // TODO: Cache API key
-  // TODO: Setup expiry timer if needed
-
-  logger.debug({ namespace, name }, "ApiKey reconciliation complete");
-};
-
-/**
  * Settings validators
  */
-const validateSettingsName = (resource: CRDResource): string[] => {
+const validateSettingsName = (resource: YuptimeSettings): string[] => {
   if (resource.metadata.name !== "yuptime") {
     return [
       "metadata.name must be exactly 'yuptime' (only one instance allowed)",
@@ -208,22 +173,7 @@ const validateSettingsName = (resource: CRDResource): string[] => {
   return [];
 };
 
-const validateSettingsAuth = (resource: CRDResource): string[] => {
-  const errors: string[] = [];
-  const spec = resource.spec;
-
-  if (spec.auth?.mode === "oidc" && !spec.auth.oidc) {
-    errors.push("OIDC configuration required when auth.mode=oidc");
-  }
-
-  if (spec.auth?.mode === "local" && !spec.auth.local) {
-    errors.push("Local configuration required when auth.mode=local");
-  }
-
-  return errors;
-};
-
-const validateSettingsScheduler = (resource: CRDResource): string[] => {
+const validateSettingsScheduler = (resource: YuptimeSettings): string[] => {
   const errors: string[] = [];
   const scheduler = resource.spec.scheduler;
 
@@ -241,17 +191,39 @@ const validateSettingsScheduler = (resource: CRDResource): string[] => {
   return errors;
 };
 
-const validateSettings = composeValidators(
-  commonValidations.validateSpec,
-  createZodValidator(YuptimeSettingsSchema),
+const validateSettings = typedComposeValidators(
+  typedCommonValidations.validateSpec,
   validateSettingsName,
-  validateSettingsAuth,
   validateSettingsScheduler,
 );
 
-let globalSettings: any = null;
+type GlobalSettings = {
+  mode?:
+    | {
+        gitOpsReadOnly?: boolean | undefined;
+        singleInstanceRequired?: boolean | undefined;
+      }
+    | undefined;
+  scheduler?:
+    | {
+        minIntervalSeconds?: number | undefined;
+        maxConcurrentNetChecks?: number | undefined;
+        maxConcurrentPrivChecks?: number | undefined;
+      }
+    | undefined;
+  networking?:
+    | {
+        userAgent?: string | undefined;
+      }
+    | undefined;
+};
 
-const reconcileSettings = async (resource: CRDResource) => {
+let globalSettings: GlobalSettings | null = null;
+
+const reconcileSettings = async (
+  resource: YuptimeSettings,
+  _ctx: ReconcileContext,
+) => {
   const name = resource.metadata.name;
 
   logger.info({ name }, "Reconciling YuptimeSettings");
@@ -261,7 +233,6 @@ const reconcileSettings = async (resource: CRDResource) => {
 
   logger.info(
     {
-      authMode: resource.spec.auth?.mode,
       gitOpsReadOnly: resource.spec.mode?.gitOpsReadOnly,
       minInterval: resource.spec.scheduler?.minIntervalSeconds,
     },
@@ -277,45 +248,35 @@ export const getGlobalSettings = () => {
     logger.warn("YuptimeSettings not yet loaded, using defaults");
     return {
       mode: { gitOpsReadOnly: false, singleInstanceRequired: true },
-      auth: { mode: "local" },
       scheduler: {
         minIntervalSeconds: 20,
         maxConcurrentNetChecks: 200,
         maxConcurrentPrivChecks: 20,
       },
+      networking: { userAgent: "Yuptime/1.0" },
     };
   }
   return globalSettings;
 };
 
-export const createSilenceReconciler = (): ReconcilerConfig => ({
-  kind: "Silence",
-  plural: "silences",
-  zodSchema: SilenceSchema,
-  validator: validate(validateSilence),
-  reconciler: reconcileSilence,
-});
+export const createSilenceReconciler = () =>
+  createTypeSafeReconciler<Silence>(
+    "Silence",
+    "silences",
+    SilenceSchema as unknown as import("zod").ZodSchema<Silence>,
+    {
+      validator: typedValidate(validateSilence),
+      reconciler: reconcileSilence,
+    },
+  );
 
-export const createLocalUserReconciler = (): ReconcilerConfig => ({
-  kind: "LocalUser",
-  plural: "localusers",
-  zodSchema: LocalUserSchema,
-  validator: validate(validateLocalUser),
-  reconciler: reconcileLocalUser,
-});
-
-export const createApiKeyReconciler = (): ReconcilerConfig => ({
-  kind: "ApiKey",
-  plural: "apikeys",
-  zodSchema: ApiKeySchema,
-  validator: validate(validateApiKey),
-  reconciler: reconcileApiKey,
-});
-
-export const createSettingsReconciler = (): ReconcilerConfig => ({
-  kind: "YuptimeSettings",
-  plural: "yuptimesettings",
-  zodSchema: YuptimeSettingsSchema,
-  validator: validate(validateSettings),
-  reconciler: reconcileSettings,
-});
+export const createSettingsReconciler = () =>
+  createTypeSafeReconciler<YuptimeSettings>(
+    "YuptimeSettings",
+    "yuptimesettings",
+    YuptimeSettingsSchema as unknown as import("zod").ZodSchema<YuptimeSettings>,
+    {
+      validator: typedValidate(validateSettings),
+      reconciler: reconcileSettings,
+    },
+  );

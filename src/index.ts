@@ -1,51 +1,41 @@
-import { startDeliveryWorker, stopDeliveryWorker } from "./alerting";
+/**
+ * Yuptime Main Entry Point
+ *
+ * Kubernetes-native monitoring without database or built-in dashboard.
+ * All configuration in CRDs, all metrics in Prometheus, all dashboards in Grafana.
+ */
+
 import { controller } from "./controller";
-import { initializeDatabase } from "./db";
 import { config, validateConfig } from "./lib/config";
 import { logger } from "./lib/logger";
-import { createApp } from "./server/app";
+import { createMetricsServer } from "./server/metrics-server";
 
-let deliveryWorker: NodeJS.Timer | null = null;
+let metricsServer: ReturnType<typeof createMetricsServer> | null = null;
 
 async function main() {
   try {
     // Validate configuration
     validateConfig();
 
-    // Initialize database
-    logger.info("Initializing database...");
-    await initializeDatabase();
-    logger.info("Database initialized");
-
-    // Start Kubernetes controller (includes job manager and completion watcher)
+    // Start Kubernetes controller (includes informers, reconcilers, job completion watcher)
     logger.info("Starting Kubernetes controller...");
     await controller.start();
     logger.info("Kubernetes controller started");
 
-    // Start notification delivery worker
-    logger.info("Starting notification delivery worker...");
-    deliveryWorker = startDeliveryWorker();
-    logger.info("Notification delivery worker started");
-
-    // Create Fastify app
-    logger.info("Creating Fastify app...");
-    const app = await createApp();
-
-    // Start server
-    await app.listen({ port: config.port, host: "0.0.0.0" });
+    // Start metrics server for Prometheus scraping
+    logger.info("Starting metrics server...");
+    metricsServer = createMetricsServer({
+      port: config.port || 3000,
+      host: "0.0.0.0",
+    });
+    await metricsServer.start();
 
     logger.info(
       {
-        port: config.port,
+        metricsPort: config.port,
         env: config.env,
-        database:
-          config.dbType === "etcd"
-            ? "etcd"
-            : config.isPostgres
-              ? "PostgreSQL"
-              : "SQLite",
       },
-      `Yuptime server started successfully`,
+      "Yuptime started successfully (database-free, Kubernetes-native)",
     );
   } catch (error) {
     logger.error(error, "Fatal error during startup");
@@ -57,11 +47,13 @@ async function main() {
 const gracefulShutdown = async () => {
   logger.info("Shutting down gracefully...");
 
-  if (deliveryWorker) {
-    stopDeliveryWorker(deliveryWorker);
+  if (metricsServer) {
+    await metricsServer.stop();
   }
 
   await controller.stop();
+
+  logger.info("Shutdown complete");
   process.exit(0);
 };
 

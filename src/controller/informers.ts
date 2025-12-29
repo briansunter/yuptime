@@ -1,4 +1,8 @@
-import { getDatabase } from "../db";
+import {
+  cacheResource as cacheResourceInMemory,
+  removeCachedResource as removeCachedResourceInMemory,
+  updateCachedResource as updateCachedResourceInMemory,
+} from "../lib/crd-cache";
 import { logger } from "../lib/logger";
 import { createCRDWatcher } from "./k8s-client";
 
@@ -11,20 +15,15 @@ const VERSION = "v1";
 const CRD_DEFINITIONS = {
   Monitor: { plural: "monitors", namespaced: true },
   MonitorSet: { plural: "monitorsets", namespaced: true },
-  NotificationProvider: { plural: "notificationproviders", namespaced: true },
-  NotificationPolicy: { plural: "notificationpolicies", namespaced: true },
-  StatusPage: { plural: "statuspages", namespaced: true },
   MaintenanceWindow: { plural: "maintenancewindows", namespaced: true },
   Silence: { plural: "silences", namespaced: true },
-  LocalUser: { plural: "localusers", namespaced: true },
-  ApiKey: { plural: "apikeys", namespaced: true },
   YuptimeSettings: { plural: "yuptimesettings", namespaced: false },
 };
 
 /**
  * Handler function types
  */
-type ReconcileFn = (resource: any) => Promise<void>;
+type ReconcileFn = (resource: unknown) => Promise<void>;
 type ReconcileDeleteFn = (namespace: string, name: string) => Promise<void>;
 
 /**
@@ -33,7 +32,7 @@ type ReconcileDeleteFn = (namespace: string, name: string) => Promise<void>;
 interface Registry {
   reconcilers: Map<string, ReconcileFn>;
   deleteHandlers: Map<string, ReconcileDeleteFn>;
-  watchers: Map<string, any>;
+  watchers: Map<string, { abort?: () => void }>;
 }
 
 /**
@@ -65,17 +64,21 @@ const registryFunctions = {
     registry.deleteHandlers.set(kind, handler);
   },
 
-  handleAdd: async (registry: Registry, kind: string, resource: any) => {
+  handleAdd: async (registry: Registry, kind: string, resource: unknown) => {
     const handler = registry.reconcilers.get(kind);
     if (handler) {
       try {
         await handler(resource);
       } catch (error) {
+        const metadata =
+          typeof resource === "object" && resource !== null
+            ? (resource as Record<string, unknown>).metadata
+            : null;
         logger.error(
           {
             kind,
-            name: resource.metadata?.name,
-            namespace: resource.metadata?.namespace,
+            name: (metadata as Record<string, unknown>)?.name,
+            namespace: (metadata as Record<string, unknown>)?.namespace,
             error,
           },
           "Reconciliation failed on add",
@@ -84,17 +87,21 @@ const registryFunctions = {
     }
   },
 
-  handleModify: async (registry: Registry, kind: string, resource: any) => {
+  handleModify: async (registry: Registry, kind: string, resource: unknown) => {
     const handler = registry.reconcilers.get(kind);
     if (handler) {
       try {
         await handler(resource);
       } catch (error) {
+        const metadata =
+          typeof resource === "object" && resource !== null
+            ? (resource as Record<string, unknown>).metadata
+            : null;
         logger.error(
           {
             kind,
-            name: resource.metadata?.name,
-            namespace: resource.metadata?.namespace,
+            name: (metadata as Record<string, unknown>)?.name,
+            namespace: (metadata as Record<string, unknown>)?.namespace,
             error,
           },
           "Reconciliation failed on modify",
@@ -103,17 +110,28 @@ const registryFunctions = {
     }
   },
 
-  handleDelete: async (registry: Registry, kind: string, resource: any) => {
+  handleDelete: async (registry: Registry, kind: string, resource: unknown) => {
     const handler = registry.deleteHandlers.get(kind);
     if (handler) {
       try {
-        await handler(resource.metadata?.namespace, resource.metadata?.name);
+        const metadata =
+          typeof resource === "object" && resource !== null
+            ? (resource as Record<string, unknown>).metadata
+            : null;
+        await handler(
+          (metadata as Record<string, unknown>)?.namespace as string,
+          (metadata as Record<string, unknown>)?.name as string,
+        );
       } catch (error) {
+        const metadata =
+          typeof resource === "object" && resource !== null
+            ? (resource as Record<string, unknown>).metadata
+            : null;
         logger.error(
           {
             kind,
-            name: resource.metadata?.name,
-            namespace: resource.metadata?.namespace,
+            name: (metadata as Record<string, unknown>)?.name,
+            namespace: (metadata as Record<string, unknown>)?.namespace,
             error,
           },
           "Deletion handler failed",
@@ -122,7 +140,11 @@ const registryFunctions = {
     }
   },
 
-  setWatcher: (registry: Registry, kind: string, watcher: any) => {
+  setWatcher: (
+    registry: Registry,
+    kind: string,
+    watcher: { abort?: () => void },
+  ) => {
     registry.watchers.set(kind, watcher);
   },
 
@@ -151,98 +173,24 @@ export const informerRegistry = createRegistry();
 export const registry = registryFunctions;
 
 /**
- * Cache resource in database
+ * Cache resource in memory
  */
-async function cacheResource(resource: any) {
-  try {
-    const db = getDatabase();
-    const kind = resource.kind;
-    const namespace = resource.metadata?.namespace || "";
-    const name = resource.metadata?.name;
-    const generation = resource.metadata?.generation || 0;
-    const resourceVersion = resource.metadata?.resourceVersion;
-
-    const { crdCache } = require("../db/schema");
-
-    // Try insert (will fail if already exists, which is fine)
-    try {
-      await db.insert(crdCache).values({
-        kind,
-        apiVersion: resource.apiVersion,
-        namespace,
-        name,
-        generation,
-        resourceVersion,
-        spec: JSON.stringify(resource.spec || {}),
-        status: JSON.stringify(resource.status || {}),
-        labels: JSON.stringify(resource.metadata?.labels || {}),
-        annotations: JSON.stringify(resource.metadata?.annotations || {}),
-      });
-    } catch {
-      // Already exists, ignore
-    }
-  } catch (error) {
-    logger.debug({ error }, "Failed to cache resource");
-  }
+function cacheResource(resource: unknown) {
+  cacheResourceInMemory(resource);
 }
 
 /**
  * Update cached resource
  */
-async function updateCachedResource(resource: any) {
-  try {
-    const db = getDatabase();
-    const { crdCache } = require("../db/schema");
-    const { eq, and } = require("drizzle-orm");
-
-    await db
-      .update(crdCache)
-      .set({
-        generation: resource.metadata?.generation || 0,
-        resourceVersion: resource.metadata?.resourceVersion,
-        spec: JSON.stringify(resource.spec || {}),
-        status: JSON.stringify(resource.status || {}),
-        labels: JSON.stringify(resource.metadata?.labels || {}),
-        annotations: JSON.stringify(resource.metadata?.annotations || {}),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(crdCache.kind, resource.kind),
-          eq(crdCache.namespace, resource.metadata?.namespace || ""),
-          eq(crdCache.name, resource.metadata?.name),
-        ),
-      );
-  } catch (error) {
-    logger.warn({ error }, "Failed to update cached resource");
-  }
+function updateCachedResource(resource: unknown) {
+  updateCachedResourceInMemory(resource);
 }
 
 /**
  * Remove cached resource
  */
-async function removeCachedResource(
-  kind: string,
-  namespace: string,
-  name: string,
-) {
-  try {
-    const db = getDatabase();
-    const { crdCache } = require("../db/schema");
-    const { eq, and } = require("drizzle-orm");
-
-    await db
-      .delete(crdCache)
-      .where(
-        and(
-          eq(crdCache.kind, kind),
-          eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name),
-        ),
-      );
-  } catch (error) {
-    logger.warn({ error }, "Failed to remove cached resource");
-  }
+function removeCachedResource(kind: string, namespace: string, name: string) {
+  removeCachedResourceInMemory(kind, namespace, name);
 }
 
 /**
@@ -283,14 +231,16 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
           updateCachedResource(resource);
           registry.handleModify(informerRegistry, kind, resource);
           break;
-        case "DELETED":
-          removeCachedResource(
-            kind,
-            resource.metadata?.namespace,
-            resource.metadata?.name,
-          );
+        case "DELETED": {
+          const metadata = (
+            resource as { metadata?: { namespace?: string; name?: string } }
+          ).metadata;
+          if (metadata?.namespace && metadata?.name) {
+            removeCachedResource(kind, metadata.namespace, metadata.name);
+          }
           registry.handleDelete(informerRegistry, kind, resource);
           break;
+        }
       }
     },
     (error) => {

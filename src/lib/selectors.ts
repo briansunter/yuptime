@@ -41,10 +41,16 @@ export function matchesSelector(
 
         switch (expr.operator) {
           case "In":
-            if (!expr.values?.includes(labelValue)) return false;
+            if (
+              !expr.values ||
+              !labelValue ||
+              !expr.values.includes(labelValue)
+            )
+              return false;
             break;
           case "NotIn":
-            if (expr.values?.includes(labelValue)) return false;
+            if (expr.values && labelValue && expr.values.includes(labelValue))
+              return false;
             break;
           case "Exists":
             if (labelValue === undefined) return false;

@@ -121,14 +121,17 @@ export async function resolveSecret(
       "Secret resolved successfully",
     );
     return value;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Type narrow to access error properties
+    const err = error as { message?: string; stack?: string };
+
     logger.error(
       {
         namespace,
         secretName,
         key,
-        errorMessage: error?.message,
-        errorStack: error?.stack,
+        errorMessage: err?.message,
+        errorStack: err?.stack,
       },
       "Failed to resolve secret",
     );
