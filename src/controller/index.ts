@@ -1,3 +1,4 @@
+import type { KubeConfig } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
 import {
   informerRegistry,
@@ -5,26 +6,24 @@ import {
   startAllWatchers,
   stopAllWatchers,
 } from "./informers";
+import type { JobManager } from "./job-manager";
 import { createJobManager } from "./job-manager";
+import type { JobCompletionWatcher } from "./job-manager/completion-watcher";
 import { createJobCompletionWatcher } from "./job-manager/completion-watcher";
 import { initializeK8sClient } from "./k8s-client";
 import {
-  createApiKeyReconciler,
-  createLocalUserReconciler,
   createMaintenanceWindowReconciler,
   createMonitorReconciler,
   createMonitorSetReconciler,
-  createNotificationPolicyReconciler,
-  createNotificationProviderReconciler,
   createSettingsReconciler,
   createSilenceReconciler,
-  createStatusPageReconciler,
 } from "./reconcilers";
-import { createReconciliationHandler } from "./reconcilers/handler";
+import { createTypeSafeReconciliationHandler } from "./reconcilers/handler";
+import type { TypeSafeReconciler } from "./reconcilers/types";
 
 // Global instances
-let jobManager: any = null;
-let jobCompletionWatcher: any = null;
+let jobManager: JobManager | null = null;
+let jobCompletionWatcher: JobCompletionWatcher | null = null;
 
 /**
  * Initialize and start the Kubernetes controller
@@ -48,12 +47,15 @@ export async function startController() {
     logger.info("Job Manager started");
 
     // Create and start Job Completion Watcher
-    jobCompletionWatcher = createJobCompletionWatcher(kubeConfig);
+    jobCompletionWatcher = createJobCompletionWatcher({
+      kubeConfig,
+      namespace: "yuptime",
+    });
     await jobCompletionWatcher.start();
     logger.info("Job Completion Watcher started");
 
     // Register all reconcilers with job manager context
-    registerAllReconcilers();
+    registerAllReconcilers(kubeConfig);
 
     // Start watching all CRD types
     await startAllWatchers();
@@ -95,32 +97,32 @@ export async function stopController() {
  * Register all reconcilers with the informer registry
  * Using functional composition and factory functions
  */
-function registerAllReconcilers() {
+function registerAllReconcilers(kubeConfig: KubeConfig) {
   logger.debug("Registering reconcilers...");
 
   // Create reconciliation context with job manager
   const reconcileContext = {
     jobManager,
+    kubeConfig,
   };
 
   // Create reconciler configs using factory functions
   const reconcilers = [
     createMonitorReconciler(),
     createMonitorSetReconciler(),
-    createNotificationProviderReconciler(),
-    createNotificationPolicyReconciler(),
-    createStatusPageReconciler(),
     createMaintenanceWindowReconciler(),
     createSilenceReconciler(),
-    createLocalUserReconciler(),
-    createApiKeyReconciler(),
     createSettingsReconciler(),
   ];
 
   // Register each reconciler
   for (const config of reconcilers) {
-    // Create the reconciliation handler with error handling and context
-    const handler = createReconciliationHandler(config, reconcileContext);
+    // Use type-safe handler for all reconcilers
+    // The handler parses with Zod, so it works with both legacy and type-safe configs
+    const handler = createTypeSafeReconciliationHandler(
+      config as unknown as TypeSafeReconciler<object>,
+      reconcileContext,
+    );
 
     // Register with the informer registry
     registry.registerReconciler(informerRegistry, config.kind, handler);

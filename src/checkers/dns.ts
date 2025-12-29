@@ -1,3 +1,4 @@
+import { promises as dnsPromises } from "node:dns";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
@@ -24,43 +25,41 @@ export async function checkDns(
   const startTime = Date.now();
 
   try {
-    const dns = require("node:dns").promises;
-
     // Determine which DNS lookup to use based on record type
     let results: string[] = [];
 
     switch (target.recordType || "A") {
       case "A":
       case "AAAA": {
-        const addresses = await dns.resolve(
+        const addresses = (await dnsPromises.resolve(
           target.name,
           target.recordType || "A",
-        );
+        )) as string[];
         results = addresses;
         break;
       }
 
       case "CNAME": {
-        const cnames = await dns.resolveCname(target.name);
+        const cnames = await dnsPromises.resolveCname(target.name);
         results = cnames;
         break;
       }
 
       case "MX": {
-        const mxRecords = await dns.resolveMx(target.name);
-        results = mxRecords.map((mx: any) => mx.exchange);
+        const mxRecords = await dnsPromises.resolveMx(target.name);
+        results = mxRecords.map((mx) => mx.exchange);
         break;
       }
 
       case "TXT": {
-        const txtRecords = await dns.resolveTxt(target.name);
+        const txtRecords = await dnsPromises.resolveTxt(target.name);
         results = txtRecords.flat().map((txt) => txt.toString());
         break;
       }
 
       case "SRV": {
-        const srvRecords = await dns.resolveSrv(target.name);
-        results = srvRecords.map((srv: any) => `${srv.name}:${srv.port}`);
+        const srvRecords = await dnsPromises.resolveSrv(target.name);
+        results = srvRecords.map((srv) => `${srv.name}:${srv.port}`);
         break;
       }
 

@@ -11,42 +11,20 @@ Yuptime is a Kubernetes-native monitoring solution where all configuration is ma
 ## Tech Stack
 
 - **Runtime**: Bun (>= 1.1.0)
-- **Backend**: Fastify (port 3000)
-- **Frontend**: React + TanStack Router + shadcn/ui + Tailwind CSS
-- **Database**: Drizzle ORM with SQLite (dev) / PostgreSQL (prod)
+- **Metrics Server**: Native HTTP or Fastify (port 3000)
+- **Dashboards**: Grafana (external, user-managed)
 - **Kubernetes**: @kubernetes/client-node with informers
-- **Linting/Formatting**: Biome (not ESLint/Prettier)
+- **Architecture**: Pure Kubernetes CRDs, no database
+- **Linting/Formatting**: Biome
 
 ## Development Commands
 
-### Backend (Root)
 ```bash
-bun install              # Install backend dependencies
-bun run dev              # Start development server (hot reload)
-bun run build            # Build TypeScript + build frontend
+bun install              # Install dependencies
+bun run dev              # Start development server
+bun run build            # Build TypeScript
 bun run start            # Run production build
 bun run type-check       # TypeScript type check without emitting
-bun run db:push          # Push database schema changes
-bun run db:generate      # Generate Drizzle migration
-```
-
-### Frontend (web/)
-```bash
-cd web
-bun install              # Install frontend dependencies
-bun run dev              # Start Vite dev server (localhost:5173)
-bun run build            # Build for production
-bun run preview          # Preview production build locally
-bun run type-check       # TypeScript type check
-```
-
-### Combined Development
-```bash
-# Terminal 1: Backend
-bun run dev
-
-# Terminal 2: Frontend
-cd web && bun run dev
 ```
 
 ### Code Quality
@@ -62,29 +40,27 @@ bun run type-check    # TypeScript type check without emitting
 ### Entry Point Flow
 `src/index.ts` initializes components in order:
 1. Config validation
-2. Database initialization
-3. Kubernetes controller (watches all CRDs)
-4. Scheduler (executes monitor checks)
-5. Notification delivery worker
-6. Fastify API server
+2. Kubernetes controller (watches all CRDs)
+3. Job Manager (creates Kubernetes Jobs for checks)
+4. Job Completion Watcher (processes check results)
+5. Metrics Server (Prometheus scraping)
 
 ### Core Components
 
 #### 1. Kubernetes Controller (`src/controller/`)
-- **Informers** (`informers.ts`): Watchers for all 10 CRD types using Kubernetes informer pattern
+- **Informers** (`informers.ts`): Watchers for all 5 CRD types using Kubernetes informer pattern
 - **Reconcilers**: Functional reconciliation pattern with pure functions
 - **No spec mutation**: Controller only updates status subresources
 - **Registry-based**: Informer registry tracks all watched resources
 
 Key pattern: Reconcilers are pure functions that take current state and desired state, return operations to perform.
 
-#### 2. Scheduler (`src/scheduler/`)
-- **Priority Queue** (`queue.ts`): Min-heap implementation with O(1) peek
-- **Deterministic Jitter** (`jitter.ts`): Prevents thundering herd with hash-based scheduling
-- **Lease-based Locking** (`lock.ts`): Kubernetes Lease resource ensures singleton scheduler
-- **100ms tick loop**: Checks for due jobs and executes them
+#### 2. Job Manager (`src/controller/job-manager/`)
+- **Kubernetes Job Execution**: Creates isolated Jobs for each monitor check
+- **Deterministic Jitter**: Prevents thundering herd with hash-based scheduling
+- **Completion Watcher**: Watches for Job completions and processes results
 
-Key pattern: Jobs are registered/unregistered by reconcilers, scheduler executes when due.
+Key pattern: Each check runs in its own Kubernetes Job pod with direct status updates.
 
 #### 3. Monitor Checkers (`src/checkers/`)
 Each checker implements a common interface:
@@ -101,61 +77,33 @@ All return standardized `CheckResult` type.
 
 #### 4. Alerting System (`src/alerting/`)
 - **State Transitions**: Detects monitor state changes (healthy → unhealthy, etc.)
-- **Incident Management**: Creates/resolves incidents based on state
-- **Policy-based Routing**: Routes events to providers via `NotificationPolicy` CRDs
-- **8 Providers**: Slack, Discord, Telegram, SMTP, Webhook, PagerDuty, Pushover, Mattermost
+- **Alertmanager Integration**: Sends alerts directly to Alertmanager via webhook
+- **Configuration**: Each Monitor has optional `alertmanagerUrl` field
 
-Key pattern: Alert events are queued and processed by delivery worker with deduplication.
+Key pattern: State changes trigger direct POST to Alertmanager `/api/v1/alerts` endpoint.
 
-#### 5. Frontend (`web/`)
-- **TanStack Router**: File-based routing in `web/src/routes/`
-- **shadcn/ui**: Components in `web/src/components/ui/`
-- **Vite**: Build system with hot module replacement
-- **Embedding**: Built assets are served by Fastify from `dist/` directory
-
-#### 6. Checker Executor (`src/checker-executor/`)
+#### 5. Checker Executor (`src/checker-executor/`)
 - **Job-Based Execution**: Each monitor check runs in isolated Kubernetes Job pod
 - **Direct K8s API Updates**: Updates Monitor CRD status via service account token (no database)
-- **In-Cluster Authentication**: Reads service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token`
+- **In-Cluster Authentication**: Reads service account token from `/var/run/secrets/kubernetes.io/serviceaccount/token` (required)
 - **RBAC Requirements**: Needs `monitors/status` patch/update permissions (see `timoni/yuptime/templates/rbac.cue`)
-- **Fallback**: Falls back to kubeconfig when not running in-cluster (for local testing)
 
-**Important**: The checker executor has NO database access. Check results are written directly to Monitor CRD status subresource via Kubernetes API using merge patch format.
+**Important**: The checker executor has NO database access. Check results are written directly to Monitor CRD status subresource via Kubernetes API using merge patch format. Requires in-cluster execution.
 
-## CRD Types (10 Custom Resources)
+## CRD Types (5 Custom Resources)
 
 All CRDs are defined in `src/types/crd/` with Zod schemas:
 
 1. **YuptimeSettings** (`settings.ts`): Cluster-scoped global config
 2. **Monitor** (`monitor.ts`): Single health check definition
 3. **MonitorSet** (`monitor-set.ts`): Bulk monitor definitions (inline, not child CRDs)
-4. **NotificationProvider** (`notification-provider.ts`): Alert destination credentials
-5. **NotificationPolicy** (`notification-policy.ts`): Event routing rules
-6. **StatusPage** (`status-page.ts`): Public status page configuration
-7. **MaintenanceWindow** (`maintenance-window.ts`): Planned maintenance (RRULE support)
-8. **Silence** (`silence.ts`): Ad-hoc alert muting
-9. **LocalUser** (`local-user.ts`): Local accounts (when auth.mode=local)
-10. **ApiKey** (`api-key.ts`): API access tokens with scopes
+4. **MaintenanceWindow** (`maintenance-window.ts`): Planned maintenance (RRULE support)
+5. **Silence** (`silence.ts`): Ad-hoc alert muting
 
 **Important**: CRD schemas use Zod for validation. When adding new CRD fields:
 1. Update Zod schema in `src/types/crd/{resource}.ts`
 2. Update Kubernetes CRD YAML in `k8s/crds.yaml`
 3. Update reconciler if logic changes
-
-## Database Schema
-
-Database is **only for runtime data** - configuration lives in CRDs:
-- `heartbeats`: Check results (state, latency, reason, timestamp)
-- `incidents`: Open/closed outages with duration tracking
-- `notification_deliveries`: Alert delivery tracking and deduplication
-- `audit_events`: Resource change history
-- `crd_cache`: Materialized CRD state for fast queries
-
-Use Drizzle migrations for schema changes:
-```bash
-bun run db:generate    # Generate migration from schema diff
-bun run db:push        # Push changes directly (dev only)
-```
 
 ## Functional Programming Patterns
 
@@ -269,20 +217,19 @@ Husky automatically runs before commits:
 ## Implementation Status
 
 **Phases 1-5: COMPLETE**
-- Foundation, database, CRDs
-- Kubernetes controller & scheduler
-- Alerting system with 8 providers
+- Foundation, CRDs
+- Kubernetes controller & job manager
+- Alertmanager integration (direct POST)
 - 8 monitor checker types
-- Status pages with public API
 - Suppressions (silences + maintenance windows)
 - Database-free checker executor (direct K8s API updates)
 - Pre-commit hooks with lint, type-check, and tests
+- Removed notification providers, auth, status pages, incidents, database
 
 **Phases 6-9: In Progress**
-- Authentication (OIDC, local users, API keys)
 - Metrics & observability
-- Frontend dashboard
 - Timoni packaging
+- Documentation updates
 
 ## Important File Locations
 

@@ -6,78 +6,100 @@
 
 import { logger } from "../../lib/logger";
 import { getNextOccurrence, parseRRule } from "../../lib/rrule";
+import type { MaintenanceWindow } from "../../types/crd";
 import { MaintenanceWindowSchema } from "../../types/crd";
-import type { CRDResource, ReconcilerConfig } from "./types";
+import type { ReconcileContext } from "./types";
+import { createTypeSafeReconciler } from "./types";
 import {
-  commonValidations,
-  composeValidators,
-  createZodValidator,
-  validate,
+  typedCommonValidations,
+  typedComposeValidators,
+  typedValidate,
 } from "./validation";
 
 /**
  * MaintenanceWindow validators
  */
-const validateWindowSchedule = (resource: CRDResource): string[] => {
+const validateWindowSchedule = (resource: MaintenanceWindow): string[] => {
   const errors: string[] = [];
   const spec = resource.spec;
 
-  if (!spec.schedule?.recurrence) {
-    errors.push("spec.schedule.recurrence (RRULE) is required");
-  } else {
-    // Validate RRULE format
-    const parsed = parseRRule(spec.schedule.recurrence);
-    if (!parsed) {
-      errors.push("spec.schedule.recurrence is not a valid RRULE");
-    }
+  if (!spec.schedule?.start || !spec.schedule?.end) {
+    errors.push("spec.schedule.start and spec.schedule.end are required");
   }
 
-  if (!spec.schedule?.duration) {
-    errors.push("spec.schedule.duration is required (e.g., '2h', '30m')");
-  } else {
-    // Validate duration format
-    if (!/^\d+[mh]$/.test(spec.schedule.duration)) {
-      errors.push("spec.schedule.duration must be in format: '30m' or '2h'");
+  if (spec.schedule?.recurrence?.rrule) {
+    // Validate RRULE format if provided
+    const parsed = parseRRule(spec.schedule.recurrence.rrule);
+    if (!parsed) {
+      errors.push("spec.schedule.recurrence.rrule is not a valid RRULE");
     }
   }
 
   return errors;
 };
 
-const validateWindowMatchers = (resource: CRDResource): string[] => {
+const validateWindowMatchers = (_resource: MaintenanceWindow): string[] => {
   const errors: string[] = [];
 
-  if (resource.spec.matchers && resource.spec.matchers.length === 0) {
-    errors.push("spec.matchers must have at least one matcher");
-  }
+  // No matchers field exists in the current schema
+  // The match field is optional and uses SelectorSchema
 
   return errors;
 };
 
-const validateMaintenanceWindow = composeValidators(
-  commonValidations.validateName,
-  commonValidations.validateSpec,
-  createZodValidator(MaintenanceWindowSchema),
+const validateMaintenanceWindow = typedComposeValidators(
+  typedCommonValidations.validateName,
+  typedCommonValidations.validateSpec,
   validateWindowSchedule,
   validateWindowMatchers,
 );
 
-const maintenanceWindowCache = new Map<string, any>();
+type MaintenanceWindowData = {
+  namespace: string;
+  name: string;
+  enabled: boolean;
+  schedule: {
+    start: string;
+    end: string;
+    recurrence?:
+      | {
+          rrule?: string | undefined;
+        }
+      | undefined;
+  };
+  behavior?:
+    | {
+        suppressNotifications?: boolean | undefined;
+      }
+    | undefined;
+  match?: {
+    matchNamespaces?: string[] | undefined;
+    matchLabels?:
+      | {
+          matchLabels?: Record<string, string> | undefined;
+          matchExpressions?:
+            | Array<{
+                key: string;
+                operator: "In" | "NotIn" | "Exists" | "DoesNotExist";
+                values?: string[] | undefined;
+              }>
+            | undefined;
+        }
+      | undefined;
+    matchTags?: string[];
+    matchNames?: Array<{ namespace: string; name: string }>;
+  };
+  rrule: ReturnType<typeof parseRRule>;
+  durationMinutes: number;
+  nextOccurrenceAt: Date;
+};
 
-/**
- * Parse duration string to minutes
- */
-function parseDuration(duration: string): number {
-  const match = duration.match(/^(\d+)([mh])$/);
-  if (!match) return 0;
+const maintenanceWindowCache = new Map<string, MaintenanceWindowData>();
 
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-
-  return unit === "h" ? value * 60 : value;
-}
-
-const reconcileMaintenanceWindow = async (resource: CRDResource) => {
+const reconcileMaintenanceWindow = async (
+  resource: MaintenanceWindow,
+  _ctx: ReconcileContext,
+) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -85,38 +107,47 @@ const reconcileMaintenanceWindow = async (resource: CRDResource) => {
   logger.debug({ namespace, name }, "Reconciling MaintenanceWindow");
 
   try {
-    // Parse RRULE
-    const rruleConfig = parseRRule(spec.schedule.recurrence);
-    if (!rruleConfig) {
-      logger.error(
-        { namespace, name, rrule: spec.schedule.recurrence },
-        "Failed to parse RRULE",
-      );
-      throw new Error("Invalid RRULE format");
-    }
+    // Calculate duration from start and end times
+    const startStr = spec.schedule.start;
+    const endStr = spec.schedule.end;
+    const startDate = new Date(startStr);
+    const endDate = new Date(endStr);
+    const durationMinutes =
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60);
 
-    // Calculate duration in minutes
-    const durationMinutes = parseDuration(spec.schedule.duration);
-    if (durationMinutes === 0) {
-      logger.error(
-        { namespace, name, duration: spec.schedule.duration },
-        "Failed to parse duration",
-      );
-      throw new Error("Invalid duration format");
-    }
+    // Parse RRULE if provided
+    let rruleConfig: ReturnType<typeof parseRRule> = null;
+    let nextOccurrence: Date = startDate;
 
-    // Calculate next occurrence
-    const nextOccurrence = getNextOccurrence(rruleConfig, new Date());
+    if (spec.schedule.recurrence?.rrule) {
+      const parsed = parseRRule(spec.schedule.recurrence.rrule);
+      if (!parsed) {
+        logger.error(
+          { namespace, name, rrule: spec.schedule.recurrence.rrule },
+          "Failed to parse RRULE",
+        );
+        throw new Error("Invalid RRULE format");
+      }
+      rruleConfig = parsed;
+
+      // Calculate next occurrence
+      const next = getNextOccurrence(rruleConfig, new Date());
+      if (next) {
+        nextOccurrence = next;
+      }
+    }
 
     // Cache maintenance window
     const windowKey = `${namespace}/${name}`;
     const windowData = {
       namespace,
       name,
-      description: spec.description,
+      enabled: spec.enabled,
+      schedule: spec.schedule,
+      behavior: spec.behavior,
+      match: spec.match,
       rrule: rruleConfig,
       durationMinutes,
-      matchers: spec.matchers || [],
       nextOccurrenceAt: nextOccurrence,
     };
 
@@ -126,29 +157,12 @@ const reconcileMaintenanceWindow = async (resource: CRDResource) => {
       {
         namespace,
         name,
-        nextOccurrence: nextOccurrence?.toISOString(),
+        enabled: spec.enabled,
+        nextOccurrence: nextOccurrence.toISOString(),
         duration: `${durationMinutes}m`,
       },
       "MaintenanceWindow cached",
     );
-
-    // Update crd_cache status
-    const { crdCache } = require("../../db/schema");
-    const db = require("../../db").getDatabase();
-    const { eq, and } = require("drizzle-orm");
-
-    await db
-      .update(crdCache)
-      .set({
-        lastReconcile: new Date().toISOString(),
-      })
-      .where(
-        and(
-          eq(crdCache.kind, "MaintenanceWindow"),
-          eq(crdCache.namespace, namespace),
-          eq(crdCache.name, name),
-        ),
-      );
 
     logger.debug(
       { namespace, name },
@@ -172,6 +186,11 @@ export const isInMaintenanceWindow = (
   const now = new Date();
 
   for (const window of maintenanceWindowCache.values()) {
+    // Check if enabled
+    if (window.enabled === false) {
+      continue;
+    }
+
     // Check if current time is within window
     const windowStart = window.nextOccurrenceAt;
     const windowEnd = new Date(windowStart);
@@ -180,12 +199,28 @@ export const isInMaintenanceWindow = (
     // Simple check: is now within [windowStart, windowEnd]?
     // For more accuracy, would need to recalculate each check
     if (windowStart <= now && now < windowEnd) {
-      // Check if matchers match the labels
+      // Check if match matches the labels
+      const match = window.match;
       let matches = true;
-      for (const matcher of window.matchers) {
-        if (matcher.name && labels[matcher.name] !== matcher.value) {
-          matches = false;
-          break;
+
+      if (match?.matchNames && match.matchNames.length > 0) {
+        // Would need name context to check
+        continue;
+      }
+
+      if (match?.matchNamespaces && match.matchNamespaces.length > 0) {
+        // Would need namespace context to check
+        continue;
+      }
+
+      if (match?.matchLabels?.matchLabels) {
+        for (const [key, expectedValue] of Object.entries(
+          match.matchLabels.matchLabels,
+        )) {
+          if (labels[key] !== expectedValue) {
+            matches = false;
+            break;
+          }
         }
       }
 
@@ -203,30 +238,82 @@ export const isInMaintenanceWindow = (
  */
 export const getActiveMaintenanceWindows = (
   labels: Record<string, string> = {},
-): any[] => {
-  const activeWindows: any[] = [];
+): Array<{
+  name: string;
+  schedule: {
+    start: string;
+    end: string;
+    recurrence?:
+      | {
+          rrule?: string | undefined;
+        }
+      | undefined;
+  };
+  behavior?:
+    | {
+        suppressNotifications?: boolean | undefined;
+      }
+    | undefined;
+  endsAt: Date;
+  durationMinutes: number;
+}> => {
+  const activeWindows: Array<{
+    name: string;
+    schedule: {
+      start: string;
+      end: string;
+      recurrence?: {
+        rrule?: string;
+      };
+    };
+    behavior?: {
+      suppressNotifications?: boolean;
+    };
+    endsAt: Date;
+    durationMinutes: number;
+  }> = [];
+  const now = new Date();
 
   for (const window of maintenanceWindowCache.values()) {
+    // Check if enabled
+    if (window.enabled === false) {
+      continue;
+    }
+
     // Check if current time is within window
-    const now = new Date();
     const windowStart = window.nextOccurrenceAt;
     const windowEnd = new Date(windowStart);
     windowEnd.setMinutes(windowEnd.getMinutes() + window.durationMinutes);
 
     if (windowStart <= now && now < windowEnd) {
-      // Check if matchers match the labels
+      // Check if match matches the labels
+      const match = window.match;
       let matches = true;
-      for (const matcher of window.matchers) {
-        if (matcher.name && labels[matcher.name] !== matcher.value) {
-          matches = false;
-          break;
+
+      if (match?.matchNames && match.matchNames.length > 0) {
+        continue;
+      }
+
+      if (match?.matchNamespaces && match.matchNamespaces.length > 0) {
+        continue;
+      }
+
+      if (match?.matchLabels?.matchLabels) {
+        for (const [key, expectedValue] of Object.entries(
+          match.matchLabels.matchLabels,
+        )) {
+          if (labels[key] !== expectedValue) {
+            matches = false;
+            break;
+          }
         }
       }
 
       if (matches) {
         activeWindows.push({
           name: window.name,
-          description: window.description,
+          schedule: window.schedule,
+          behavior: window.behavior,
           endsAt: windowEnd,
           durationMinutes: window.durationMinutes,
         });
@@ -237,10 +324,13 @@ export const getActiveMaintenanceWindows = (
   return activeWindows;
 };
 
-export const createMaintenanceWindowReconciler = (): ReconcilerConfig => ({
-  kind: "MaintenanceWindow",
-  plural: "maintenancewindows",
-  zodSchema: MaintenanceWindowSchema,
-  validator: validate(validateMaintenanceWindow),
-  reconciler: reconcileMaintenanceWindow,
-});
+export const createMaintenanceWindowReconciler = () =>
+  createTypeSafeReconciler<MaintenanceWindow>(
+    "MaintenanceWindow",
+    "maintenancewindows",
+    MaintenanceWindowSchema as unknown as import("zod").ZodSchema<MaintenanceWindow>,
+    {
+      validator: typedValidate(validateMaintenanceWindow),
+      reconciler: reconcileMaintenanceWindow,
+    },
+  );

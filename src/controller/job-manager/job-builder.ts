@@ -37,16 +37,18 @@ export function buildJobForMonitor(
         "monitoring.yuptime.io/monitor": monitorLabelId,
       },
       // Auto-cleanup when Monitor is deleted
-      ownerReferences: [
-        {
-          apiVersion: monitor.apiVersion,
-          kind: monitor.kind,
-          name: monitor.metadata.name,
-          uid: monitor.metadata.uid,
-          controller: true,
-          blockOwnerDeletion: true,
-        },
-      ],
+      ownerReferences: monitor.metadata.uid
+        ? [
+            {
+              apiVersion: monitor.apiVersion,
+              kind: monitor.kind,
+              name: monitor.metadata.name,
+              uid: monitor.metadata.uid,
+              controller: true,
+              blockOwnerDeletion: true,
+            },
+          ]
+        : undefined,
     },
     spec: {
       backoffLimit: 0, // No retries (check logic handles retry)

@@ -73,12 +73,13 @@ export async function executeCheck(
         };
 
       default: {
-        const _exhaustive: never = type;
+        // Ensure all cases are handled
+        const exhaustive: never = type;
         return {
           state: "down",
           latencyMs: 0,
           reason: "UNKNOWN_TYPE",
-          message: `Unknown monitor type: ${type}`,
+          message: `Unknown monitor type: ${exhaustive}`,
         };
       }
     }

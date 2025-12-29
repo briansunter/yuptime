@@ -1,39 +1,13 @@
-import type { ZodSchema } from "zod";
-import type { CRDResource, ValidationResult } from "./types";
+import type {
+  ResourceWithMetadata,
+  TypedValidatorFn,
+  ValidationResult,
+} from "./types";
 
 /**
  * Common validation checks
  */
 export const commonValidations = {
-  /**
-   * Validate metadata.name exists and is valid
-   */
-  validateName: (resource: CRDResource): string[] => {
-    const errors: string[] = [];
-    const name = resource.metadata?.name;
-
-    if (!name) {
-      errors.push("metadata.name is required");
-      return errors;
-    }
-
-    if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(name)) {
-      errors.push("metadata.name must be a valid Kubernetes name");
-    }
-
-    return errors;
-  },
-
-  /**
-   * Validate spec exists
-   */
-  validateSpec: (resource: CRDResource): string[] => {
-    if (!resource.spec) {
-      return ["spec is required"];
-    }
-    return [];
-  },
-
   /**
    * Validate date field is in future
    */
@@ -84,30 +58,47 @@ export const commonValidations = {
 };
 
 /**
- * Create a Zod-based validator
+ * Type-safe common validators
  */
-export const createZodValidator =
-  (zodSchema: ZodSchema): ((resource: CRDResource) => string[]) =>
-  (resource: CRDResource) => {
-    const result = zodSchema.safeParse(resource);
+export const typedCommonValidations = {
+  /**
+   * Validate metadata.name exists and is valid
+   */
+  validateName: <T extends ResourceWithMetadata>(resource: T): string[] => {
+    const errors: string[] = [];
+    const name = resource.metadata?.name;
 
-    if (!result.success) {
-      return result.error.issues.map((issue) => {
-        return `${issue.path.join(".")}: ${issue.message}`;
-      });
+    if (!name) {
+      errors.push("metadata.name is required");
+      return errors;
     }
 
+    if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(name)) {
+      errors.push("metadata.name must be a valid Kubernetes name");
+    }
+
+    return errors;
+  },
+
+  /**
+   * Validate spec exists
+   */
+  validateSpec: <T extends { spec?: unknown }>(resource: T): string[] => {
+    if (!resource.spec) {
+      return ["spec is required"];
+    }
     return [];
-  };
+  },
+};
 
 /**
- * Compose multiple validators (AND logic)
+ * Type-safe validator composition
  */
-export const composeValidators =
-  (
-    ...validators: ((resource: CRDResource) => string[])[]
-  ): ((resource: CRDResource) => string[]) =>
-  (resource: CRDResource) => {
+export const typedComposeValidators =
+  <T>(
+    ...validators: ((resource: T) => string[])[]
+  ): ((resource: T) => string[]) =>
+  (resource: T) => {
     const allErrors: string[] = [];
 
     for (const validator of validators) {
@@ -119,25 +110,28 @@ export const composeValidators =
   };
 
 /**
- * Run validation and return ValidationResult
+ * Type-safe validation wrapper
  */
-export const validate =
-  (validator: (resource: CRDResource) => string[]) =>
-  (resource: CRDResource): ValidationResult => {
+export const typedValidate =
+  <T>(validator: (resource: T) => string[]): TypedValidatorFn<T> =>
+  (resource: T): ValidationResult => {
     const errors = validator(resource);
-    return {
+    const result: ValidationResult = {
       valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
     };
+    if (errors.length > 0) {
+      result.errors = errors;
+    }
+    return result;
   };
 
 /**
  * Validate uniqueness in array field
  */
-export const validateUniqueField = (
+export const validateUniqueField = <T>(
   fieldPath: string,
-  items: any[],
-  keySelector: (item: any) => string,
+  items: T[],
+  keySelector: (item: T) => string,
 ): string[] => {
   const seen = new Set<string>();
   const errors: string[] = [];
@@ -156,9 +150,9 @@ export const validateUniqueField = (
 /**
  * Validate required array is not empty
  */
-export const validateNonEmptyArray = (
+export const validateNonEmptyArray = <T>(
   fieldPath: string,
-  items: any[],
+  items: T[],
 ): string[] => {
   if (!items || items.length === 0) {
     return [`${fieldPath} must contain at least one item`];
@@ -193,5 +187,3 @@ export const validateRange = (
  */
 export const validateDateRange = commonValidations.validateDateRange;
 export const validateFutureDate = commonValidations.validateFutureDate;
-export const validateName = commonValidations.validateName;
-export const validateSpec = commonValidations.validateSpec;

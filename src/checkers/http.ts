@@ -391,9 +391,9 @@ export async function checkJsonQuery(
 /**
  * Simple JSONPath getter for basic dot notation
  */
-function getJsonPath(obj: any, path: string): any {
+function getJsonPath(obj: unknown, path: string): unknown {
   const parts = path.split(".");
-  let current = obj;
+  let current: unknown = obj;
 
   for (const part of parts) {
     if (current === null || current === undefined) {
@@ -404,10 +404,20 @@ function getJsonPath(obj: any, path: string): any {
     const arrayMatch = part.match(/(\w+)\[(\d+)\]/);
     if (arrayMatch) {
       const key = arrayMatch[1];
-      const index = parseInt(arrayMatch[2], 10);
-      current = current[key]?.[index];
+      const indexStr = arrayMatch[2];
+      if (!key || !indexStr) {
+        return undefined;
+      }
+      const index = parseInt(indexStr, 10);
+      if (Number.isNaN(index)) {
+        return undefined;
+      }
+      const obj = current as Record<string, unknown>;
+      const arr = obj[key] as Array<unknown> | undefined;
+      current = arr?.[index];
     } else {
-      current = current[part === "$" ? "" : part];
+      const obj = current as Record<string, unknown>;
+      current = obj[part === "$" ? "" : part];
     }
   }
 

@@ -1,46 +1,11 @@
 import { z } from "zod";
-import { SecretRefSchema, StatusBaseSchema } from "./common";
+import { StatusBaseSchema } from "./common";
 
 // YuptimeSettings spec
 export const YuptimeSettingsSpecSchema = z.object({
   mode: z.object({
     gitOpsReadOnly: z.boolean().optional().default(false),
     singleInstanceRequired: z.boolean().optional().default(true),
-  }),
-
-  auth: z.object({
-    mode: z.enum(["oidc", "local", "disabled"]),
-    oidc: z
-      .object({
-        issuerUrl: z.string().url(),
-        clientId: z.string(),
-        clientSecretRef: SecretRefSchema,
-        redirectUrl: z.string().url(),
-        scopes: z.array(z.string()).optional(),
-        groupClaim: z.string().optional(),
-        roleMappings: z
-          .array(
-            z.object({
-              matchGroup: z.string(),
-              role: z.enum(["admin", "editor", "viewer"]),
-            }),
-          )
-          .optional(),
-      })
-      .optional(),
-    local: z
-      .object({
-        allowSignup: z.boolean().optional().default(false),
-        requireMfa: z.enum(["disabled", "optional", "required"]).optional(),
-        bootstrapAdminSecretRef: SecretRefSchema.optional(),
-      })
-      .optional(),
-    apiKeys: z
-      .object({
-        enabled: z.boolean().optional().default(true),
-        maxKeysPerUser: z.number().min(1).optional(),
-      })
-      .optional(),
   }),
 
   scheduler: z.object({
@@ -55,19 +20,6 @@ export const YuptimeSettingsSpecSchema = z.object({
         toggleThreshold: z.number().min(1).optional().default(6),
         windowMinutes: z.number().min(1).optional().default(10),
         suppressNotificationsMinutes: z.number().min(0).optional().default(30),
-      })
-      .optional(),
-  }),
-
-  retention: z.object({
-    heartbeatsDays: z.number().min(1).optional().default(90),
-    checksDays: z.number().min(1).optional().default(14),
-    incidentsDays: z.number().min(1).optional().default(365),
-    downsample: z
-      .object({
-        enabled: z.boolean().optional().default(true),
-        olderThanDays: z.number().min(1).optional().default(30),
-        bucketMinutes: z.number().min(1).optional().default(10),
       })
       .optional(),
   }),
@@ -87,21 +39,6 @@ export const YuptimeSettingsSpecSchema = z.object({
           .optional()
           .default("tcpFallback"),
         tcpFallbackPort: z.number().min(1).max(65535).optional().default(443),
-      })
-      .optional(),
-  }),
-
-  publicEndpoints: z.object({
-    statusPagesEnabled: z.boolean().optional().default(true),
-    badgesEnabled: z.boolean().optional().default(true),
-    metrics: z
-      .object({
-        enabled: z.boolean().optional().default(true),
-        authMode: z
-          .enum(["open", "basic", "apiKey"])
-          .optional()
-          .default("open"),
-        basicAuthSecretRef: SecretRefSchema.optional(),
       })
       .optional(),
   }),

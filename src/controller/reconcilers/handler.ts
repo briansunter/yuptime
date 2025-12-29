@@ -1,36 +1,74 @@
 import { logger } from "../../lib/logger";
 import { markInvalid, markValid } from "./status-utils";
-import type { CRDResource, ReconcileContext, ReconcilerConfig } from "./types";
+import type { ReconcileContext, TypeSafeReconciler } from "./types";
 
 /**
- * Generic reconciliation handler that handles any CRD type
- * - Validates the resource
- * - Executes reconciliation logic
- * - Updates status accordingly
+ * Type-safe reconciliation handler for CRD resources
+ *
+ * This handler:
+ * 1. Parses the resource with Zod (runtime validation + type safety)
+ * 2. Runs the validator function (receives fully typed resource)
+ * 3. Executes the reconciler (receives fully typed resource)
+ * 4. Updates status based on result
+ *
+ * @template T - The CRD type (e.g., Monitor, Incident)
+ * @param config - Type-safe reconciler configuration with Zod schema
+ * @param additionalContext - Optional context to merge
+ * @param statusUpdater - Status update functions (default: markValid/markInvalid)
+ * @returns Handler function compatible with informers (accepts unknown from K8s API)
+ *
+ * @example
+ * const monitorHandler = createTypeSafeReconciliationHandler(
+ *   createTypeSafeReconciler<Monitor>(
+ *     'Monitor',
+ *     'monitors',
+ *     MonitorSchema,
+ *     {
+ *       validator: validateMonitor,
+ *       reconciler: reconcileMonitor,
+ *     }
+ *   ),
+ *   { jobManager }
+ * );
+ *
+ * // Register with informers
+ * registry.registerReconciler('Monitor', monitorHandler);
  */
-export const createReconciliationHandler =
-  (
-    config: ReconcilerConfig,
-    additionalContext?: Partial<ReconcileContext>,
-    statusUpdater = { markValid, markInvalid },
-  ) =>
-  async (resource: CRDResource, context?: ReconcileContext) => {
+export function createTypeSafeReconciliationHandler<T extends object>(
+  config: TypeSafeReconciler<T>,
+  additionalContext?: Partial<ReconcileContext>,
+  statusUpdater = { markValid, markInvalid },
+): (resource: unknown) => Promise<void> {
+  return async (resource: unknown) => {
     // Merge contexts: default + additional + runtime
     const ctx: ReconcileContext = {
       crdWatcher: null,
       statusUpdater,
       secretResolver: async () => "",
       ...additionalContext,
-      ...context,
     };
-    const namespace = resource.metadata?.namespace || "";
-    const name = resource.metadata.name;
-    const generation = resource.metadata?.generation || 0;
+
+    let namespace: string;
+    let name: string;
+    let generation: number;
 
     try {
-      // Validate resource (may be sync or async)
+      // Step 1: Parse and validate with Zod (throws on failure)
+      const typedResource = config.zodSchema.parse(resource);
+
+      // Extract metadata for logging (using unknown cast for safety)
+      namespace =
+        (typedResource as unknown as { metadata: { namespace?: string } })
+          .metadata?.namespace || "";
+      name = (typedResource as unknown as { metadata: { name: string } })
+        .metadata.name;
+      generation =
+        (typedResource as unknown as { metadata: { generation?: number } })
+          .metadata?.generation || 0;
+
+      // Step 2: Run validator (receives fully typed resource)
       const validationResult = await Promise.resolve(
-        config.validator(resource),
+        config.validator(typedResource),
       );
 
       if (!validationResult.valid) {
@@ -53,10 +91,10 @@ export const createReconciliationHandler =
         return;
       }
 
-      // Execute reconciliation
-      await config.reconciler(resource, ctx);
+      // Step 3: Execute reconciler (receives fully typed resource)
+      await config.reconciler(typedResource, ctx);
 
-      // Mark as valid and reconciled
+      // Step 4: Mark as valid and reconciled
       await statusUpdater.markValid(
         config.kind,
         config.plural,
@@ -70,6 +108,16 @@ export const createReconciliationHandler =
         `${config.kind} reconciliation successful`,
       );
     } catch (error) {
+      // Extract metadata for error reporting (resource might not have been parsed)
+      const metadata =
+        typeof resource === "object" && resource !== null
+          ? (resource as Record<string, unknown>).metadata
+          : null;
+      namespace =
+        ((metadata as Record<string, unknown>)?.namespace as string) || "";
+      name =
+        ((metadata as Record<string, unknown>)?.name as string) || "unknown";
+
       const message = error instanceof Error ? error.message : "Unknown error";
       logger.error(
         { kind: config.kind, namespace, name, error },
@@ -93,12 +141,15 @@ export const createReconciliationHandler =
       }
     }
   };
+}
 
 /**
- * Factory for delete handlers
+ * Type-safe delete handler factory
  */
-export const createDeleteHandler =
-  (config: ReconcilerConfig) => async (namespace: string, name: string) => {
+export function createTypeSafeDeleteHandler<T extends object>(
+  config: TypeSafeReconciler<T>,
+): (namespace: string, name: string) => Promise<void> {
+  return async (namespace: string, name: string) => {
     if (!config.deleteHandler) {
       logger.debug(
         { kind: config.kind, namespace, name },
@@ -120,3 +171,4 @@ export const createDeleteHandler =
       );
     }
   };
+}

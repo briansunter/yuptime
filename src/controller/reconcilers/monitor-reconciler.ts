@@ -1,13 +1,13 @@
 import { logger } from "../../lib/logger";
+import type { Monitor } from "../../types/crd";
 import { MonitorSchema } from "../../types/crd";
-import type { JobManager } from "../job-manager";
 import { calculateJitter } from "../job-manager/jitter";
-import type { CRDResource, ReconcileContext, ReconcilerConfig } from "./types";
+import type { ReconcileContext } from "./types";
+import { createTypeSafeReconciler } from "./types";
 import {
-  commonValidations,
-  composeValidators,
-  createZodValidator,
-  validate,
+  typedCommonValidations,
+  typedComposeValidators,
+  typedValidate,
 } from "./validation";
 
 // Track which monitors have been scheduled to prevent duplicates
@@ -16,7 +16,7 @@ const scheduledMonitors = new Set<string>();
 /**
  * Monitor-specific validators
  */
-const validateMonitorSchedule = (resource: CRDResource): string[] => {
+const validateMonitorSchedule = (resource: Monitor): string[] => {
   const errors: string[] = [];
   const spec = resource.spec;
 
@@ -35,7 +35,7 @@ const validateMonitorSchedule = (resource: CRDResource): string[] => {
   return errors;
 };
 
-const validateMonitorTarget = (resource: CRDResource): string[] => {
+const validateMonitorTarget = (resource: Monitor): string[] => {
   const errors: string[] = [];
   const spec = resource.spec;
 
@@ -105,10 +105,9 @@ const validateMonitorTarget = (resource: CRDResource): string[] => {
 /**
  * Monitor validator - composed from multiple validators
  */
-const validateMonitor = composeValidators(
-  commonValidations.validateName,
-  commonValidations.validateSpec,
-  createZodValidator(MonitorSchema),
+const validateMonitor = typedComposeValidators(
+  typedCommonValidations.validateName,
+  typedCommonValidations.validateSpec,
   validateMonitorSchedule,
   validateMonitorTarget,
 );
@@ -116,10 +115,7 @@ const validateMonitor = composeValidators(
 /**
  * Monitor reconciliation logic
  */
-const reconcileMonitor = async (
-  resource: CRDResource,
-  ctx: ReconcileContext,
-) => {
+const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -127,7 +123,7 @@ const reconcileMonitor = async (
   logger.debug({ namespace, name, type: spec.type }, "Reconciling Monitor");
 
   // Get job manager from context
-  const jobManager = ctx?.jobManager as JobManager;
+  const jobManager = ctx?.jobManager;
   if (!jobManager) {
     logger.error(
       { namespace, name },
@@ -156,7 +152,7 @@ const reconcileMonitor = async (
       // Schedule first check with jitter
       setTimeout(async () => {
         try {
-          await jobManager.scheduleCheck(resource as any); // Cast to Monitor type
+          await jobManager.scheduleCheck(resource); // Fully typed, no casting needed
           logger.info(
             { namespace, name, type: spec.type, interval: intervalSeconds },
             "Monitor check scheduled",
@@ -216,12 +212,16 @@ export const handleMonitorDeletion = async (
 };
 
 /**
- * Factory function to create monitor reconciler with error handling
+ * Factory function to create type-safe monitor reconciler
  */
-export const createMonitorReconciler = (): ReconcilerConfig => ({
-  kind: "Monitor",
-  plural: "monitors",
-  zodSchema: MonitorSchema,
-  validator: validate(validateMonitor),
-  reconciler: reconcileMonitor,
-});
+export const createMonitorReconciler = () =>
+  createTypeSafeReconciler<Monitor>(
+    "Monitor",
+    "monitors",
+    MonitorSchema as unknown as import("zod").ZodSchema<Monitor>,
+    {
+      validator: typedValidate(validateMonitor),
+      reconciler: reconcileMonitor,
+      deleteHandler: handleMonitorDeletion,
+    },
+  );

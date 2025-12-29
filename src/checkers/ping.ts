@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
@@ -25,8 +27,6 @@ export async function checkPing(
 
   try {
     // Spawn a ping process
-    const { execFile } = require("node:child_process");
-    const { promisify } = require("node:util");
     const execFileAsync = promisify(execFile);
 
     const packetCount = target.packetCount || 1;
@@ -64,7 +64,16 @@ export async function checkPing(
       const match = stdout.match(timeRegex);
 
       if (match) {
-        const pingLatency = parseFloat(match[1]);
+        const latencyStr = match[1];
+        if (!latencyStr) {
+          return {
+            state: "down",
+            latencyMs,
+            reason: "PARSE_ERROR",
+            message: "Failed to parse ping output",
+          };
+        }
+        const pingLatency = parseFloat(latencyStr);
         return {
           state: "up",
           latencyMs: Math.round(pingLatency),
@@ -92,10 +101,17 @@ export async function checkPing(
         reason: "PING_OK",
         message: "Ping successful",
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       const latencyMs = Date.now() - startTime;
 
-      if (error.killed) {
+      // Type narrow to access error properties
+      const err = error as {
+        killed?: boolean;
+        stderr?: string;
+        message?: string;
+      };
+
+      if (err.killed) {
         return {
           state: "down",
           latencyMs,
@@ -105,7 +121,7 @@ export async function checkPing(
       }
 
       // Check stderr for common error messages
-      const stderr = error.stderr || "";
+      const stderr = err.stderr || "";
       if (
         stderr.includes("unknown host") ||
         stderr.includes("Name or service not known")
@@ -131,7 +147,7 @@ export async function checkPing(
         state: "down",
         latencyMs,
         reason: "PING_ERROR",
-        message: stderr || error.message || "Ping check failed",
+        message: stderr || err.message || "Ping check failed",
       };
     }
   } catch (error) {
