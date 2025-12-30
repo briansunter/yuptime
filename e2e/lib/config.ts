@@ -15,11 +15,11 @@ export const TCP_BANNER_PORT = 8083;
 export const TCP_ECHO_PORT = 8084;
 export const TCP_SLOW_PORT = 8085;
 
-// Database mock server ports
-export const MYSQL_PORT = 3306;
-export const POSTGRESQL_PORT = 5432;
-export const REDIS_PORT = 6379;
-export const GRPC_PORT = 50051;
+// Database mock server ports (using non-standard ports to avoid conflicts in CI)
+export const MYSQL_PORT = 13306;
+export const POSTGRESQL_PORT = 15432;
+export const REDIS_PORT = 16379;
+export const GRPC_PORT = 50151;
 
 // Kubernetes configuration
 export const E2E_NAMESPACE = process.env.E2E_NAMESPACE || "yuptime";

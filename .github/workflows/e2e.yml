@@ -55,20 +55,26 @@ jobs:
           docker compose -f docker-compose.e2e.yml up -d
 
           echo "Waiting for services to be healthy..."
-          # Wait for MySQL
+          # Wait for MySQL (using docker exec to check inside container)
           echo "Waiting for MySQL..."
           timeout 60 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T mysql mysqladmin ping -h localhost -u root -prootpass 2>/dev/null; do sleep 2; done'
           echo "✓ MySQL ready"
 
-          # Wait for PostgreSQL
+          # Wait for PostgreSQL (using docker exec to check inside container)
           echo "Waiting for PostgreSQL..."
           timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T postgresql pg_isready -U testuser -d testdb 2>/dev/null; do sleep 2; done'
           echo "✓ PostgreSQL ready"
 
-          # Wait for Redis
+          # Wait for Redis (using docker exec to check inside container)
           echo "Waiting for Redis..."
           timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T redis redis-cli -a testpass ping 2>/dev/null | grep -q PONG; do sleep 2; done'
           echo "✓ Redis ready"
+
+          # Verify host port bindings
+          echo "Verifying host ports..."
+          nc -z localhost 13306 && echo "✓ MySQL port 13306 accessible" || echo "✗ MySQL port 13306 not accessible"
+          nc -z localhost 15432 && echo "✓ PostgreSQL port 15432 accessible" || echo "✗ PostgreSQL port 15432 not accessible"
+          nc -z localhost 16379 && echo "✓ Redis port 16379 accessible" || echo "✗ Redis port 16379 not accessible"
 
           echo "All database services started"
           docker compose -f docker-compose.e2e.yml ps
