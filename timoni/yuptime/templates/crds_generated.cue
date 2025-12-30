@@ -38,7 +38,7 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 							}
 							type: {
 								type: "string"
-								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "websocket", "push", "steam", "k8s", "docker"]
+								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "websocket", "push", "steam", "k8s", "docker", "mysql", "postgresql", "redis", "grpc"]
 							}
 							schedule: {
 								type: "object"
@@ -199,6 +199,109 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 											expect: type: "string"
 										}
 									}
+								mysql: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										database: type: "string"
+										credentialsSecretRef: {
+											type: "object"
+											properties: {
+												name: type: "string"
+												usernameKey: type: "string"
+												passwordKey: type: "string"
+											}
+										}
+										healthQuery: type: "string"
+									}
+								}
+								postgresql: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										database: type: "string"
+										credentialsSecretRef: {
+											type: "object"
+											properties: {
+												name: type: "string"
+												usernameKey: type: "string"
+												passwordKey: type: "string"
+											}
+										}
+										healthQuery: type: "string"
+										sslMode: {
+											type: "string"
+											enum: ["disable", "prefer", "require", "verify-ca", "verify-full"]
+										}
+									}
+								}
+								redis: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										database: {
+											type:    "integer"
+											minimum: 0
+										}
+										credentialsSecretRef: {
+											type: "object"
+											properties: {
+												name: type: "string"
+												passwordKey: type: "string"
+											}
+										}
+									}
+								}
+								grpc: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										service: type: "string"
+										tls: {
+											type: "object"
+											properties: {
+												enabled: type: "boolean"
+												verify: type: "boolean"
+											}
+										}
+									}
+								}
 								}
 							}
 							successCriteria: {
