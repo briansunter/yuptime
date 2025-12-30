@@ -52,10 +52,19 @@ jobs:
       - name: Get Host IP for Minikube
         id: hostip
         run: |
-          # Get the gateway IP that Minikube can use to reach the host
-          MOCK_HOST=$(minikube ssh "route -n | grep '^0.0.0.0' | awk '{print \$2}'" | tr -d '\r')
+          # Get the host IP that Minikube can use to reach the mock server
+          # For Docker driver, use host.minikube.internal or the docker bridge gateway
+          MOCK_HOST=$(minikube ssh "cat /etc/hosts | grep host.minikube.internal | awk '{print \$1}'" | tr -d '\r')
+          if [ -z "$MOCK_HOST" ]; then
+            # Fallback: get docker bridge gateway
+            MOCK_HOST=$(docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
+          fi
           echo "mock_host=$MOCK_HOST" >> $GITHUB_OUTPUT
           echo "Mock server will be accessible at: $MOCK_HOST"
+
+          # Verify connectivity from minikube to host
+          echo "Testing connectivity..."
+          minikube ssh "curl -sf http://${MOCK_HOST}:8080/health" || echo "Warning: Could not reach mock server from minikube"
 
       - name: Build Docker images
         run: |
