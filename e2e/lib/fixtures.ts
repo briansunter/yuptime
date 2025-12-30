@@ -321,7 +321,7 @@ export function createPostgreSqlMonitor(overrides: {
         postgresql: {
           host: overrides.host ?? MOCK_SERVER_HOST,
           port: overrides.port ?? POSTGRESQL_PORT,
-          database: overrides.database ?? "postgres",
+          database: overrides.database ?? "testdb",
           credentialsSecretRef: {
             name: overrides.secretName ?? "postgresql-credentials",
             usernameKey: "username",

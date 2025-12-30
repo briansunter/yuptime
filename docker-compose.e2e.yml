@@ -1,0 +1,80 @@
+# Docker Compose for E2E Testing
+# Provides MySQL, PostgreSQL, Redis, and gRPC health services for testing database checkers
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: yuptime-e2e-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    tmpfs:
+      - /var/lib/mysql
+
+  postgresql:
+    image: postgres:16
+    container_name: yuptime-e2e-postgresql
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: yuptime-e2e-redis
+    command: redis-server --requirepass testpass
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "testpass", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  grpc-health:
+    image: namely/grpc-cli:latest
+    container_name: yuptime-e2e-grpc
+    entrypoint: ["/bin/sh", "-c"]
+    # Simple gRPC health server using socat to respond to health checks
+    # For real gRPC health, we'd need a proper server - this is a placeholder
+    # The actual checker tests connection establishment
+    command:
+      - |
+        echo "Starting gRPC health mock on port 50051"
+        # Use netcat to accept TCP connections as a basic health endpoint
+        while true; do
+          echo -e "HTTP/1.1 200 OK\r\n\r\nOK" | nc -l -p 50051 -q 1 || true
+        done
+    ports:
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50051 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+networks:
+  default:
+    name: yuptime-e2e

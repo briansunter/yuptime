@@ -20,8 +20,8 @@ import {
   waitForMonitorStatus,
 } from "../lib";
 
-// Skip these tests until database mock infrastructure is set up
-describe.skip("MySQL Monitor E2E", () => {
+// Database mock infrastructure is set up via docker-compose.e2e.yml
+describe("MySQL Monitor E2E", () => {
   const createdMonitors: string[] = [];
 
   // Cleanup after each test

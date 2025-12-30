@@ -19,8 +19,8 @@ import {
   waitForMonitorStatus,
 } from "../lib";
 
-// Skip these tests until gRPC mock infrastructure is set up
-describe.skip("gRPC Monitor E2E", () => {
+// gRPC mock infrastructure is set up via docker-compose.e2e.yml
+describe("gRPC Monitor E2E", () => {
   const createdMonitors: string[] = [];
 
   // Cleanup after each test
