@@ -1,6 +1,8 @@
 import { logger } from "../lib/logger";
+import { fetchOAuth2Token } from "../lib/oauth";
 import { resolveSecretCached } from "../lib/secrets";
 import type { Monitor } from "../types/crd";
+import type { HttpAuth } from "../types/crd/monitor";
 
 export interface CheckResult {
   state: "up" | "down";
@@ -9,6 +11,72 @@ export interface CheckResult {
   message: string;
   certExpiresAt?: Date;
   certDaysRemaining?: number;
+}
+
+/**
+ * Build authentication headers based on auth configuration.
+ * Credentials are read from environment variables injected by the Job builder.
+ */
+async function buildAuthHeaders(
+  auth: HttpAuth | undefined,
+  timeout: number,
+): Promise<{ headers: Headers; error?: string }> {
+  const headers = new Headers();
+
+  if (!auth) {
+    return { headers };
+  }
+
+  // Basic Authentication
+  if (auth.basic) {
+    const username = process.env.YUPTIME_AUTH_BASIC_USERNAME;
+    const password = process.env.YUPTIME_AUTH_BASIC_PASSWORD;
+
+    if (!username || !password) {
+      return {
+        headers,
+        error: "Basic auth credentials not found in environment",
+      };
+    }
+
+    const encoded = Buffer.from(`${username}:${password}`).toString("base64");
+    headers.set("Authorization", `Basic ${encoded}`);
+  }
+
+  // Bearer Token
+  if (auth.bearer) {
+    const token = process.env.YUPTIME_AUTH_BEARER_TOKEN;
+
+    if (!token) {
+      return {
+        headers,
+        error: "Bearer token not found in environment",
+      };
+    }
+
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  // OAuth2 Client Credentials
+  if (auth.oauth2) {
+    try {
+      const token = await fetchOAuth2Token(
+        {
+          tokenUrl: auth.oauth2.tokenUrl,
+          scopes: auth.oauth2.scopes,
+        },
+        timeout,
+      );
+      headers.set("Authorization", `Bearer ${token}`);
+    } catch (error) {
+      return {
+        headers,
+        error: `OAuth2 token fetch failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+    }
+  }
+
+  return { headers };
 }
 
 /**
@@ -33,6 +101,21 @@ export async function checkHttp(monitor: Monitor, timeout: number): Promise<Chec
 
     // Add default headers
     headers.set("User-Agent", "Yuptime/1.0");
+
+    // Add authentication headers (Basic, Bearer, OAuth2)
+    const authResult = await buildAuthHeaders(target.auth, timeout);
+    if (authResult.error) {
+      return {
+        state: "down",
+        latencyMs: Date.now() - startTime,
+        reason: "AUTH_ERROR",
+        message: authResult.error,
+      };
+    }
+    // Merge auth headers
+    authResult.headers.forEach((value, key) => {
+      headers.set(key, value);
+    });
 
     // Add configured headers (with secret resolution)
     if (target.headers) {

@@ -13,6 +13,7 @@ import {
   MOCK_SERVER_HOST,
   MYSQL_PORT,
   POSTGRESQL_PORT,
+  REDIS_AUTH_PORT,
   REDIS_PORT,
   TCP_BANNER_PORT,
   TCP_CONNECT_PORT,
@@ -685,7 +686,7 @@ export const mysqlFixtures = {
   connectionRefused: () =>
     createMySqlMonitor({
       name: "mysql-refused",
-      port: 13306, // Unused port
+      port: 23306, // Unused port (not 13306 which is the actual MySQL port)
     }),
 
   customDatabase: () =>
@@ -710,7 +711,7 @@ export const postgresqlFixtures = {
   connectionRefused: () =>
     createPostgreSqlMonitor({
       name: "postgresql-refused",
-      port: 15432, // Unused port
+      port: 25432, // Unused port (not 15432 which is the actual PostgreSQL port)
     }),
 
   customDatabase: () =>
@@ -727,6 +728,7 @@ export const postgresqlFixtures = {
 };
 
 export const redisFixtures = {
+  // Redis without auth (port 16379)
   success: () =>
     createRedisMonitor({
       name: "redis-success",
@@ -735,12 +737,14 @@ export const redisFixtures = {
   connectionRefused: () =>
     createRedisMonitor({
       name: "redis-refused",
-      port: 16379, // Unused port
+      port: 26379, // Unused port
     }),
 
+  // Redis with auth (port 16380)
   withAuth: () =>
     createRedisMonitor({
       name: "redis-with-auth",
+      port: REDIS_AUTH_PORT,
       requiresAuth: true,
     }),
 

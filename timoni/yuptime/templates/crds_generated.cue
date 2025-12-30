@@ -104,6 +104,58 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 												type:    "integer"
 												default: 10
 											}
+											auth: {
+												type: "object"
+												properties: {
+													basic: {
+														type: "object"
+														properties: {
+															secretRef: {
+																type: "object"
+																required: ["name"]
+																properties: {
+																	name: type: "string"
+																	usernameKey: type: "string"
+																	passwordKey: type: "string"
+																}
+															}
+														}
+													}
+													bearer: {
+														type: "object"
+														properties: {
+															tokenSecretRef: {
+																type: "object"
+																required: ["name", "key"]
+																properties: {
+																	name: type: "string"
+																	key: type: "string"
+																}
+															}
+														}
+													}
+													oauth2: {
+														type: "object"
+														required: ["tokenUrl", "clientSecretRef"]
+														properties: {
+															tokenUrl: type: "string"
+															clientSecretRef: {
+																type: "object"
+																required: ["name"]
+																properties: {
+																	name: type: "string"
+																	clientIdKey: type: "string"
+																	clientSecretKey: type: "string"
+																}
+															}
+															scopes: {
+																type: "array"
+																items: type: "string"
+															}
+														}
+													}
+												}
+											}
 											headers: {
 												type: "array"
 												items: {
@@ -111,6 +163,13 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 													properties: {
 														name: type: "string"
 														value: type: "string"
+														valueFromSecretRef: {
+															type: "object"
+															properties: {
+																name: type: "string"
+																key: type: "string"
+															}
+														}
 													}
 												}
 											}

@@ -16,7 +16,7 @@ const WS_PORT = 8082;
 const MYSQL_PORT = 3306;
 const POSTGRESQL_PORT = 5432;
 const REDIS_PORT = 6379;
-const GRPC_PORT = 50051;
+const GRPC_PORT = 50151; // Match e2e/lib/config.ts
 
 async function main() {
   // Start HTTP server (includes mock Alertmanager endpoints)

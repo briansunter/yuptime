@@ -45,6 +45,9 @@ async function createDefaultGrpcClient(config: GrpcClientConfig): Promise<GrpcHe
   // Use dynamic import to avoid bundling grpc if not used
   const grpc = await import("@grpc/grpc-js");
   const protoLoader = await import("@grpc/proto-loader");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
 
   // Use the standard gRPC health check proto
   const HEALTH_PROTO = `
@@ -71,7 +74,12 @@ service Health {
 }
 `;
 
-  const packageDefinition = protoLoader.loadSync(HEALTH_PROTO, {
+  // Write proto to temp file since protoLoader.loadSync expects a file path
+  const tmpDir = os.tmpdir();
+  const protoPath = path.join(tmpDir, "grpc-health.proto");
+  fs.writeFileSync(protoPath, HEALTH_PROTO);
+
+  const packageDefinition = protoLoader.loadSync(protoPath, {
     keepCase: true,
     longs: String,
     enums: Number,

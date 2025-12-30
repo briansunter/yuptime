@@ -47,7 +47,10 @@ jobs:
 
           echo "Verifying mock server..."
           curl -f http://localhost:8080/health || exit 1
-          echo "✓ Mock server started"
+          echo "✓ HTTP mock server started"
+
+          # Verify gRPC server is listening
+          nc -z localhost 50151 && echo "✓ gRPC mock server started on port 50151" || echo "✗ gRPC mock server not accessible"
 
       - name: Start Database Services
         run: |
@@ -65,16 +68,22 @@ jobs:
           timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T postgresql pg_isready -U testuser -d testdb 2>/dev/null; do sleep 2; done'
           echo "✓ PostgreSQL ready"
 
-          # Wait for Redis (using docker exec to check inside container)
+          # Wait for Redis (no auth)
           echo "Waiting for Redis..."
-          timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T redis redis-cli -a testpass ping 2>/dev/null | grep -q PONG; do sleep 2; done'
+          timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
           echo "✓ Redis ready"
+
+          # Wait for Redis with auth
+          echo "Waiting for Redis (with auth)..."
+          timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T redis-auth redis-cli -a testpass ping 2>/dev/null | grep -q PONG; do sleep 2; done'
+          echo "✓ Redis (with auth) ready"
 
           # Verify host port bindings
           echo "Verifying host ports..."
           nc -z localhost 13306 && echo "✓ MySQL port 13306 accessible" || echo "✗ MySQL port 13306 not accessible"
           nc -z localhost 15432 && echo "✓ PostgreSQL port 15432 accessible" || echo "✗ PostgreSQL port 15432 not accessible"
           nc -z localhost 16379 && echo "✓ Redis port 16379 accessible" || echo "✗ Redis port 16379 not accessible"
+          nc -z localhost 16380 && echo "✓ Redis (auth) port 16380 accessible" || echo "✗ Redis (auth) port 16380 not accessible"
 
           echo "All database services started"
           docker compose -f docker-compose.e2e.yml ps

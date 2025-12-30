@@ -1,10 +1,8 @@
 /**
  * gRPC Monitor E2E Tests
  *
- * Note: These tests require:
- * - A mock gRPC health server running
- *
- * Skipped by default - enable when infrastructure is ready.
+ * Requires:
+ * - gRPC health server running via mock-server (port 50151)
  */
 
 import { afterEach, describe, test } from "bun:test";
@@ -19,9 +17,7 @@ import {
   waitForMonitorStatus,
 } from "../lib";
 
-// gRPC E2E tests are slow (each waits for K8s job completion)
-// Skip in CI to avoid timeout, run manually for integration testing
-describe.skip("gRPC Monitor E2E", () => {
+describe("gRPC Monitor E2E", () => {
   const createdMonitors: string[] = [];
 
   // Cleanup after each test
@@ -57,9 +53,10 @@ describe.skip("gRPC Monitor E2E", () => {
 
     const status = await waitForMonitorStatus(name);
 
+    // gRPC returns UNAVAILABLE (code 14) for connection failures
     assertCheckResult(status, {
       state: "down",
-      reason: "CONNECTION_REFUSED",
+      reason: "GRPC_UNAVAILABLE",
     });
   });
 

@@ -1,7 +1,14 @@
 import { logger } from "../lib/logger";
-import { resolveSecretCached } from "../lib/secrets";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
+
+/**
+ * Get Redis password from environment variables.
+ * These are injected by the Job builder from Kubernetes secrets.
+ */
+function getPasswordFromEnv(): string | undefined {
+  return process.env.YUPTIME_CRED_REDIS_PASSWORD;
+}
 
 /**
  * Redis client interface for dependency injection
@@ -43,6 +50,8 @@ async function createDefaultRedisClient(config: RedisClientConfig): Promise<Redi
       host: config.host,
       port: config.port,
       connectTimeout: config.connectTimeout,
+      // Disable reconnection - we want a single connection attempt for health checks
+      reconnectStrategy: false,
     },
     password: config.password,
     database: config.database,
@@ -90,15 +99,18 @@ async function checkRedisWithFactory(
   const startTime = Date.now();
 
   try {
-    // Resolve password from Kubernetes Secret (optional)
-    let password: string | undefined;
+    // Get password from environment variables (injected by Job builder)
+    // Only check env if credentialsSecretRef was defined in the Monitor spec
+    const password = target.credentialsSecretRef ? getPasswordFromEnv() : undefined;
 
-    if (target.credentialsSecretRef) {
-      const namespace = monitor.metadata.namespace;
-      const secretName = target.credentialsSecretRef.name;
-      const passwordKey = target.credentialsSecretRef.passwordKey ?? "password";
-
-      password = await resolveSecretCached(namespace, secretName, passwordKey);
+    // If secret ref was defined but password is missing, return error
+    if (target.credentialsSecretRef && !password) {
+      return {
+        state: "down",
+        latencyMs: Date.now() - startTime,
+        reason: "CREDENTIALS_ERROR",
+        message: "Redis password not found in environment",
+      };
     }
 
     const client = await clientFactory({
@@ -139,11 +151,16 @@ async function checkRedisWithFactory(
   } catch (error) {
     const latencyMs = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    // Redis client may return AggregateError with code but empty message
+    const errorCode = (error as { code?: string }).code ?? "";
 
-    logger.warn({ monitor: monitor.metadata.name, error: errorMessage }, "Redis check failed");
+    logger.warn(
+      { monitor: monitor.metadata.name, error: errorMessage || errorCode },
+      "Redis check failed",
+    );
 
-    // Categorize common Redis errors
-    if (errorMessage.includes("ECONNREFUSED")) {
+    // Categorize common Redis errors (check both message and code)
+    if (errorMessage.includes("ECONNREFUSED") || errorCode === "ECONNREFUSED") {
       return {
         state: "down",
         latencyMs,
@@ -152,7 +169,11 @@ async function checkRedisWithFactory(
       };
     }
 
-    if (errorMessage.includes("ETIMEDOUT") || errorMessage.includes("timeout")) {
+    if (
+      errorMessage.includes("ETIMEDOUT") ||
+      errorMessage.includes("timeout") ||
+      errorCode === "ETIMEDOUT"
+    ) {
       return {
         state: "down",
         latencyMs,
@@ -174,7 +195,7 @@ async function checkRedisWithFactory(
       };
     }
 
-    if (errorMessage.includes("ENOTFOUND")) {
+    if (errorMessage.includes("ENOTFOUND") || errorCode === "ENOTFOUND") {
       return {
         state: "down",
         latencyMs,
@@ -187,7 +208,7 @@ async function checkRedisWithFactory(
       state: "down",
       latencyMs,
       reason: "CONNECTION_ERROR",
-      message: errorMessage,
+      message: errorMessage || errorCode || "Unknown connection error",
     };
   }
 }

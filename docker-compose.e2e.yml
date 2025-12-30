@@ -39,12 +39,26 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
 
+  # Redis without auth (for testing no-auth scenarios)
   redis:
     image: redis:7
     container_name: yuptime-e2e-redis
-    command: redis-server --requirepass testpass
     ports:
       - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # Redis with auth (for testing authenticated connections)
+  redis-auth:
+    image: redis:7
+    container_name: yuptime-e2e-redis-auth
+    command: redis-server --requirepass testpass
+    ports:
+      - "16380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "testpass", "ping"]
       interval: 5s
@@ -52,28 +66,8 @@ services:
       retries: 10
       start_period: 5s
 
-  grpc-health:
-    image: namely/grpc-cli:latest
-    container_name: yuptime-e2e-grpc
-    entrypoint: ["/bin/sh", "-c"]
-    # Simple gRPC health server using socat to respond to health checks
-    # For real gRPC health, we'd need a proper server - this is a placeholder
-    # The actual checker tests connection establishment
-    command:
-      - |
-        echo "Starting gRPC health mock on port 50051"
-        # Use netcat to accept TCP connections as a basic health endpoint
-        while true; do
-          echo -e "HTTP/1.1 200 OK\r\n\r\nOK" | nc -l -p 50051 -q 1 || true
-        done
-    ports:
-      - "50151:50051"
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 50051 || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
+  # Note: gRPC health server is provided by the Bun mock server (e2e/mock-server/grpc.ts)
+  # on port 50151, not via Docker Compose
 
 networks:
   default:

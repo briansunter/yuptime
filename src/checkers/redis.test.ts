@@ -1,22 +1,20 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createRedisMonitor, createRedisMonitorNoTarget } from "../test-utils/fixtures/monitors";
 import { createMockRedisClientFactory } from "../test-utils/mocks/database";
 import { createCheckRedis } from "./redis";
 
-// Mock the secrets module
-const mockResolveSecretCached = mock(async () => "mock-password");
-mock.module("../lib/secrets", () => ({
-  resolveSecretCached: mockResolveSecretCached,
-}));
-
 describe("checkRedis", () => {
+  // Store original env vars
+  const originalEnv = { ...process.env };
+
   beforeEach(() => {
-    mockResolveSecretCached.mockReset();
-    mockResolveSecretCached.mockImplementation(async () => "mock-password");
+    // Set password in environment (simulating Job injection)
+    process.env.YUPTIME_CRED_REDIS_PASSWORD = "mock-password";
   });
 
   afterEach(() => {
-    mockResolveSecretCached.mockReset();
+    // Restore original environment
+    process.env = { ...originalEnv };
   });
 
   test("returns up for successful Redis connection", async () => {
@@ -172,5 +170,18 @@ describe("checkRedis", () => {
 
     expect(result.state).toBe("up");
     expect(result.reason).toBe("REDIS_OK");
+  });
+
+  test("returns down when credentials required but not in environment", async () => {
+    // Clear password from environment
+    delete process.env.YUPTIME_CRED_REDIS_PASSWORD;
+
+    const checker = createCheckRedis(createMockRedisClientFactory());
+    // Use monitor with secretName (which enables credentialsSecretRef)
+    const result = await checker(createRedisMonitor({ secretName: "redis-secret" }), 10);
+
+    expect(result.state).toBe("down");
+    expect(result.reason).toBe("CREDENTIALS_ERROR");
+    expect(result.message).toBe("Redis password not found in environment");
   });
 });

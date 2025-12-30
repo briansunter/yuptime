@@ -18,12 +18,50 @@ export const MonitorScheduleSchema = z.object({
 
 export type MonitorSchedule = z.infer<typeof MonitorScheduleSchema>;
 
+// HTTP Authentication configuration
+export const HttpAuthSchema = z.object({
+  // Basic Authentication
+  basic: z
+    .object({
+      secretRef: z.object({
+        name: z.string(),
+        usernameKey: z.string().optional().default("username"),
+        passwordKey: z.string().optional().default("password"),
+      }),
+    })
+    .optional(),
+
+  // Bearer Token
+  bearer: z
+    .object({
+      tokenSecretRef: SecretRefSchema,
+    })
+    .optional(),
+
+  // OAuth2 Client Credentials Flow
+  oauth2: z
+    .object({
+      tokenUrl: z.string().url(),
+      clientSecretRef: z.object({
+        name: z.string(),
+        clientIdKey: z.string().optional().default("client_id"),
+        clientSecretKey: z.string().optional().default("client_secret"),
+      }),
+      scopes: z.array(z.string()).optional(),
+    })
+    .optional(),
+});
+
+export type HttpAuth = z.infer<typeof HttpAuthSchema>;
+
 // HTTP target configuration
 export const HttpTargetSchema = z.object({
   url: z.string().url(),
   method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"]).optional().default("GET"),
   followRedirects: z.boolean().optional().default(true),
   maxRedirects: z.number().min(0).optional().default(10),
+  // Authentication configuration (Basic, Bearer, OAuth2)
+  auth: HttpAuthSchema.optional(),
   headers: z
     .array(
       z.object({
@@ -97,7 +135,8 @@ export const WebSocketTargetSchema = z.object({
     .array(
       z.object({
         name: z.string(),
-        value: z.string(),
+        value: z.string().optional(),
+        valueFromSecretRef: SecretRefSchema.optional(),
       }),
     )
     .optional(),

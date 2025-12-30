@@ -1,11 +1,9 @@
 /**
  * MySQL Monitor E2E Tests
  *
- * Note: These tests require:
- * - A mock MySQL server running
- * - Kubernetes secrets for credentials
- *
- * Skipped by default - enable when infrastructure is ready.
+ * Requires:
+ * - MySQL running via docker-compose.e2e.yml
+ * - Kubernetes secrets (e2e/k8s/database-secrets.yaml)
  */
 
 import { afterEach, describe, test } from "bun:test";
@@ -20,9 +18,7 @@ import {
   waitForMonitorStatus,
 } from "../lib";
 
-// Database E2E tests are slow (each waits for K8s job completion)
-// Skip in CI to avoid timeout, run manually for integration testing
-describe.skip("MySQL Monitor E2E", () => {
+describe("MySQL Monitor E2E", () => {
   const createdMonitors: string[] = [];
 
   // Cleanup after each test

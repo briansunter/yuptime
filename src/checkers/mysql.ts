@@ -1,7 +1,21 @@
 import { logger } from "../lib/logger";
-import { resolveSecretCached } from "../lib/secrets";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
+
+/**
+ * Get MySQL credentials from environment variables.
+ * These are injected by the Job builder from Kubernetes secrets.
+ */
+function getCredentialsFromEnv(): { username: string; password: string } | null {
+  const username = process.env.YUPTIME_CRED_MYSQL_USERNAME;
+  const password = process.env.YUPTIME_CRED_MYSQL_PASSWORD;
+
+  if (!username || !password) {
+    return null;
+  }
+
+  return { username, password };
+}
 
 /**
  * MySQL client interface for dependency injection
@@ -82,31 +96,23 @@ async function checkMySqlWithFactory(
   const startTime = Date.now();
 
   try {
-    // Resolve credentials from Kubernetes Secret
-    const namespace = monitor.metadata.namespace;
-    const secretName = target.credentialsSecretRef.name;
-    const usernameKey = target.credentialsSecretRef.usernameKey ?? "username";
-    const passwordKey = target.credentialsSecretRef.passwordKey ?? "password";
+    // Get credentials from environment variables (injected by Job builder)
+    const credentials = getCredentialsFromEnv();
 
-    const [username, password] = await Promise.all([
-      resolveSecretCached(namespace, secretName, usernameKey),
-      resolveSecretCached(namespace, secretName, passwordKey),
-    ]);
-
-    if (!username || !password) {
+    if (!credentials) {
       return {
         state: "down",
         latencyMs: Date.now() - startTime,
         reason: "CREDENTIALS_ERROR",
-        message: "Failed to resolve database credentials from secret",
+        message: "MySQL credentials not found in environment",
       };
     }
 
     const client = await clientFactory({
       host: target.host,
       port: target.port ?? 3306,
-      user: username,
-      password: password,
+      user: credentials.username,
+      password: credentials.password,
       database: target.database,
       connectTimeout: timeout * 1000,
     });

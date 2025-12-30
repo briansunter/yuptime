@@ -18,7 +18,8 @@ export const TCP_SLOW_PORT = 8085;
 // Database mock server ports (using non-standard ports to avoid conflicts in CI)
 export const MYSQL_PORT = 13306;
 export const POSTGRESQL_PORT = 15432;
-export const REDIS_PORT = 16379;
+export const REDIS_PORT = 16379; // Redis without auth
+export const REDIS_AUTH_PORT = 16380; // Redis with auth
 export const GRPC_PORT = 50151;
 
 // Kubernetes configuration

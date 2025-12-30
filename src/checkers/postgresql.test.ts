@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   createPostgreSqlMonitor,
   createPostgreSqlMonitorNoTarget,
@@ -6,28 +6,19 @@ import {
 import { createMockPostgreSqlClientFactory } from "../test-utils/mocks/database";
 import { createCheckPostgreSql } from "./postgresql";
 
-// Mock the secrets module
-const mockResolveSecretCached = mock(
-  async (_ns: string, _secret: string, _key: string): Promise<string> => "mock-value",
-);
-mock.module("../lib/secrets", () => ({
-  resolveSecretCached: mockResolveSecretCached,
-}));
-
 describe("checkPostgreSql", () => {
+  // Store original env vars
+  const originalEnv = { ...process.env };
+
   beforeEach(() => {
-    mockResolveSecretCached.mockReset();
-    mockResolveSecretCached.mockImplementation(
-      async (_ns: string, _secret: string, key: string): Promise<string> => {
-        if (key === "username" || key === "usernameKey") return "testuser";
-        if (key === "password" || key === "passwordKey") return "testpass";
-        return "mock-value";
-      },
-    );
+    // Set credentials in environment (simulating Job injection)
+    process.env.YUPTIME_CRED_POSTGRESQL_USERNAME = "testuser";
+    process.env.YUPTIME_CRED_POSTGRESQL_PASSWORD = "testpass";
   });
 
   afterEach(() => {
-    mockResolveSecretCached.mockReset();
+    // Restore original environment
+    process.env = { ...originalEnv };
   });
 
   test("returns up for successful PostgreSQL connection", async () => {
@@ -56,16 +47,17 @@ describe("checkPostgreSql", () => {
     expect(result.message).toBe("No PostgreSQL target configured");
   });
 
-  test("returns down when credentials resolution fails", async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: Test mock needs to return null
-    mockResolveSecretCached.mockImplementation(async (): Promise<any> => null);
+  test("returns down when credentials not in environment", async () => {
+    // Clear credentials from environment
+    delete process.env.YUPTIME_CRED_POSTGRESQL_USERNAME;
+    delete process.env.YUPTIME_CRED_POSTGRESQL_PASSWORD;
 
     const checker = createCheckPostgreSql(createMockPostgreSqlClientFactory());
     const result = await checker(createPostgreSqlMonitor(), 10);
 
     expect(result.state).toBe("down");
     expect(result.reason).toBe("CREDENTIALS_ERROR");
-    expect(result.message).toBe("Failed to resolve database credentials from secret");
+    expect(result.message).toBe("PostgreSQL credentials not found in environment");
   });
 
   // Parameterized error handling tests
