@@ -33,17 +33,15 @@ export function createHttpMonitor(overrides: {
     keyword?: {
       contains?: string[];
       notContains?: string[];
-      regex?: string[];
-    };
-    jsonQuery?: {
-      path: string;
-      exists?: boolean;
-      equals?: unknown;
     };
   };
   labels?: Record<string, string>;
-  alertmanagerUrl?: string;
 }): Monitor {
+  // Determine type based on successCriteria
+  // - If keyword criteria specified → type "keyword"
+  // - Otherwise → type "http"
+  const monitorType = overrides.successCriteria?.keyword ? "keyword" : "http";
+
   return {
     apiVersion: "monitoring.yuptime.io/v1",
     kind: "Monitor",
@@ -57,11 +55,7 @@ export function createHttpMonitor(overrides: {
     },
     spec: {
       enabled: true,
-      type: overrides.successCriteria?.keyword
-        ? "keyword"
-        : overrides.successCriteria?.jsonQuery
-          ? "jsonQuery"
-          : "http",
+      type: monitorType,
       schedule: {
         intervalSeconds: 30,
         timeoutSeconds: overrides.timeoutSeconds ?? 10,
@@ -73,9 +67,6 @@ export function createHttpMonitor(overrides: {
         },
       },
       successCriteria: overrides.successCriteria,
-      alerting: overrides.alertmanagerUrl
-        ? { alertmanagerUrl: overrides.alertmanagerUrl }
-        : undefined,
     },
   };
 }
@@ -244,17 +235,32 @@ export function createDnsMonitor(overrides: {
 
 /**
  * Create a MaintenanceWindow for E2E testing
+ * Uses RRULE format for schedule with durationMinutes
  */
 export function createMaintenanceWindowFixture(overrides: {
   name: string;
-  startTime?: Date;
-  endTime?: Date;
+  schedule?: string; // RRULE format, defaults to "now" (one-time occurrence)
+  durationMinutes?: number;
   matchNamespaces?: string[];
   matchLabels?: Record<string, string>;
+  expired?: boolean; // If true, schedule is in the past
 }): MaintenanceWindow {
+  // Default schedule: one-time occurrence starting now
+  // For expired, use a past date
   const now = new Date();
-  const defaultStart = overrides.startTime ?? new Date(now.getTime() - 60000); // 1 min ago
-  const defaultEnd = overrides.endTime ?? new Date(now.getTime() + 3600000); // 1 hour from now
+  let schedule = overrides.schedule;
+
+  if (!schedule) {
+    if (overrides.expired) {
+      // One-time occurrence 2 hours ago
+      const pastDate = new Date(now.getTime() - 7200000);
+      schedule = `DTSTART:${pastDate.toISOString().replace(/[-:]/g, "").split(".")[0]}Z\nRRULE:FREQ=YEARLY;COUNT=1`;
+    } else {
+      // One-time occurrence starting 1 minute ago (to ensure it's active now)
+      const startDate = new Date(now.getTime() - 60000);
+      schedule = `DTSTART:${startDate.toISOString().replace(/[-:]/g, "").split(".")[0]}Z\nRRULE:FREQ=YEARLY;COUNT=1`;
+    }
+  }
 
   return {
     apiVersion: "monitoring.yuptime.io/v1",
@@ -264,14 +270,14 @@ export function createMaintenanceWindowFixture(overrides: {
       namespace: E2E_NAMESPACE,
     },
     spec: {
-      startTime: defaultStart.toISOString(),
-      endTime: defaultEnd.toISOString(),
+      schedule,
+      durationMinutes: overrides.expired ? 30 : (overrides.durationMinutes ?? 120), // 2 hours default
       selector: {
         ...(overrides.matchNamespaces && {
           matchNamespaces: overrides.matchNamespaces,
         }),
         ...(overrides.matchLabels && {
-          matchLabels: { matchLabels: overrides.matchLabels },
+          matchLabels: overrides.matchLabels,
         }),
       },
     },
@@ -280,15 +286,29 @@ export function createMaintenanceWindowFixture(overrides: {
 
 /**
  * Create a Silence for E2E testing
+ * Uses startsAt and endsAt timestamps
  */
 export function createSilenceFixture(overrides: {
   name: string;
-  expiresAt?: Date;
+  startsAt?: Date;
+  endsAt?: Date;
   matchNamespaces?: string[];
-  matchNames?: Array<{ namespace: string; name: string }>;
   matchLabels?: Record<string, string>;
+  expired?: boolean; // If true, silence is already expired
 }): Silence {
-  const defaultExpires = overrides.expiresAt ?? new Date(Date.now() + 3600000); // 1 hour from now
+  const now = new Date();
+  let startsAt: Date;
+  let endsAt: Date;
+
+  if (overrides.expired) {
+    // Expired silence: ended 1 hour ago
+    startsAt = overrides.startsAt ?? new Date(now.getTime() - 7200000); // 2 hours ago
+    endsAt = overrides.endsAt ?? new Date(now.getTime() - 3600000); // 1 hour ago
+  } else {
+    // Active silence: started 1 minute ago, ends in 1 hour
+    startsAt = overrides.startsAt ?? new Date(now.getTime() - 60000); // 1 min ago
+    endsAt = overrides.endsAt ?? new Date(now.getTime() + 3600000); // 1 hour from now
+  }
 
   return {
     apiVersion: "monitoring.yuptime.io/v1",
@@ -298,14 +318,14 @@ export function createSilenceFixture(overrides: {
       namespace: E2E_NAMESPACE,
     },
     spec: {
-      expiresAt: defaultExpires.toISOString(),
+      startsAt: startsAt.toISOString(),
+      endsAt: endsAt.toISOString(),
       selector: {
         ...(overrides.matchNamespaces && {
           matchNamespaces: overrides.matchNamespaces,
         }),
-        ...(overrides.matchNames && { matchNames: overrides.matchNames }),
         ...(overrides.matchLabels && {
-          matchLabels: { matchLabels: overrides.matchLabels },
+          matchLabels: overrides.matchLabels,
         }),
       },
     },
@@ -351,23 +371,6 @@ export const httpFixtures = {
       },
     }),
 
-  jsonQueryMatch: () =>
-    createHttpMonitor({
-      name: "http-json-match",
-      url: getHttpUrl("/json"),
-      successCriteria: {
-        jsonQuery: { path: "status", equals: "ok" },
-      },
-    }),
-
-  jsonQueryFail: () =>
-    createHttpMonitor({
-      name: "http-json-fail",
-      url: getHttpUrl("/json"),
-      successCriteria: {
-        jsonQuery: { path: "status", equals: "error" },
-      },
-    }),
 
   latencyExceeded: () =>
     createHttpMonitor({
@@ -378,12 +381,7 @@ export const httpFixtures = {
       },
     }),
 
-  withAlerting: () =>
-    createHttpMonitor({
-      name: "http-with-alerting",
-      url: getHttpUrl("/status/500"),
-      alertmanagerUrl: getAlertmanagerUrl(),
-    }),
+  // Note: Alerting is configured via NotificationPolicy CRD, not directly on Monitor
 };
 
 export const tcpFixtures = {
@@ -418,6 +416,8 @@ export const tcpFixtures = {
     createTcpMonitor({
       name: "tcp-timeout",
       port: TCP_SLOW_PORT,
+      send: "PING",
+      expect: "PONG", // Slow server delays response, causing timeout
       timeoutSeconds: 1,
     }),
 };
@@ -447,6 +447,8 @@ export const wsFixtures = {
     createWebSocketMonitor({
       name: "ws-timeout",
       url: getWsUrl("/slow"),
+      send: "test", // Send message and expect response
+      expect: "test", // Server delays 2s, so 1s timeout should trigger
       timeoutSeconds: 1,
     }),
 };
@@ -462,6 +464,7 @@ export const pingFixtures = {
     createPingMonitor({
       name: "ping-unreachable",
       host: "192.0.2.1", // TEST-NET-1, not routable
+      timeoutSeconds: 3, // Shorter timeout for faster tests
     }),
 };
 

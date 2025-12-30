@@ -167,6 +167,17 @@ spec:
                           type: integer
                           minimum: 1
                           default: 1
+                    websocket:
+                      type: object
+                      required:
+                        - url
+                      properties:
+                        url:
+                          type: string
+                        send:
+                          type: string
+                        expect:
+                          type: string
                 successCriteria:
                   type: object
                   properties:

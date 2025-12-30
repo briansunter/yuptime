@@ -1,8 +1,9 @@
 /**
  * Kubernetes Client Utilities for E2E Tests
+ * Uses kubectl commands for Bun compatibility
  */
 
-import * as k8s from "@kubernetes/client-node";
+import { $ } from "bun";
 import {
   DEFAULT_TIMEOUT_MS,
   E2E_NAMESPACE,
@@ -10,17 +11,16 @@ import {
   STATUS_POLL_INTERVAL_MS,
 } from "./config";
 
-// Initialize Kubernetes client
-const kc = new k8s.KubeConfig();
-kc.loadFromDefault();
+// Helper to run kubectl commands
+async function kubectl(args: string[]): Promise<string> {
+  const result = await $`kubectl ${args}`.quiet();
+  return result.text();
+}
 
-const customApi = kc.makeApiClient(k8s.CustomObjectsApi);
-const batchApi = kc.makeApiClient(k8s.BatchV1Api);
-const _coreApi = kc.makeApiClient(k8s.CoreV1Api);
-
-// CRD configuration
-const CRD_GROUP = "monitoring.yuptime.io";
-const CRD_VERSION = "v1";
+async function kubectlJson<T>(args: string[]): Promise<T> {
+  const result = await kubectl([...args, "-o", "json"]);
+  return JSON.parse(result);
+}
 
 export interface Monitor {
   apiVersion: string;
@@ -70,11 +70,12 @@ export interface MaintenanceWindow {
     namespace: string;
   };
   spec: {
-    startTime: string;
-    endTime: string;
+    schedule: string; // RRULE format
+    durationMinutes: number;
+    description?: string;
     selector?: {
       matchNamespaces?: string[];
-      matchLabels?: { matchLabels?: Record<string, string> };
+      matchLabels?: Record<string, string>;
     };
   };
 }
@@ -87,11 +88,12 @@ export interface Silence {
     namespace: string;
   };
   spec: {
-    expiresAt: string;
+    startsAt: string;
+    endsAt: string;
+    reason?: string;
     selector?: {
       matchNamespaces?: string[];
-      matchNames?: Array<{ namespace: string; name: string }>;
-      matchLabels?: { matchLabels?: Record<string, string> };
+      matchLabels?: Record<string, string>;
     };
   };
 }
@@ -101,16 +103,23 @@ export interface Silence {
  */
 export async function createMonitor(monitor: Monitor): Promise<Monitor> {
   const namespace = monitor.metadata.namespace || E2E_NAMESPACE;
+  monitor.metadata.namespace = namespace;
 
-  const result = await customApi.createNamespacedCustomObject(
-    CRD_GROUP,
-    CRD_VERSION,
-    namespace,
-    "monitors",
-    monitor,
-  );
+  // Write monitor to temp file and apply
+  const tempFile = `/tmp/monitor-${Date.now()}.json`;
+  await Bun.write(tempFile, JSON.stringify(monitor));
 
-  return result.body as Monitor;
+  try {
+    await kubectl(["apply", "-f", tempFile, "-n", namespace]);
+    return await getMonitor(monitor.metadata.name, namespace);
+  } finally {
+    // Clean up temp file
+    try {
+      await $`rm ${tempFile}`.quiet();
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
 }
 
 /**
@@ -120,15 +129,7 @@ export async function getMonitor(
   name: string,
   namespace: string = E2E_NAMESPACE,
 ): Promise<Monitor> {
-  const result = await customApi.getNamespacedCustomObject(
-    CRD_GROUP,
-    CRD_VERSION,
-    namespace,
-    "monitors",
-    name,
-  );
-
-  return result.body as Monitor;
+  return await kubectlJson<Monitor>(["get", "monitor", name, "-n", namespace]);
 }
 
 /**
@@ -139,18 +140,9 @@ export async function deleteMonitor(
   namespace: string = E2E_NAMESPACE,
 ): Promise<void> {
   try {
-    await customApi.deleteNamespacedCustomObject(
-      CRD_GROUP,
-      CRD_VERSION,
-      namespace,
-      "monitors",
-      name,
-    );
-  } catch (error) {
-    // Ignore 404 errors
-    if ((error as { response?: { statusCode: number } }).response?.statusCode !== 404) {
-      throw error;
-    }
+    await kubectl(["delete", "monitor", name, "-n", namespace, "--ignore-not-found"]);
+  } catch {
+    // Ignore errors
   }
 }
 
@@ -159,16 +151,21 @@ export async function deleteMonitor(
  */
 export async function createMaintenanceWindow(mw: MaintenanceWindow): Promise<MaintenanceWindow> {
   const namespace = mw.metadata.namespace || E2E_NAMESPACE;
+  mw.metadata.namespace = namespace;
 
-  const result = await customApi.createNamespacedCustomObject(
-    CRD_GROUP,
-    CRD_VERSION,
-    namespace,
-    "maintenancewindows",
-    mw,
-  );
+  const tempFile = `/tmp/mw-${Date.now()}.json`;
+  await Bun.write(tempFile, JSON.stringify(mw));
 
-  return result.body as MaintenanceWindow;
+  try {
+    await kubectl(["apply", "-f", tempFile, "-n", namespace]);
+    return await kubectlJson<MaintenanceWindow>(["get", "maintenancewindow", mw.metadata.name, "-n", namespace]);
+  } finally {
+    try {
+      await $`rm ${tempFile}`.quiet();
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 /**
@@ -179,17 +176,9 @@ export async function deleteMaintenanceWindow(
   namespace: string = E2E_NAMESPACE,
 ): Promise<void> {
   try {
-    await customApi.deleteNamespacedCustomObject(
-      CRD_GROUP,
-      CRD_VERSION,
-      namespace,
-      "maintenancewindows",
-      name,
-    );
-  } catch (error) {
-    if ((error as { response?: { statusCode: number } }).response?.statusCode !== 404) {
-      throw error;
-    }
+    await kubectl(["delete", "maintenancewindow", name, "-n", namespace, "--ignore-not-found"]);
+  } catch {
+    // Ignore errors
   }
 }
 
@@ -198,16 +187,21 @@ export async function deleteMaintenanceWindow(
  */
 export async function createSilence(silence: Silence): Promise<Silence> {
   const namespace = silence.metadata.namespace || E2E_NAMESPACE;
+  silence.metadata.namespace = namespace;
 
-  const result = await customApi.createNamespacedCustomObject(
-    CRD_GROUP,
-    CRD_VERSION,
-    namespace,
-    "silences",
-    silence,
-  );
+  const tempFile = `/tmp/silence-${Date.now()}.json`;
+  await Bun.write(tempFile, JSON.stringify(silence));
 
-  return result.body as Silence;
+  try {
+    await kubectl(["apply", "-f", tempFile, "-n", namespace]);
+    return await kubectlJson<Silence>(["get", "silence", silence.metadata.name, "-n", namespace]);
+  } finally {
+    try {
+      await $`rm ${tempFile}`.quiet();
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 /**
@@ -218,18 +212,17 @@ export async function deleteSilence(
   namespace: string = E2E_NAMESPACE,
 ): Promise<void> {
   try {
-    await customApi.deleteNamespacedCustomObject(
-      CRD_GROUP,
-      CRD_VERSION,
-      namespace,
-      "silences",
-      name,
-    );
-  } catch (error) {
-    if ((error as { response?: { statusCode: number } }).response?.statusCode !== 404) {
-      throw error;
-    }
+    await kubectl(["delete", "silence", name, "-n", namespace, "--ignore-not-found"]);
+  } catch {
+    // Ignore errors
   }
+}
+
+interface JobList {
+  items: Array<{
+    metadata: { name: string };
+    status?: { succeeded?: number; failed?: number };
+  }>;
 }
 
 /**
@@ -245,17 +238,17 @@ export async function waitForJobCompletion(
 
   while (Date.now() - startTime < timeoutMs) {
     try {
-      const jobs = await batchApi.listNamespacedJob(
+      const jobs = await kubectlJson<JobList>([
+        "get",
+        "jobs",
+        "-n",
         namespace,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
+        "-l",
         labelSelector,
-      );
+      ]);
 
       // Check if any job has completed
-      const completedJob = jobs.body.items.find(
+      const completedJob = jobs.items.find(
         (job) => job.status?.succeeded && job.status.succeeded > 0,
       );
 
@@ -335,23 +328,7 @@ export async function deleteMonitorsByLabel(
   namespace: string = E2E_NAMESPACE,
 ): Promise<void> {
   try {
-    const result = await customApi.listNamespacedCustomObject(
-      CRD_GROUP,
-      CRD_VERSION,
-      namespace,
-      "monitors",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      labelSelector,
-    );
-
-    const monitors = (result.body as { items: Monitor[] }).items;
-
-    for (const monitor of monitors) {
-      await deleteMonitor(monitor.metadata.name, namespace);
-    }
+    await kubectl(["delete", "monitors", "-n", namespace, "-l", labelSelector, "--ignore-not-found"]);
   } catch {
     // Ignore errors
   }

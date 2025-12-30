@@ -3,7 +3,7 @@
  */
 
 import { expect } from "bun:test";
-import { getHttpUrl } from "./config";
+import { getLocalHttpUrl } from "./config";
 import type { MonitorStatus } from "./k8s-client";
 
 /**
@@ -86,18 +86,20 @@ export function assertLatency(
 
 /**
  * Get alerts from mock Alertmanager
+ * Uses localhost since this runs from the test runner, not from K8s pods
  */
 export async function getReceivedAlerts(): Promise<unknown[]> {
-  const response = await fetch(getHttpUrl("/alertmanager/alerts"));
+  const response = await fetch(getLocalHttpUrl("/alertmanager/alerts"));
   const data = (await response.json()) as { alerts: unknown[] };
   return data.alerts;
 }
 
 /**
  * Clear alerts in mock Alertmanager
+ * Uses localhost since this runs from the test runner, not from K8s pods
  */
 export async function clearReceivedAlerts(): Promise<void> {
-  await fetch(getHttpUrl("/alertmanager/alerts/clear"), { method: "POST" });
+  await fetch(getLocalHttpUrl("/alertmanager/alerts/clear"), { method: "POST" });
 }
 
 /**
@@ -137,10 +139,14 @@ export async function assertNoAlertsReceived(): Promise<void> {
 }
 
 /**
- * Generate a unique test name with timestamp
+ * Generate a unique test name with random suffix
+ * Keeps names short to stay under Kubernetes 63-char label limit
+ * Job name format: monitor-{namespace}-{name}-{timestamp} (~35 chars overhead)
+ * So monitor name should be <= 28 chars to be safe
  */
 export function uniqueTestName(prefix: string): string {
-  const timestamp = Date.now();
+  // Limit prefix to 20 chars to leave room for random suffix
+  const shortPrefix = prefix.length > 20 ? prefix.substring(0, 20) : prefix;
   const random = Math.random().toString(36).substring(2, 8);
-  return `${prefix}-${timestamp}-${random}`;
+  return `${shortPrefix}-${random}`;
 }

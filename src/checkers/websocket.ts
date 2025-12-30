@@ -26,6 +26,7 @@ function connectWebSocket(
     const startTime = Date.now();
     let ws: WebSocket | null = null;
     let timeoutHandle: NodeJS.Timeout | null = null;
+    let resolved = false; // Guard against double resolution
 
     const cleanup = () => {
       if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -39,6 +40,9 @@ function connectWebSocket(
     };
 
     const resolveWithTimeout = (result: WebSocketResult) => {
+      // Prevent double resolution - onclose may fire synchronously during cleanup
+      if (resolved) return;
+      resolved = true;
       cleanup();
       resolve(result);
     };

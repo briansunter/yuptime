@@ -48,7 +48,7 @@ describe("Monitor Lifecycle E2E", () => {
 
     // If we get here, job was created and completed
     expect(true).toBe(true);
-  });
+  }, 60000); // Allow time for job scheduling and completion
 
   test("updates status after job completion", async () => {
     const monitor = createHttpMonitor({
@@ -129,5 +129,5 @@ describe("Monitor Lifecycle E2E", () => {
     // Disabled monitors should not have a lastResult
     // (or may have no status at all)
     expect(result.status?.lastResult).toBeUndefined();
-  });
+  }, 15000); // Allow time for potential job creation
 });

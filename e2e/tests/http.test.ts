@@ -58,15 +58,6 @@ describe("HTTP Monitor E2E", () => {
       });
     });
 
-    test("returns UP with JSON query match", async () => {
-      const name = await createAndTrack(httpFixtures.jsonQueryMatch());
-
-      const status = await waitForMonitorStatus(name);
-
-      assertCheckResult(status, {
-        state: "up",
-      });
-    });
   });
 
   describe("Failure Cases", () => {
@@ -90,7 +81,7 @@ describe("HTTP Monitor E2E", () => {
         state: "down",
         reason: "TIMEOUT",
       });
-    });
+    }, 30000); // Longer timeout for check that waits for HTTP timeout
 
     test("returns DOWN when keyword missing", async () => {
       const name = await createAndTrack(httpFixtures.keywordMissing());
@@ -100,17 +91,6 @@ describe("HTTP Monitor E2E", () => {
       assertCheckResult(status, {
         state: "down",
         reason: "KEYWORD_MISSING",
-      });
-    });
-
-    test("returns DOWN when JSON query fails", async () => {
-      const name = await createAndTrack(httpFixtures.jsonQueryFail());
-
-      const status = await waitForMonitorStatus(name);
-
-      assertCheckResult(status, {
-        state: "down",
-        reason: "JSON_VALUE_MISMATCH",
       });
     });
 

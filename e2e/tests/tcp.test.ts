@@ -87,5 +87,5 @@ describe("TCP Monitor E2E", () => {
       state: "down",
       reason: "TIMEOUT",
     });
-  });
+  }, 30000); // Longer timeout for check that waits for TCP timeout
 });
