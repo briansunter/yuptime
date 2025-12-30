@@ -6,13 +6,16 @@
 import type { V1Job } from "@kubernetes/client-node";
 import type { Monitor } from "./types";
 
+// Default checker image from environment or fallback
+const DEFAULT_CHECKER_IMAGE = process.env.CHECKER_IMAGE || "yuptime-checker:latest";
+
 /**
  * Build a Kubernetes Job manifest for a monitor check
  */
 export function buildJobForMonitor(
   monitor: Monitor,
   jitterMs: number,
-  image: string = "yuptime-checker:latest",
+  image: string = DEFAULT_CHECKER_IMAGE,
 ): V1Job {
   const namespace = monitor.metadata.namespace || "default";
   const monitorId = `${namespace}/${monitor.metadata.name}`;
@@ -110,6 +113,7 @@ export function buildJobForMonitor(
                 readOnlyRootFilesystem: true,
                 capabilities: {
                   drop: ["ALL"],
+                  add: ["NET_RAW"], // Required for ping checker
                 },
               },
             },

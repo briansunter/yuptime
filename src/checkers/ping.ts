@@ -5,9 +5,51 @@ import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
 
 /**
- * Ping checker - ICMP echo requests
+ * Result from executing a ping command
  */
-export async function checkPing(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export interface PingExecResult {
+  stdout: string;
+  stderr?: string;
+}
+
+/**
+ * Error thrown when ping command fails
+ */
+export interface PingExecError extends Error {
+  killed?: boolean;
+  stderr?: string;
+}
+
+/**
+ * Executor function for running ping commands
+ * Allows dependency injection for testing
+ */
+export type PingExecutor = (
+  command: string,
+  args: string[],
+  options: { timeout: number },
+) => Promise<PingExecResult>;
+
+/**
+ * Default executor using Node.js child_process.execFile
+ */
+async function defaultExecutor(
+  command: string,
+  args: string[],
+  options: { timeout: number },
+): Promise<PingExecResult> {
+  const execFileAsync = promisify(execFile);
+  return await execFileAsync(command, args, options);
+}
+
+/**
+ * Internal ping checker implementation with injectable executor
+ */
+async function checkPingWithExecutor(
+  monitor: Monitor,
+  timeout: number,
+  executor: PingExecutor,
+): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.ping;
 
@@ -23,9 +65,6 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
   const startTime = Date.now();
 
   try {
-    // Spawn a ping process
-    const execFileAsync = promisify(execFile);
-
     const packetCount = target.packetCount || 1;
     const host = target.host;
 
@@ -43,7 +82,7 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
     }
 
     try {
-      const { stdout } = await execFileAsync(command, args, {
+      const { stdout } = await executor(command, args, {
         timeout: timeout * 1000,
       });
 
@@ -74,7 +113,8 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
       }
 
       // If we can't parse latency, just check for success indicators
-      if (stdout.toLowerCase().includes("unreachable") || stdout.includes("100% packet loss")) {
+      // Note: Use regex for packet loss check due to Bun bug with includes("%")
+      if (stdout.toLowerCase().includes("unreachable") || /100\.0%?\s*packet loss/i.test(stdout)) {
         return {
           state: "down",
           latencyMs,
@@ -93,11 +133,7 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
       const latencyMs = Date.now() - startTime;
 
       // Type narrow to access error properties
-      const err = error as {
-        killed?: boolean;
-        stderr?: string;
-        message?: string;
-      };
+      const err = error as PingExecError;
 
       if (err.killed) {
         return {
@@ -146,4 +182,20 @@ export async function checkPing(monitor: Monitor, timeout: number): Promise<Chec
       message: error instanceof Error ? error.message : "Ping check failed",
     };
   }
+}
+
+/**
+ * Ping checker - ICMP echo requests
+ */
+export async function checkPing(monitor: Monitor, timeout: number): Promise<CheckResult> {
+  return checkPingWithExecutor(monitor, timeout, defaultExecutor);
+}
+
+/**
+ * Create a ping checker with a custom executor (for testing)
+ */
+export function createCheckPing(
+  executor: PingExecutor,
+): (monitor: Monitor, timeout: number) => Promise<CheckResult> {
+  return (monitor: Monitor, timeout: number) => checkPingWithExecutor(monitor, timeout, executor);
 }

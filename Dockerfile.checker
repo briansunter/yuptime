@@ -5,6 +5,14 @@ FROM oven/bun:latest
 
 WORKDIR /app
 
+# Install system dependencies for network checks
+# iputils-ping for ping checker, ca-certificates for TLS
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    iputils-ping \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package.json bun.lock ./
 

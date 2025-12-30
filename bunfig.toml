@@ -3,8 +3,8 @@ root = "src"
 outdir = "dist"
 
 [test]
-# Tests are colocated with source files
-root = "src"
+# Tests are colocated with source files, plus e2e tests
+root = "."
 coverage = true
 coverageDir = "./coverage"
 coverage_threshold = 80

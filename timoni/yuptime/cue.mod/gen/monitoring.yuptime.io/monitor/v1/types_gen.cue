@@ -101,6 +101,11 @@ import "strings"
 				verify?:  bool
 			}
 		}
+		websocket?: {
+			url!:    string
+			send?:   string
+			expect?: string
+		}
 	}
 	type!: "http" | "tcp" | "ping" | "dns" | "keyword" | "jsonQuery" | "websocket" | "push" | "steam" | "k8s" | "docker"
 }

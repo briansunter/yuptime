@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          bun test --coverage 2>&1 | grep -A 100 "Coverage report" | tee coverage.txt || true
+          bun test --coverage src/ 2>&1 | grep -A 100 "Coverage report" | tee coverage.txt || true
           cat coverage.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 

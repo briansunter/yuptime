@@ -4,9 +4,35 @@ import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
 
 /**
- * TCP connection checker
+ * TCP Socket interface for dependency injection
  */
-export async function checkTcp(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export interface TcpSocket {
+  on(event: string, listener: (...args: unknown[]) => void): TcpSocket;
+  connect(port: number, host?: string): TcpSocket;
+  write(buffer: string, cb?: (err?: Error) => void): boolean;
+  destroy(): void;
+}
+
+/**
+ * Socket factory type for dependency injection
+ */
+export type SocketFactory = () => TcpSocket;
+
+/**
+ * Default socket factory using Node.js net module
+ */
+function createDefaultSocket(): TcpSocket {
+  return new net.Socket() as unknown as TcpSocket;
+}
+
+/**
+ * Internal TCP checker implementation with injectable socket factory
+ */
+async function checkTcpWithSocketFactory(
+  monitor: Monitor,
+  timeout: number,
+  socketFactory: SocketFactory,
+): Promise<CheckResult> {
   const spec = monitor.spec;
   const target = spec.target.tcp;
 
@@ -23,8 +49,8 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
 
   try {
     return new Promise((resolve) => {
-      // Create a simple TCP connection using node's net module
-      const socket = new net.Socket();
+      // Create a TCP connection using injected socket factory
+      const socket = socketFactory();
 
       let completed = false;
 
@@ -41,18 +67,21 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
           });
         }
       }, timeout * 1000);
-      socket.on("connect", () => {
+
+      const self: TcpSocket = socket;
+
+      self.on("connect", () => {
         if (completed) return;
 
         const latencyMs = Date.now() - startTime;
-        clearTimeout(timeoutHandle);
-        completed = true;
 
         // If there's a send/expect configured, try it
         if (target.send) {
           socket.write(target.send, (error) => {
             if (error) {
               socket.destroy();
+              completed = true;
+              clearTimeout(timeoutHandle);
               resolve({
                 state: "down",
                 latencyMs,
@@ -67,11 +96,13 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
               let received = "";
               const expectedStr = target.expect;
 
-              socket.on("data", (data) => {
-                received += data.toString();
+              self.on("data", (data: unknown) => {
+                received += (data as Buffer).toString();
 
                 if (received.includes(expectedStr)) {
                   socket.destroy();
+                  completed = true;
+                  clearTimeout(timeoutHandle);
                   resolve({
                     state: "up",
                     latencyMs,
@@ -82,6 +113,8 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
               });
             } else {
               socket.destroy();
+              completed = true;
+              clearTimeout(timeoutHandle);
               resolve({
                 state: "up",
                 latencyMs,
@@ -93,6 +126,8 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
         } else {
           // Just check connection
           socket.destroy();
+          completed = true;
+          clearTimeout(timeoutHandle);
           resolve({
             state: "up",
             latencyMs,
@@ -102,7 +137,7 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
         }
       });
 
-      socket.on("error", (error: Error) => {
+      self.on("error", (...args: unknown[]) => {
         if (completed) return;
 
         clearTimeout(timeoutHandle);
@@ -110,6 +145,7 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
         socket.destroy();
 
         const latencyMs = Date.now() - startTime;
+        const error = args[0] as Error;
 
         if (error.message.includes("ECONNREFUSED")) {
           resolve({
@@ -155,4 +191,21 @@ export async function checkTcp(monitor: Monitor, timeout: number): Promise<Check
       message: error instanceof Error ? error.message : "Unknown error",
     };
   }
+}
+
+/**
+ * TCP connection checker
+ */
+export async function checkTcp(monitor: Monitor, timeout: number): Promise<CheckResult> {
+  return checkTcpWithSocketFactory(monitor, timeout, createDefaultSocket);
+}
+
+/**
+ * Create a TCP checker with a custom socket factory (for testing)
+ */
+export function createCheckTcp(
+  socketFactory: SocketFactory,
+): (monitor: Monitor, timeout: number) => Promise<CheckResult> {
+  return (monitor: Monitor, timeout: number) =>
+    checkTcpWithSocketFactory(monitor, timeout, socketFactory);
 }

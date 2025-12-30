@@ -56,6 +56,11 @@ cleanup() {
     fi
 
     if [ "$should_cleanup" = true ]; then
+        log_info "Stopping mock server..."
+        if [ -n "$MOCK_SERVER_PID" ]; then
+            kill $MOCK_SERVER_PID 2>/dev/null || true
+        fi
+
         log_info "Stopping port forward..."
         kill %1 2>/dev/null || true
 
@@ -119,6 +124,42 @@ parse_args() {
     done
 }
 
+# Check if a port is available (only check LISTEN state)
+check_port_available() {
+    local port=$1
+    if lsof -i :$port -sTCP:LISTEN > /dev/null 2>&1; then
+        return 1
+    fi
+    return 0
+}
+
+# Check all required ports
+check_ports() {
+    print_section "Checking Port Availability"
+
+    local ports=(3000 8080 8081 8082 8083 8084 8085)
+    local blocked_ports=()
+
+    for port in "${ports[@]}"; do
+        if ! check_port_available $port; then
+            blocked_ports+=($port)
+            log_error "Port $port is in use"
+            lsof -i :$port -sTCP:LISTEN 2>/dev/null | head -5
+        else
+            log_success "Port $port is available"
+        fi
+    done
+
+    if [ ${#blocked_ports[@]} -gt 0 ]; then
+        log_error "Some required ports are in use: ${blocked_ports[*]}"
+        log_info "Kill the processes using these ports and try again:"
+        log_info "  lsof -ti :PORT | xargs kill -9"
+        exit 1
+    fi
+
+    log_success "All required ports are available"
+}
+
 # Check prerequisites
 check_prerequisites() {
     print_section "Checking Prerequisites"
@@ -163,6 +204,27 @@ check_prerequisites() {
 
     local timoni_version=$(timoni version 2>/dev/null | head -1)
     log_success "Timoni is available: $timoni_version"
+}
+
+# Start mock server
+start_mock_server() {
+    print_section "Starting Mock Server"
+
+    log_info "Starting mock server in background..."
+    bun run e2e/mock-server/index.ts &
+    MOCK_SERVER_PID=$!
+    sleep 3
+
+    if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+        log_success "Mock server started (PID: $MOCK_SERVER_PID)"
+    else
+        log_error "Failed to start mock server"
+        exit 1
+    fi
+
+    # Get host IP for OrbStack
+    MOCK_HOST="host.docker.internal"
+    log_info "Mock server accessible from pods at: $MOCK_HOST"
 }
 
 # Build Docker images
@@ -473,10 +535,22 @@ verify_monitor_status() {
     kubectl get incidents -n "$NAMESPACE" --no-headers 2>/dev/null || echo "No incidents found"
 }
 
+# Run E2E test suite
+run_e2e_tests() {
+    print_section "Running E2E Tests"
+
+    log_info "Running E2E tests with mock server at $MOCK_HOST..."
+    MOCK_SERVER_HOST=$MOCK_HOST E2E_NAMESPACE=$NAMESPACE bun test "./e2e/tests/*.test.ts" --timeout 120000
+
+    log_success "E2E tests completed"
+}
+
 # Run full test suite
 run_tests() {
     parse_args "$@"
+    check_ports
     check_prerequisites
+    start_mock_server
     build_images
     deploy_yuptime
     wait_for_deployment
@@ -486,6 +560,7 @@ run_tests() {
     wait_for_check_job
     verify_api_endpoints
     verify_monitor_status
+    run_e2e_tests
 }
 
 # Main execution
