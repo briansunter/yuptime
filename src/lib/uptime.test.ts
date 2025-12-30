@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHeartbeats, createHeartbeatsAt } from "../test-utils/helpers";
 import {
   calculateDuration,
   calculateSLA,
@@ -14,63 +15,41 @@ describe("calculateUptime", () => {
   });
 
   test("returns 100% for all up heartbeats", () => {
-    const now = new Date();
-    const heartbeats = [
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 1000) },
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 2000) },
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 3000) },
-    ];
+    const heartbeats = createHeartbeats(["up", "up", "up"]);
     expect(calculateUptime(heartbeats, 60)).toBe(100);
   });
 
   test("returns 0% for all down heartbeats", () => {
-    const now = new Date();
-    const heartbeats = [
-      { state: "down" as const, checkedAt: new Date(now.getTime() - 1000) },
-      { state: "down" as const, checkedAt: new Date(now.getTime() - 2000) },
-    ];
+    const heartbeats = createHeartbeats(["down", "down"]);
     expect(calculateUptime(heartbeats, 60)).toBe(0);
   });
 
   test("calculates correct percentage for mixed states", () => {
-    const now = new Date();
-    const heartbeats = [
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 1000) },
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 2000) },
-      { state: "down" as const, checkedAt: new Date(now.getTime() - 3000) },
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 4000) },
-    ];
+    const heartbeats = createHeartbeats(["up", "up", "down", "up"]);
     expect(calculateUptime(heartbeats, 60)).toBe(75); // 3/4 = 75%
   });
 
   test("filters heartbeats outside the time window", () => {
-    const now = new Date();
+    const now = Date.now();
+    // First heartbeat within 1 min window, second outside
     const heartbeats = [
-      { state: "up" as const, checkedAt: new Date(now.getTime() - 1000) }, // In window
-      { state: "down" as const, checkedAt: new Date(now.getTime() - 120000) }, // Outside 1 min window
+      { state: "up" as const, checkedAt: new Date(now - 1000) },
+      { state: "down" as const, checkedAt: new Date(now - 120000) }, // 2 minutes ago
     ];
     expect(calculateUptime(heartbeats, 1)).toBe(100); // Only the 'up' is in window
   });
 
   test("returns 100% when no heartbeats in window", () => {
-    const now = new Date();
-    const heartbeats = [
-      { state: "down" as const, checkedAt: new Date(now.getTime() - 120000) }, // 2 min ago
-    ];
+    const now = Date.now();
+    const heartbeats = createHeartbeatsAt(["down"], now - 120000, 1000); // 2 min ago
     expect(calculateUptime(heartbeats, 1)).toBe(100); // No heartbeats in 1 min window
   });
 
   test("handles string dates", () => {
-    const now = new Date();
+    const now = Date.now();
     const heartbeats = [
-      {
-        state: "up" as const,
-        checkedAt: new Date(now.getTime() - 1000).toISOString(),
-      },
-      {
-        state: "down" as const,
-        checkedAt: new Date(now.getTime() - 2000).toISOString(),
-      },
+      { state: "up" as const, checkedAt: new Date(now - 1000).toISOString() },
+      { state: "down" as const, checkedAt: new Date(now - 2000).toISOString() },
     ];
     expect(calculateUptime(heartbeats, 60)).toBe(50);
   });

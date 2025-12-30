@@ -68,14 +68,119 @@ export function mockDNS(_records: string[]) {
 }
 
 /**
- * Mock TCP connection
+ * TCP Socket interface (mirrors the one in tcp.ts)
  */
-export function mockTCP(_success: boolean, _delay: number = 0) {
-  // TCP mocking requires more sophisticated setup
-  // This is a placeholder for future implementation
-  beforeEach(() => {
-    // TODO: Implement TCP mocking
-  });
+export interface TcpSocket {
+  on(event: string, listener: (...args: unknown[]) => void): TcpSocket;
+  connect(port: number, host?: string): TcpSocket;
+  write(buffer: string, cb?: (err?: Error) => void): boolean;
+  destroy(): void;
+}
+
+/**
+ * Socket factory type
+ */
+export type SocketFactory = () => TcpSocket;
+
+/**
+ * Socket method overrides for mock customization
+ */
+export interface SocketOverrides {
+  on?: (event: string, listener: (...args: unknown[]) => void) => TcpSocket;
+  connect?: (port: number, host?: string) => TcpSocket;
+  write?: (buffer: string, cb?: (err?: Error) => void) => boolean;
+  destroy?: () => void;
+}
+
+/**
+ * Creates a mock socket factory for TCP checker tests
+ * By default creates a socket that successfully connects
+ */
+export function createMockSocketFactory(overrides?: SocketOverrides): SocketFactory {
+  return () => {
+    const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
+
+    const socket: TcpSocket = {
+      on(event: string, listener: (...args: unknown[]) => void) {
+        if (overrides?.on) {
+          return overrides.on.call(this, event, listener);
+        }
+        if (!listeners[event]) {
+          listeners[event] = [];
+        }
+        listeners[event].push(listener);
+        return this;
+      },
+      connect(_port: number, _host?: string): TcpSocket {
+        if (overrides?.connect) {
+          return overrides.connect.call(this, _port, _host);
+        }
+        setTimeout(() => {
+          if (listeners.connect) {
+            for (const l of listeners.connect) {
+              l();
+            }
+          }
+        }, 10);
+        return this;
+      },
+      write(_buffer: string, cb?: (err?: Error) => void): boolean {
+        if (overrides?.write) {
+          return overrides.write.call(this, _buffer, cb);
+        }
+        setTimeout(() => {
+          cb?.();
+        }, 5);
+        return true;
+      },
+      destroy(): void {
+        if (overrides?.destroy) {
+          overrides.destroy.call(this);
+        }
+      },
+    };
+
+    return socket;
+  };
+}
+
+/**
+ * Ping execution result
+ */
+export interface PingExecResult {
+  stdout: string;
+  stderr?: string;
+}
+
+/**
+ * Ping execution error
+ */
+export interface PingExecError extends Error {
+  killed?: boolean;
+  stderr?: string;
+}
+
+/**
+ * Ping executor type
+ */
+export type PingExecutor = (
+  command: string,
+  args: string[],
+  options: { timeout: number },
+) => Promise<PingExecResult>;
+
+/**
+ * Creates a mock ping executor for ping checker tests
+ */
+export function createMockPingExecutor(
+  result: PingExecResult | { error: PingExecError },
+): PingExecutor {
+  return async () => {
+    if ("error" in result) {
+      throw result.error;
+    }
+    return result;
+  };
 }
 
 /**
