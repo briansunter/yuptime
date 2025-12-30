@@ -190,6 +190,15 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 											}
 										}
 									}
+									websocket: {
+										type: "object"
+										required: ["url"]
+										properties: {
+											url: type: "string"
+											send: type: "string"
+											expect: type: "string"
+										}
+									}
 								}
 							}
 							successCriteria: {
