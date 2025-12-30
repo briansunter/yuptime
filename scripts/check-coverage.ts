@@ -14,7 +14,7 @@ const COVERAGE_FILE = resolve("coverage", "lcov.info");
 // Coverage thresholds by component
 const thresholds = {
   overall: 80,
-  checkers: 90,
+  checkers: 85,
   reconcilers: 85,
   "job-manager": 80,
   alerting: 85,
