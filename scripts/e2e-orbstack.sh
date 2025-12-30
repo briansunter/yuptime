@@ -56,6 +56,11 @@ cleanup() {
     fi
 
     if [ "$should_cleanup" = true ]; then
+        log_info "Stopping mock server..."
+        if [ -n "$MOCK_SERVER_PID" ]; then
+            kill $MOCK_SERVER_PID 2>/dev/null || true
+        fi
+
         log_info "Stopping port forward..."
         kill %1 2>/dev/null || true
 
@@ -163,6 +168,27 @@ check_prerequisites() {
 
     local timoni_version=$(timoni version 2>/dev/null | head -1)
     log_success "Timoni is available: $timoni_version"
+}
+
+# Start mock server
+start_mock_server() {
+    print_section "Starting Mock Server"
+
+    log_info "Starting mock server in background..."
+    bun run e2e/mock-server/index.ts &
+    MOCK_SERVER_PID=$!
+    sleep 3
+
+    if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+        log_success "Mock server started (PID: $MOCK_SERVER_PID)"
+    else
+        log_error "Failed to start mock server"
+        exit 1
+    fi
+
+    # Get host IP for OrbStack
+    MOCK_HOST="host.docker.internal"
+    log_info "Mock server accessible from pods at: $MOCK_HOST"
 }
 
 # Build Docker images
@@ -473,10 +499,21 @@ verify_monitor_status() {
     kubectl get incidents -n "$NAMESPACE" --no-headers 2>/dev/null || echo "No incidents found"
 }
 
+# Run E2E test suite
+run_e2e_tests() {
+    print_section "Running E2E Tests"
+
+    log_info "Running E2E tests with mock server at $MOCK_HOST..."
+    MOCK_SERVER_HOST=$MOCK_HOST E2E_NAMESPACE=$NAMESPACE bun test e2e/tests/ --timeout 120000
+
+    log_success "E2E tests completed"
+}
+
 # Run full test suite
 run_tests() {
     parse_args "$@"
     check_prerequisites
+    start_mock_server
     build_images
     deploy_yuptime
     wait_for_deployment
@@ -486,6 +523,7 @@ run_tests() {
     wait_for_check_job
     verify_api_endpoints
     verify_monitor_status
+    run_e2e_tests
 }
 
 # Main execution
