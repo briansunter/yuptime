@@ -12,6 +12,7 @@ import {
   createMonitorSetReconciler,
   createSettingsReconciler,
   createSilenceReconciler,
+  stopDiscoveryController,
 } from "./reconcilers";
 import { createTypeSafeReconciliationHandler } from "./reconcilers/handler";
 import type { TypeSafeReconciler } from "./reconcilers/types";
@@ -68,6 +69,9 @@ export async function startController() {
 export async function stopController() {
   try {
     logger.info("Stopping Kubernetes controller...");
+
+    // Stop Discovery Controller
+    stopDiscoveryController();
 
     // Stop Job Completion Watcher
     if (jobCompletionWatcher) {

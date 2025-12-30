@@ -222,6 +222,81 @@ export const KubernetesTargetSchema = z.object({
 
 export type KubernetesTarget = z.infer<typeof KubernetesTargetSchema>;
 
+// MySQL target configuration
+export const MySqlTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(3306),
+  database: z.string().optional(),
+  credentialsSecretRef: z.object({
+    name: z.string(),
+    usernameKey: z.string().optional().default("username"),
+    passwordKey: z.string().optional().default("password"),
+  }),
+  healthQuery: z.string().optional().default("SELECT 1"),
+  tls: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      verify: z.boolean().optional().default(true),
+    })
+    .optional(),
+});
+
+export type MySqlTarget = z.infer<typeof MySqlTargetSchema>;
+
+// PostgreSQL target configuration
+export const PostgreSqlTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(5432),
+  database: z.string().optional().default("postgres"),
+  credentialsSecretRef: z.object({
+    name: z.string(),
+    usernameKey: z.string().optional().default("username"),
+    passwordKey: z.string().optional().default("password"),
+  }),
+  healthQuery: z.string().optional().default("SELECT 1"),
+  sslMode: z
+    .enum(["disable", "prefer", "require", "verify-ca", "verify-full"])
+    .optional()
+    .default("prefer"),
+});
+
+export type PostgreSqlTarget = z.infer<typeof PostgreSqlTargetSchema>;
+
+// Redis target configuration
+export const RedisTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(6379),
+  database: z.number().min(0).max(15).optional().default(0),
+  credentialsSecretRef: z
+    .object({
+      name: z.string(),
+      passwordKey: z.string().optional().default("password"),
+    })
+    .optional(),
+  tls: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+    })
+    .optional(),
+});
+
+export type RedisTarget = z.infer<typeof RedisTargetSchema>;
+
+// gRPC target configuration
+export const GrpcTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(50051),
+  service: z.string().optional().default(""),
+  tls: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      verify: z.boolean().optional().default(true),
+    })
+    .optional(),
+});
+
+export type GrpcTarget = z.infer<typeof GrpcTargetSchema>;
+
 // Monitor target container
 export const MonitorTargetSchema = z.object({
   http: HttpTargetSchema.optional(),
@@ -233,6 +308,10 @@ export const MonitorTargetSchema = z.object({
   steam: SteamTargetSchema.optional(),
   k8s: K8sTargetSchema.optional(),
   kubernetes: KubernetesTargetSchema.optional(),
+  mysql: MySqlTargetSchema.optional(),
+  postgresql: PostgreSqlTargetSchema.optional(),
+  redis: RedisTargetSchema.optional(),
+  grpc: GrpcTargetSchema.optional(),
   keyword: z
     .object({
       target: z.union([HttpTargetSchema, z.object({ url: z.string() })]),
@@ -269,6 +348,10 @@ export const MonitorSpecSchema = z.object({
     "steam",
     "k8s",
     "docker",
+    "mysql",
+    "postgresql",
+    "redis",
+    "grpc",
   ]),
   schedule: MonitorScheduleSchema,
   target: MonitorTargetSchema,

@@ -9,7 +9,11 @@ import {
   getAlertmanagerUrl,
   getHttpUrl,
   getWsUrl,
+  GRPC_PORT,
   MOCK_SERVER_HOST,
+  MYSQL_PORT,
+  POSTGRESQL_PORT,
+  REDIS_PORT,
   TCP_BANNER_PORT,
   TCP_CONNECT_PORT,
   TCP_ECHO_PORT,
@@ -227,6 +231,194 @@ export function createDnsMonitor(overrides: {
           ...(overrides.expectedValues && {
             expected: { values: overrides.expectedValues },
           }),
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create a MySQL monitor for E2E testing
+ */
+export function createMySqlMonitor(overrides: {
+  name: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  secretName?: string;
+  healthQuery?: string;
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "mysql",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        mysql: {
+          host: overrides.host ?? MOCK_SERVER_HOST,
+          port: overrides.port ?? MYSQL_PORT,
+          ...(overrides.database && { database: overrides.database }),
+          credentialsSecretRef: {
+            name: overrides.secretName ?? "mysql-credentials",
+            usernameKey: "username",
+            passwordKey: "password",
+          },
+          ...(overrides.healthQuery && { healthQuery: overrides.healthQuery }),
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create a PostgreSQL monitor for E2E testing
+ */
+export function createPostgreSqlMonitor(overrides: {
+  name: string;
+  host?: string;
+  port?: number;
+  database?: string;
+  secretName?: string;
+  healthQuery?: string;
+  sslMode?: "disable" | "prefer" | "require" | "verify-ca" | "verify-full";
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "postgresql",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        postgresql: {
+          host: overrides.host ?? MOCK_SERVER_HOST,
+          port: overrides.port ?? POSTGRESQL_PORT,
+          database: overrides.database ?? "postgres",
+          credentialsSecretRef: {
+            name: overrides.secretName ?? "postgresql-credentials",
+            usernameKey: "username",
+            passwordKey: "password",
+          },
+          ...(overrides.healthQuery && { healthQuery: overrides.healthQuery }),
+          ...(overrides.sslMode && { sslMode: overrides.sslMode }),
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create a Redis monitor for E2E testing
+ */
+export function createRedisMonitor(overrides: {
+  name: string;
+  host?: string;
+  port?: number;
+  database?: number;
+  secretName?: string;
+  requiresAuth?: boolean;
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "redis",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        redis: {
+          host: overrides.host ?? MOCK_SERVER_HOST,
+          port: overrides.port ?? REDIS_PORT,
+          ...(overrides.database !== undefined && { database: overrides.database }),
+          ...(overrides.requiresAuth && {
+            credentialsSecretRef: {
+              name: overrides.secretName ?? "redis-credentials",
+              passwordKey: "password",
+            },
+          }),
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create a gRPC monitor for E2E testing
+ */
+export function createGrpcMonitor(overrides: {
+  name: string;
+  host?: string;
+  port?: number;
+  service?: string;
+  tls?: { enabled: boolean; verify?: boolean };
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "grpc",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        grpc: {
+          host: overrides.host ?? MOCK_SERVER_HOST,
+          port: overrides.port ?? GRPC_PORT,
+          ...(overrides.service && { service: overrides.service }),
+          ...(overrides.tls && { tls: overrides.tls }),
         },
       },
     },
@@ -481,5 +673,105 @@ export const dnsFixtures = {
       name: "dns-nxdomain",
       dnsName: "this-domain-definitely-does-not-exist-12345.com",
       recordType: "A",
+    }),
+};
+
+export const mysqlFixtures = {
+  success: () =>
+    createMySqlMonitor({
+      name: "mysql-success",
+    }),
+
+  connectionRefused: () =>
+    createMySqlMonitor({
+      name: "mysql-refused",
+      port: 13306, // Unused port
+    }),
+
+  customDatabase: () =>
+    createMySqlMonitor({
+      name: "mysql-custom-db",
+      database: "testdb",
+    }),
+
+  customQuery: () =>
+    createMySqlMonitor({
+      name: "mysql-custom-query",
+      healthQuery: "SELECT NOW()",
+    }),
+};
+
+export const postgresqlFixtures = {
+  success: () =>
+    createPostgreSqlMonitor({
+      name: "postgresql-success",
+    }),
+
+  connectionRefused: () =>
+    createPostgreSqlMonitor({
+      name: "postgresql-refused",
+      port: 15432, // Unused port
+    }),
+
+  customDatabase: () =>
+    createPostgreSqlMonitor({
+      name: "postgresql-custom-db",
+      database: "testdb",
+    }),
+
+  sslDisabled: () =>
+    createPostgreSqlMonitor({
+      name: "postgresql-ssl-disabled",
+      sslMode: "disable",
+    }),
+};
+
+export const redisFixtures = {
+  success: () =>
+    createRedisMonitor({
+      name: "redis-success",
+    }),
+
+  connectionRefused: () =>
+    createRedisMonitor({
+      name: "redis-refused",
+      port: 16379, // Unused port
+    }),
+
+  withAuth: () =>
+    createRedisMonitor({
+      name: "redis-with-auth",
+      requiresAuth: true,
+    }),
+
+  customDatabase: () =>
+    createRedisMonitor({
+      name: "redis-custom-db",
+      database: 1,
+    }),
+};
+
+export const grpcFixtures = {
+  success: () =>
+    createGrpcMonitor({
+      name: "grpc-success",
+    }),
+
+  connectionRefused: () =>
+    createGrpcMonitor({
+      name: "grpc-refused",
+      port: 50052, // Unused port
+    }),
+
+  customService: () =>
+    createGrpcMonitor({
+      name: "grpc-custom-service",
+      service: "my.custom.Service",
+    }),
+
+  withTls: () =>
+    createGrpcMonitor({
+      name: "grpc-with-tls",
+      tls: { enabled: true, verify: true },
     }),
 };

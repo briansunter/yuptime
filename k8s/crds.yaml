@@ -37,7 +37,7 @@ spec:
                   default: true
                 type:
                   type: string
-                  enum: [http, tcp, ping, dns, keyword, jsonQuery, websocket, push, steam, k8s, docker]
+                  enum: [http, tcp, ping, dns, keyword, jsonQuery, websocket, push, steam, k8s, docker, mysql, postgresql, redis, grpc]
                 schedule:
                   type: object
                   required:
@@ -178,6 +178,137 @@ spec:
                           type: string
                         expect:
                           type: string
+                    mysql:
+                      type: object
+                      required:
+                        - host
+                        - credentialsSecretRef
+                      properties:
+                        host:
+                          type: string
+                        port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                          default: 3306
+                        database:
+                          type: string
+                        credentialsSecretRef:
+                          type: object
+                          required:
+                            - name
+                          properties:
+                            name:
+                              type: string
+                            usernameKey:
+                              type: string
+                              default: username
+                            passwordKey:
+                              type: string
+                              default: password
+                        healthQuery:
+                          type: string
+                          default: "SELECT 1"
+                        tls:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                            verify:
+                              type: boolean
+                              default: true
+                    postgresql:
+                      type: object
+                      required:
+                        - host
+                        - credentialsSecretRef
+                      properties:
+                        host:
+                          type: string
+                        port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                          default: 5432
+                        database:
+                          type: string
+                          default: postgres
+                        credentialsSecretRef:
+                          type: object
+                          required:
+                            - name
+                          properties:
+                            name:
+                              type: string
+                            usernameKey:
+                              type: string
+                              default: username
+                            passwordKey:
+                              type: string
+                              default: password
+                        healthQuery:
+                          type: string
+                          default: "SELECT 1"
+                        sslMode:
+                          type: string
+                          enum: [disable, prefer, require, verify-ca, verify-full]
+                          default: prefer
+                    redis:
+                      type: object
+                      required:
+                        - host
+                      properties:
+                        host:
+                          type: string
+                        port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                          default: 6379
+                        database:
+                          type: integer
+                          minimum: 0
+                          maximum: 15
+                          default: 0
+                        credentialsSecretRef:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            passwordKey:
+                              type: string
+                              default: password
+                        tls:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                    grpc:
+                      type: object
+                      required:
+                        - host
+                      properties:
+                        host:
+                          type: string
+                        port:
+                          type: integer
+                          minimum: 1
+                          maximum: 65535
+                          default: 50051
+                        service:
+                          type: string
+                          description: Service name to check (empty for overall health)
+                        tls:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                            verify:
+                              type: boolean
+                              default: true
                 successCriteria:
                   type: object
                   properties:

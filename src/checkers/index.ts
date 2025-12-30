@@ -1,10 +1,14 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import { checkDns } from "./dns";
+import { checkGrpc } from "./grpc";
 import { type CheckResult, checkHttp, checkJsonQuery, checkKeyword } from "./http";
 import { checkKubernetes } from "./kubernetes";
+import { checkMySql } from "./mysql";
 import { checkPing } from "./ping";
+import { checkPostgreSql } from "./postgresql";
 import { checkPush } from "./push";
+import { checkRedis } from "./redis";
 import { checkSteam } from "./steam";
 import { checkTcp } from "./tcp";
 import { checkWebSocket } from "./websocket";
@@ -60,6 +64,20 @@ export async function executeCheck(monitor: Monitor, timeout: number): Promise<C
           reason: "NOT_IMPLEMENTED",
           message: "Docker checker not yet implemented",
         };
+
+      // Database checks
+      case "mysql":
+        return await checkMySql(monitor, timeout);
+
+      case "postgresql":
+        return await checkPostgreSql(monitor, timeout);
+
+      case "redis":
+        return await checkRedis(monitor, timeout);
+
+      // gRPC health check
+      case "grpc":
+        return await checkGrpc(monitor, timeout);
 
       default: {
         // Ensure all cases are handled
