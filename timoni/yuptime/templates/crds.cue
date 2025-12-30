@@ -189,6 +189,17 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 													warnBeforeDays: type: "integer"
 												}
 											}
+											dns: {
+												type: "object"
+												description: "DNS resolution override (HTTP uses external DNS by default)"
+												properties: {
+													useSystemResolver: type: "boolean"
+													resolvers: {
+														type: "array"
+														items: type: "string"
+													}
+												}
+											}
 										}
 									}
 									tcp: {
@@ -212,6 +223,17 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 													enabled: type: "boolean"
 													verify: type: "boolean"
 													sni: type: "string"
+												}
+											}
+											dns: {
+												type: "object"
+												description: "DNS resolution override (TCP uses system DNS by default)"
+												properties: {
+													useSystemResolver: type: "boolean"
+													resolvers: {
+														type: "array"
+														items: type: "string"
+													}
 												}
 											}
 										}
@@ -357,6 +379,17 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 											properties: {
 												enabled: type: "boolean"
 												verify: type: "boolean"
+											}
+										}
+										dns: {
+											type: "object"
+											description: "DNS resolution override (gRPC uses system DNS by default)"
+											properties: {
+												useSystemResolver: type: "boolean"
+												resolvers: {
+													type: "array"
+													items: type: "string"
+												}
 											}
 										}
 									}
@@ -1216,39 +1249,112 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 					spec: {
 						type: "object"
 						properties: {
-							auth: {
+							mode: {
 								type: "object"
 								properties: {
-									mode: {
-										type: "string"
-										enum: ["local", "oidc", "none"]
+									gitOpsReadOnly: {
+										type: "boolean"
+										default: false
 									}
-									oidc: {
+									singleInstanceRequired: {
+										type: "boolean"
+										default: true
+									}
+								}
+							}
+							scheduler: {
+								type: "object"
+								properties: {
+									minIntervalSeconds: {
+										type: "integer"
+										minimum: 1
+										default: 20
+									}
+									maxConcurrentNetChecks: {
+										type: "integer"
+										minimum: 1
+										default: 200
+									}
+									maxConcurrentPrivChecks: {
+										type: "integer"
+										minimum: 1
+										default: 20
+									}
+									defaultTimeoutSeconds: {
+										type: "integer"
+										minimum: 1
+										default: 10
+									}
+									jitterPercent: {
+										type: "integer"
+										minimum: 0
+										maximum: 100
+										default: 5
+									}
+									flapping: {
 										type: "object"
 										properties: {
-											issuer: type: "string"
-											clientId: type: "string"
-											clientSecretRef: {
-												type: "object"
-												properties: {
-													name: type: "string"
-													key: type: "string"
-												}
+											enabled: {
+												type: "boolean"
+												default: true
+											}
+											toggleThreshold: {
+												type: "integer"
+												minimum: 1
+												default: 6
+											}
+											windowMinutes: {
+												type: "integer"
+												minimum: 1
+												default: 10
+											}
+											suppressNotificationsMinutes: {
+												type: "integer"
+												minimum: 0
+												default: 30
 											}
 										}
 									}
 								}
 							}
-							retention: {
+							networking: {
 								type: "object"
 								properties: {
-									heartbeats: {
-										type: "object"
-										properties: days: type: "integer"
+									userAgent: {
+										type: "string"
+										default: "Yuptime/1.0"
 									}
-									incidents: {
+									dns: {
 										type: "object"
-										properties: days: type: "integer"
+										description: "DNS resolution settings (defaults to external DNS for true external testing)"
+										properties: {
+											resolvers: {
+												type: "array"
+												items: type: "string"
+												default: ["8.8.8.8", "1.1.1.1"]
+											}
+											timeoutSeconds: {
+												type: "integer"
+												minimum: 1
+												default: 5
+											}
+										}
+									}
+									ping: {
+										type: "object"
+										properties: {
+											mode: {
+												type: "string"
+												enum: ["icmp", "tcpFallback", "tcpOnly"]
+												default: "tcpFallback"
+											}
+											tcpFallbackPort: {
+												type: "integer"
+												minimum: 1
+												maximum: 65535
+												default: 443
+											}
+										}
 									}
 								}
 							}

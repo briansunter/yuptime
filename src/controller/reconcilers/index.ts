@@ -4,7 +4,6 @@ export {
   createSettingsReconciler,
   createSilenceReconciler,
   getGlobalSettings,
-  stopDiscoveryController,
 } from "./auth-and-config-reconcilers";
 export { createMaintenanceWindowReconciler } from "./maintenance-window-reconciler";
 // Reconciler factories

@@ -1,3 +1,4 @@
+import { getDnsConfigFromEnv, resolveHostname } from "../lib/dns";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
@@ -155,8 +156,25 @@ async function checkGrpcWithFactory(
   let client: GrpcHealthClient | null = null;
 
   try {
+    // Get DNS config from monitor target or environment (injected by job-builder)
+    const dnsConfig = target.dns ?? getDnsConfigFromEnv();
+
+    // Resolve hostname (gRPC uses system DNS by default, but allows override)
+    const resolvedHost = await resolveHostname(target.host, {
+      config: dnsConfig,
+      defaultToExternal: false, // gRPC checker defaults to system DNS
+      timeoutMs: timeout * 1000,
+    });
+
+    if (resolvedHost !== target.host) {
+      logger.debug(
+        { monitor: monitor.metadata.name, originalHost: target.host, resolvedHost },
+        "Using resolved IP for gRPC connection",
+      );
+    }
+
     client = await clientFactory({
-      host: target.host,
+      host: resolvedHost,
       port: target.port ?? 50051,
       tls: target.tls?.enabled ?? false,
       verifyTls: target.tls?.verify ?? true,

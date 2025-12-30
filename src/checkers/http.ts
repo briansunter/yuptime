@@ -1,3 +1,4 @@
+import { getDnsConfigFromEnv, resolveHostname } from "../lib/dns";
 import { logger } from "../lib/logger";
 import { fetchOAuth2Token } from "../lib/oauth";
 import { resolveSecretCached } from "../lib/secrets";
@@ -102,6 +103,40 @@ export async function checkHttp(monitor: Monitor, timeout: number): Promise<Chec
     // Add default headers
     headers.set("User-Agent", "Yuptime/1.0");
 
+    // Resolve hostname using external DNS by default (for true external endpoint testing)
+    const originalUrl = new URL(target.url);
+    const originalHostname = originalUrl.hostname;
+
+    // Get DNS config from monitor target or environment (injected by job-builder)
+    const dnsConfig = target.dns ?? getDnsConfigFromEnv();
+
+    // Resolve hostname (HTTP uses external DNS by default)
+    const resolvedIp = await resolveHostname(originalHostname, {
+      config: dnsConfig,
+      defaultToExternal: true, // HTTP checker defaults to external DNS
+      timeoutMs: timeout * 1000,
+    });
+
+    // Build the URL to use for the request
+    let fetchUrl = target.url;
+    if (resolvedIp !== originalHostname) {
+      // Replace hostname with resolved IP
+      const resolvedUrl = new URL(target.url);
+      resolvedUrl.hostname = resolvedIp;
+      fetchUrl = resolvedUrl.toString();
+
+      // Set Host header to original hostname (required for virtual hosts and TLS SNI)
+      headers.set(
+        "Host",
+        originalUrl.port ? `${originalHostname}:${originalUrl.port}` : originalHostname,
+      );
+
+      logger.debug(
+        { monitor: monitor.metadata.name, originalHostname, resolvedIp },
+        "Using resolved IP for HTTP request",
+      );
+    }
+
     // Add authentication headers (Basic, Bearer, OAuth2)
     const authResult = await buildAuthHeaders(target.auth, timeout);
     if (authResult.error) {
@@ -162,7 +197,7 @@ export async function checkHttp(monitor: Monitor, timeout: number): Promise<Chec
     const timeoutHandle = setTimeout(() => controller.abort(), timeout * 1000);
 
     try {
-      const response = await fetch(target.url, {
+      const response = await fetch(fetchUrl, {
         method: target.method || "GET",
         headers,
         body,

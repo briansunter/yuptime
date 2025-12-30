@@ -1,7 +1,6 @@
 import { logger } from "../../lib/logger";
 import type { Silence, YuptimeSettings } from "../../types/crd";
 import { SilenceSchema, YuptimeSettingsSchema } from "../../types/crd";
-import { createDiscoveryController } from "../discovery";
 import type { ReconcileContext } from "./types";
 import { createTypeSafeReconciler } from "./types";
 import {
@@ -213,9 +212,6 @@ type GlobalSettings = {
 
 let globalSettings: GlobalSettings | null = null;
 
-// Discovery controller instance
-let discoveryController: ReturnType<typeof createDiscoveryController> | null = null;
-
 const reconcileSettings = async (resource: YuptimeSettings, _ctx: ReconcileContext) => {
   const name = resource.metadata.name;
 
@@ -224,31 +220,10 @@ const reconcileSettings = async (resource: YuptimeSettings, _ctx: ReconcileConte
   // Update global settings
   globalSettings = resource.spec;
 
-  // Handle discovery controller lifecycle
-  const discoveryEnabled = resource.spec.discovery?.enabled ?? false;
-
-  if (discoveryEnabled) {
-    // Stop existing discovery controller if running (config may have changed)
-    if (discoveryController) {
-      discoveryController.stop();
-    }
-
-    // Create and start new discovery controller
-    discoveryController = createDiscoveryController(resource);
-    await discoveryController.start();
-    logger.info("Discovery controller started from settings reconciler");
-  } else if (discoveryController) {
-    // Stop discovery if it was running
-    discoveryController.stop();
-    discoveryController = null;
-    logger.info("Discovery controller stopped");
-  }
-
   logger.info(
     {
       gitOpsReadOnly: resource.spec.mode?.gitOpsReadOnly,
       minInterval: resource.spec.scheduler?.minIntervalSeconds,
-      discoveryEnabled,
     },
     "YuptimeSettings updated",
   );
@@ -271,16 +246,6 @@ export const getGlobalSettings = () => {
     };
   }
   return globalSettings;
-};
-
-/**
- * Stop the discovery controller (called during shutdown)
- */
-export const stopDiscoveryController = () => {
-  if (discoveryController) {
-    discoveryController.stop();
-    discoveryController = null;
-  }
 };
 
 export const createSilenceReconciler = () =>

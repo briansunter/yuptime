@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { SecretRefSchema, StatusBaseSchema } from "./common";
 
+// DNS resolution configuration (per-monitor override)
+export const DnsConfigSchema = z.object({
+  /** Use system DNS resolver instead of external resolvers */
+  useSystemResolver: z.boolean().optional(),
+  /** Custom DNS resolvers to use (overrides global/default resolvers) */
+  resolvers: z.array(z.string()).optional(),
+});
+
+export type DnsConfig = z.infer<typeof DnsConfigSchema>;
+
 // Monitor schedule configuration
 export const MonitorScheduleSchema = z.object({
   intervalSeconds: z.number().min(1),
@@ -94,6 +104,8 @@ export const HttpTargetSchema = z.object({
       urlFromSecretRef: SecretRefSchema.optional(),
     })
     .optional(),
+  // DNS resolution override (HTTP uses external DNS by default)
+  dns: DnsConfigSchema.optional(),
 });
 
 export type HttpTarget = z.infer<typeof HttpTargetSchema>;
@@ -111,6 +123,8 @@ export const TcpTargetSchema = z.object({
       sni: z.string().optional(),
     })
     .optional(),
+  // DNS resolution override (TCP uses system DNS by default)
+  dns: DnsConfigSchema.optional(),
 });
 
 export type TcpTarget = z.infer<typeof TcpTargetSchema>;
@@ -332,6 +346,8 @@ export const GrpcTargetSchema = z.object({
       verify: z.boolean().optional().default(true),
     })
     .optional(),
+  // DNS resolution override (gRPC uses system DNS by default)
+  dns: DnsConfigSchema.optional(),
 });
 
 export type GrpcTarget = z.infer<typeof GrpcTargetSchema>;
