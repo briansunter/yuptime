@@ -1,191 +1,183 @@
-# Yuptime
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="Yuptime" width="120" height="120" />
+</p>
 
-[![Test Coverage](https://img.shields.io/badge/coverage-91.6%25-brightgreen)](https://github.com/briansunter/yuptime/actions/workflows/ci.yml)
+<h1 align="center">Yuptime</h1>
 
-**Kubernetes-native monitoring where all configuration is CRDs.**
+<p align="center">
+  <strong>Kubernetes-native monitoring where all configuration is CRDs</strong>
+</p>
 
-A single-instance monitoring solution that runs entirely within Kubernetes. All configuration is managed through Custom Resource Definitions (CRDs) — perfect for GitOps workflows with Flux or Argo CD.
+<p align="center">
+  <a href="https://github.com/briansunter/yuptime/actions/workflows/ci.yml"><img src="https://github.com/briansunter/yuptime/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/briansunter/yuptime/actions/workflows/e2e.yml"><img src="https://github.com/briansunter/yuptime/actions/workflows/e2e.yml/badge.svg" alt="E2E Tests"></a>
+  <img src="https://img.shields.io/badge/coverage-91.6%25-brightgreen" alt="Test Coverage">
+  <a href="https://github.com/briansunter/yuptime/releases"><img src="https://img.shields.io/github/v/release/briansunter/yuptime" alt="Release"></a>
+  <a href="https://github.com/briansunter/yuptime/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License"></a>
+</p>
 
-## Key Features
+<p align="center">
+  <a href="https://briansunter.github.io/yuptime">Documentation</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#monitor-types">Monitor Types</a> •
+  <a href="#examples">Examples</a>
+</p>
 
-- **CRD-Driven**: All monitoring configuration is Kubernetes resources
-- **GitOps-Native**: Configuration lives in Git; the app reconciles and executes
-- **10 Monitor Types**: HTTP, TCP, DNS, Ping, WebSocket, JSON queries, Kubernetes endpoints, Steam, and more
-- **Alertmanager Integration**: Direct webhook integration for alert routing
-- **Smart Suppression**: Maintenance windows with RRULE scheduling and ad-hoc silences
-- **Isolated Execution**: Each monitor check runs in isolated Kubernetes Jobs
-- **Database-Free**: Stateless design using CRD status subresources
-- **Prometheus Metrics**: Native metrics export for Grafana dashboards
+---
+
+## Why Yuptime?
+
+**Yuptime** is a monitoring solution designed for Kubernetes-first teams. Unlike traditional monitoring tools that require databases and complex setups, Yuptime stores everything in Kubernetes Custom Resource Definitions (CRDs).
+
+- **🎯 GitOps-Native**: All configuration lives in Git as YAML manifests
+- **📦 Database-Free**: No databases to manage — state lives in CRD status subresources
+- **🔒 Isolated Execution**: Each health check runs in its own Kubernetes Job pod
+- **📊 Prometheus Metrics**: Native metrics export for Grafana dashboards
+- **🔔 Alertmanager Integration**: Direct webhook integration for alert routing
+- **⏰ Smart Suppression**: Maintenance windows with RRULE scheduling and ad-hoc silences
 
 ## Architecture
 
-Yuptime runs as a single pod with controller, job manager, and metrics server. Each monitor check runs in an isolated Kubernetes Job pod.
-
 ```
-Yuptime Pod
-├── Metrics Server (Prometheus scraping on port 3000)
-├── Kubernetes Controller (watches CRDs)
-├── Job Manager (Kubernetes Job execution)
-└── Notification Worker (sends alerts to Alertmanager)
-
-Checker Jobs (isolated pods)
-├── Job 1: Run check → Update Monitor CRD status (no DB)
-└── Job 2: Run check → Update Monitor CRD status (no DB)
-
-External:
-├── Prometheus (metrics storage)
-├── Alertmanager (notification routing)
-└── Grafana (dashboards and visualization)
+┌─────────────────────────────────────────────────────────────────┐
+│                         Yuptime Pod                              │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Metrics   │  │ Controller  │  │      Job Manager        │  │
+│  │   Server    │  │  (Watches   │  │  (Creates K8s Jobs for  │  │
+│  │ (Port 3000) │  │    CRDs)    │  │     each check)         │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Checker Job Pods (Isolated)                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Job 1: HTTP Check    →  Updates Monitor CRD status (no DB)     │
+│  Job 2: TCP Check     →  Updates Monitor CRD status (no DB)     │
+│  Job 3: DNS Check     →  Updates Monitor CRD status (no DB)     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        External Services                         │
+├─────────────────────────────────────────────────────────────────┤
+│  Prometheus (metrics)  │  Alertmanager (alerts)  │  Grafana     │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Design Principles:**
-- Controller only updates status, never spec (source of truth)
-- Stateless checkers with no database access
-- Status updates use merge-patch format
-- GitOps-native with declarative configuration
+**Key Design Principles:**
+- Controller only updates status subresources, never spec (source of truth stays in Git)
+- Stateless checkers with no database access — results written directly to K8s API
+- Each check runs in isolated Job pods for security and resource management
 
 ## Quick Start
 
-**Prerequisites:** Kubernetes cluster (1.26+)
+### Prerequisites
 
-Choose your installation method:
+- Kubernetes cluster (1.26+)
+- kubectl configured
 
-### Option 1: Timoni (Recommended)
+### Installation
 
-Timoni is a CUE-based package manager — most flexible and GitOps-friendly.
+Choose your preferred installation method:
+
+<details>
+<summary><b>📦 Timoni (Recommended)</b></summary>
+
+[Timoni](https://timoni.sh) is a CUE-based package manager — most flexible and GitOps-friendly.
 
 ```bash
 # Install Timoni
-brew install timoni  # macOS
-# or: curl -Lo timoni https://github.com/stefanprodan/timoni/...
+brew install stefanprodan/tap/timoni
 
-# Pull the module from GHCR
-timoni mod pull oci://ghcr.io/briansunter/yuptime/timoni-module --version 0.0.18 -o ./timoni/yuptime
+# Apply the module
+timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
+  --version latest \
+  --namespace yuptime
 
-# Create a values file
-cat > values.cue <<EOF
+# With custom values
+cat > values.cue << 'EOF'
 values: {
   image: {
     repository: "ghcr.io/briansunter/yuptime-api"
-    tag: "0.0.18"  # Use 'latest' for auto-updates
-    pullPolicy: "Always"
+    tag:        "latest"
   }
   checkerImage: {
     repository: "ghcr.io/briansunter/yuptime-checker"
-    tag: "0.0.18"
-    pullPolicy: "Always"
+    tag:        "latest"
   }
   mode: "production"
-  database: {
-    type: "sqlite"
-    sqlite: path: "/data/yuptime.db"
-  }
-  storage: {
-    enabled: true
-    size: "10Gi"
-    storageClass: "standard"  # Adjust for your cluster
-  }
-  auth: {
-    mode: "local"  # or 'oidc'
-    session: secret: "CHANGE-THIS-SECRET"
-    adminUser: {
-      enabled: true
-      username: "admin"
-      passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
-    }
-  }
+  logging: level: "info"
+  crds: install: true
 }
 EOF
 
-# Install
-timoni apply yuptime ./timoni/yuptime -n yuptime -f values.cue
+timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
+  --version latest \
+  --namespace yuptime \
+  -f values.cue
 ```
 
-### Option 2: Helm
+</details>
+
+<details>
+<summary><b>⎈ Helm</b></summary>
 
 Standard Helm 3 installation with OCI registry support.
 
 ```bash
 # Install from GHCR (public, no login required)
-helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime --version 0.0.18
-
-# With custom values file
-cat > values.yaml <<EOF
-image:
-  repository: ghcr.io/briansunter/yuptime-api
-  tag: 0.0.18
-  pullPolicy: Always
-
-checkerImage:
-  repository: ghcr.io/briansunter/yuptime-checker
-  tag: 0.0.18
-  pullPolicy: Always
-
-mode: production
-logging:
-  level: info
-
-database:
-  type: sqlite
-  sqlite:
-    path: /data/yuptime.db
-
-storage:
-  enabled: true
-  size: 10Gi
-  storageClass: standard
-
-auth:
-  mode: local
-  session:
-    secret: CHANGE-THIS-SECRET
-  adminUser:
-    enabled: true
-    username: admin
-    passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
-EOF
-
 helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
-  --version 0.0.18 \
-  -f values.yaml
+  --namespace yuptime \
+  --create-namespace
 
-# Or with --set flags
+# With custom values
 helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
-  --version 0.0.18 \
-  --set database.type=postgresql \
-  --set auth.mode=oidc \
-  --set auth.oidc.issuerUrl=https://your-oidc.com
+  --namespace yuptime \
+  --create-namespace \
+  --set mode=production \
+  --set logging.level=info
 ```
 
-### Option 3: kubectl (Static Manifests)
+</details>
+
+<details>
+<summary><b>📋 kubectl (Static Manifests)</b></summary>
 
 Direct Kubernetes resource application — no tools required.
 
 ```bash
 # Apply CRDs first
-kubectl apply -f manifests/crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/manifests/crds.yaml
 
-# Create namespace
+# Create namespace and apply all resources
 kubectl create namespace yuptime
-
-# Apply all resources
-kubectl apply -f manifests/all.yaml
+kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/manifests/all.yaml -n yuptime
 ```
 
-**Verify Installation:**
+</details>
+
+### Verify Installation
 
 ```bash
+# Check pods are running
 kubectl get pods -n yuptime
-kubectl port-forward -n yuptime svc/yuptime 3000:3000
-open http://localhost:3000
+
+# Check CRDs are installed
+kubectl get crds | grep yuptime
+
+# Port forward to access metrics
+kubectl port-forward -n yuptime svc/yuptime-api 3000:3000
+curl http://localhost:3000/health
 ```
 
-## Usage
+## Your First Monitor
 
-### Create a Monitor
+Create a simple HTTP monitor:
 
 ```yaml
-# monitor.yaml
+# my-monitor.yaml
 apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
@@ -193,56 +185,215 @@ metadata:
   namespace: yuptime
 spec:
   type: http
-  http:
-    url: "https://example.com"
-    method: GET
-    expectedStatus: 200
   schedule:
     intervalSeconds: 60
     timeoutSeconds: 30
-  alert:
-    threshold: 3
-    reopenAfter: "5m"
+  target:
+    http:
+      url: "https://example.com"
+      method: GET
+  successCriteria:
+    http:
+      acceptedStatusCodes: [200, 201]
 ```
 
 ```bash
-kubectl apply -f monitor.yaml
+kubectl apply -f my-monitor.yaml
 ```
 
-### Set Up Alerts
+Check the monitor status:
 
-**1. Notification Provider:**
+```bash
+kubectl get monitors -n yuptime
+kubectl describe monitor example-website -n yuptime
+```
+
+## Monitor Types
+
+Yuptime supports **14 monitor types** for comprehensive infrastructure monitoring:
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **http** | HTTP/HTTPS endpoints | APIs, websites, webhooks |
+| **tcp** | TCP port connectivity | Databases, services |
+| **dns** | DNS record queries | DNS infrastructure |
+| **ping** | ICMP ping checks | Network connectivity |
+| **websocket** | WebSocket connections | Real-time services |
+| **grpc** | gRPC health checks | Microservices |
+| **mysql** | MySQL connectivity | Database health |
+| **postgresql** | PostgreSQL connectivity | Database health |
+| **redis** | Redis PING | Cache health |
+| **kubernetes** | K8s resource health | Deployments, pods |
+| **push** | Push-based monitoring | Custom apps |
+| **steam** | Steam game servers | Gaming infrastructure |
+| **keyword** | Content matching | Page content validation |
+| **jsonQuery** | JSON response validation | API response checking |
+
+## Examples
+
+<details>
+<summary><b>HTTP Monitor with Authentication</b></summary>
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
-kind: NotificationProvider
+kind: Monitor
 metadata:
-  name: slack
+  name: api-with-auth
   namespace: yuptime
 spec:
-  type: slack
-  slack:
-    webhookUrl: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  type: http
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 30
+  target:
+    http:
+      url: "https://api.example.com/health"
+      method: GET
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+      authType: bearer
+      bearerToken:
+        secretRef:
+          name: api-credentials
+          key: token
+  successCriteria:
+    http:
+      acceptedStatusCodes: [200]
 ```
 
-**2. Notification Policy:**
+</details>
+
+<details>
+<summary><b>JSON Response Validation</b></summary>
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
-kind: NotificationPolicy
+kind: Monitor
 metadata:
-  name: critical-alerts
+  name: api-json-check
   namespace: yuptime
 spec:
-  selector:
-    matchLabels:
-      severity: critical
-  providers:
-    - name: slack
-      namespace: yuptime
+  type: jsonQuery
+  schedule:
+    intervalSeconds: 120
+    timeoutSeconds: 30
+  target:
+    http:
+      url: "https://api.example.com/status"
+      method: GET
+  successCriteria:
+    jsonQuery:
+      queries:
+        - path: "$.status"
+          operator: equals
+          value: "healthy"
+        - path: "$.services[*].status"
+          operator: all_equal
+          value: "up"
 ```
 
-### Bulk Monitors (MonitorSet)
+</details>
+
+<details>
+<summary><b>TCP Database Check</b></summary>
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: postgres-connectivity
+  namespace: yuptime
+spec:
+  type: tcp
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+  target:
+    tcp:
+      host: "postgres.database.svc.cluster.local"
+      port: 5432
+```
+
+</details>
+
+<details>
+<summary><b>MySQL Health Check</b></summary>
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: mysql-health
+  namespace: yuptime
+spec:
+  type: mysql
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 10
+  target:
+    mysql:
+      host: "mysql.database.svc.cluster.local"
+      port: 3306
+      database: "myapp"
+      user: "monitor"
+      passwordSecretRef:
+        name: mysql-credentials
+        key: password
+      query: "SELECT 1"
+```
+
+</details>
+
+<details>
+<summary><b>gRPC Health Check</b></summary>
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: grpc-service
+  namespace: yuptime
+spec:
+  type: grpc
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+  target:
+    grpc:
+      host: "my-service.default.svc.cluster.local"
+      port: 50051
+      service: "my.package.MyService"
+      useTLS: false
+```
+
+</details>
+
+<details>
+<summary><b>Kubernetes Deployment Health</b></summary>
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: my-app-deployment
+  namespace: yuptime
+spec:
+  type: kubernetes
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 30
+  target:
+    kubernetes:
+      kind: Deployment
+      name: my-app
+      namespace: production
+      expectedReplicas: 3
+```
+
+</details>
+
+<details>
+<summary><b>Bulk Monitors with MonitorSet</b></summary>
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -251,45 +402,35 @@ metadata:
   name: api-endpoints
   namespace: yuptime
 spec:
+  defaults:
+    schedule:
+      intervalSeconds: 60
+      timeoutSeconds: 30
+    successCriteria:
+      http:
+        acceptedStatusCodes: [200]
   monitors:
     - name: users-api
       type: http
-      http:
-        url: "https://api.example.com/users"
+      target:
+        http:
+          url: "https://api.example.com/users"
       labels:
         team: backend
-        severity: critical
 
     - name: orders-api
       type: http
-      http:
-        url: "https://api.example.com/orders"
+      target:
+        http:
+          url: "https://api.example.com/orders"
       labels:
         team: backend
-        severity: high
 ```
 
-### Status Pages & Suppression
+</details>
 
-**StatusPage:**
-
-```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: StatusPage
-metadata:
-  name: public-status
-  namespace: yuptime
-spec:
-  title: "My Service Status"
-  customDomain: "status.example.com"
-  groups:
-    - name: "Core Services"
-      monitors:
-        - name: website
-          namespace: yuptime
-```
-
-**MaintenanceWindow (RRULE):**
+<details>
+<summary><b>Maintenance Window (RRULE)</b></summary>
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -299,13 +440,16 @@ metadata:
   namespace: yuptime
 spec:
   schedule: "RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=2"
+  duration: "2h"
   selector:
     matchLabels:
       environment: production
-  duration: "2h"
 ```
 
-**Silence (ad-hoc):**
+</details>
+
+<details>
+<summary><b>Ad-hoc Silence</b></summary>
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -314,595 +458,104 @@ metadata:
   name: emergency-silence
   namespace: yuptime
 spec:
-  start: "2025-12-28T10:00:00Z"
-  end: "2025-12-28T12:00:00Z"
-  selector:
-    matchLabels:
-      severity: critical
+  startsAt: "2025-12-30T10:00:00Z"
+  endsAt: "2025-12-30T12:00:00Z"
+  matchers:
+    - name: severity
+      value: critical
+      isRegex: false
+  comment: "Emergency maintenance window"
+  createdBy: "ops-team"
 ```
 
-## Configuration
-
-### Timoni Values Reference
-
-When using Timoni, customize your deployment with a CUE values file:
-
-```cue
-values: {
-  // Container images
-  image: {
-    repository: "ghcr.io/briansunter/yuptime-api"
-    tag: "0.0.18"          // or 'latest' for auto-updates
-    digest: ""             // optional: pin by digest
-    pullPolicy: "Always"   // 'Always', 'IfNotPresent', or 'Never'
-  }
-  checkerImage: {
-    repository: "ghcr.io/briansunter/yuptime-checker"
-    tag: "0.0.18"
-    digest: ""
-    pullPolicy: "Always"
-  }
-
-  // Deployment mode
-  mode: "production"       // 'development' or 'production'
-
-  // Logging configuration
-  logging: level: "info"   // 'debug', 'info', 'warn', 'error'
-
-  // Database configuration
-  database: {
-    type: "sqlite"         // 'sqlite' or 'postgresql'
-    sqlite: path: "/data/yuptime.db"
-    postgresql: {
-      host: "postgresql.yptime.svc.cluster.local"
-      port: 5432
-      database: "yuptime"
-      user: "yuptime"
-      // password: from secretRef
-    }
-  }
-
-  // Persistent storage
-  storage: {
-    enabled: true
-    size: "10Gi"
-    storageClass: "standard"    // adjust for your cluster
-    accessMode: "ReadWriteOnce"
-  }
-
-  // Authentication
-  auth: {
-    mode: "local"         // 'local', 'oidc', or 'disabled'
-    session: secret: "your-session-secret-here"
-    adminUser: {
-      enabled: true
-      username: "admin"
-      // Generate password hash with: bun run hash-password <password>
-      passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$..."
-    }
-    oidc: {
-      issuerUrl: "https://your-oidc-provider.com"
-      clientId: "yuptime"
-      // clientSecret: from secretRef
-      redirectUrl: "http://localhost:3000/auth/callback"
-    }
-  }
-
-  // Health probes
-  probes: {
-    liveness: {
-      enabled: true
-      initialDelaySeconds: 30
-      periodSeconds: 30
-      timeoutSeconds: 10
-      failureThreshold: 3
-    }
-    readiness: {
-      enabled: true
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 5
-      failureThreshold: 3
-    }
-  }
-
-  // CRD installation
-  crds: install: true     // set to false if CRDs are pre-installed
-
-  // Test resources
-  test: enabled: false    // disable test resources in production
-}
-```
-
-### Helm Values Reference
-
-When using Helm, customize with a YAML values file or `--set` flags:
-
-```yaml
-# Container images
-image:
-  repository: ghcr.io/briansunter/yuptime-api
-  tag: 0.0.18
-  digest: ""
-  pullPolicy: Always
-
-checkerImage:
-  repository: ghcr.io/briansunter/yuptime-checker
-  tag: 0.0.18
-  digest: ""
-  pullPolicy: Always
-
-# Deployment mode
-mode: production
-
-# Logging
-logging:
-  level: info
-
-# Database configuration
-database:
-  type: sqlite                    # sqlite or postgresql
-  sqlite:
-    path: /data/yuptime.db
-  postgresql:
-    host: postgresql.yuptime.svc.cluster.local
-    port: 5432
-    database: yuptime
-    user: yuptime
-    existingSecret: yptime-db     # optional: use existing secret
-
-# Persistent storage
-storage:
-  enabled: true
-  size: 10Gi
-  storageClass: standard          # adjust for your cluster
-  accessMode: ReadWriteOnce
-
-# Authentication
-auth:
-  mode: local                     # local, oidc, or disabled
-  session:
-    secret: change-this-secret
-    existingSecret: ""            # optional: use existing secret
-  adminUser:
-    enabled: true
-    username: admin
-    passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$..."
-  oidc:
-    issuerUrl: https://your-oidc.com
-    clientId: yuptime
-    clientSecret: ""
-    existingSecret: ""            # optional: use existing secret
-    redirectUrl: http://localhost:3000/auth/callback
-
-# Resource limits
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 500m
-    memory: 512Mi
-
-# Node selector
-nodeSelector: {}
-
-# Tolerations
-tolerations: []
-
-# Affinity
-affinity: {}
-
-# Health probes
-probes:
-  liveness:
-    enabled: true
-    initialDelaySeconds: 30
-    periodSeconds: 30
-    timeoutSeconds: 10
-    failureThreshold: 3
-  readiness:
-    enabled: true
-    initialDelaySeconds: 10
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-
-# Service configuration
-service:
-  type: ClusterIP               # ClusterIP, NodePort, or LoadBalancer
-  port: 3000
-  annotations: {}
-
-# Ingress
-ingress:
-  enabled: false
-  className: nginx
-  annotations: {}
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: yuptime.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: yuptime-tls
-      hosts:
-        - yuptime.example.com
-
-# CRD installation
-crds:
-  install: true                  # set to false if CRDs are pre-installed
-```
-
-### Common Customization Examples
-
-**PostgreSQL Database:**
-
-```yaml
-# Timoni (CUE)
-database: {
-  type: "postgresql"
-  postgresql: {
-    host: "postgres.yuptime.svc.cluster.local"
-    port: 5432
-    database: "yuptime"
-    user: "yuptime"
-    existingSecret: "yuptime-db-credentials"
-  }
-  storage: enabled: false  # Disable if using external PostgreSQL
-}
-
-# Helm (YAML)
-database:
-  type: postgresql
-  postgresql:
-    host: postgres.yuptime.svc.cluster.local
-    port: 5432
-    database: yuptime
-    user: yuptime
-    existingSecret: yuptime-db-credentials
-storage:
-  enabled: false
-```
-
-**OIDC Authentication:**
-
-```yaml
-# Timoni (CUE)
-auth: {
-  mode: "oidc"
-  session: secret: "your-session-secret"
-  oidc: {
-    issuerUrl: "https://accounts.google.com"
-    clientId: "your-client-id.apps.googleusercontent.com"
-    existingSecret: "yuptime-oidc"
-    redirectUrl: "https://yuptime.example.com/auth/callback"
-  }
-}
-
-# Helm (YAML)
-auth:
-  mode: oidc
-  session:
-    secret: your-session-secret
-  oidc:
-    issuerUrl: https://accounts.google.com
-    clientId: your-client-id.apps.googleusercontent.com
-    existingSecret: yuptime-oidc
-    redirectUrl: https://yuptime.example.com/auth/callback
-```
-
-**Ingress with TLS:**
-
-```yaml
-# Helm only (configure via values.yaml)
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: yuptime.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: yuptime-tls
-      hosts:
-        - yuptime.example.com
-```
-
-**Resource Limits:**
-
-```yaml
-# Timoni (CUE) - add to values
-resources: {
-  limits: {
-    cpu: "2000m"
-    memory: "2Gi"
-  }
-  requests: {
-    cpu: "1000m"
-    memory: "1Gi"
-  }
-}
-
-# Helm (YAML)
-resources:
-  limits:
-    cpu: 2000m
-    memory: 2Gi
-  requests:
-    cpu: 1000m
-    memory: 1Gi
-```
-
-### Generating Password Hashes
-
-Yuptime uses Argon2id for password hashing. Generate a hash with:
-
-```bash
-bun run hash-password <your-password>
-```
-
-Example output:
-```
-$ bun run hash-password mysecretpassword
-$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU
-```
-
-Use this hash in your `passwordHash` field.
-
-### Upgrading
-
-**Timoni:**
-
-```bash
-# Pull new module version
-timoni mod pull oci://ghcr.io/briansunter/yuptime/timoni-module --version 0.0.19 -o ./timoni/yuptime
-
-# Upgrade deployment
-timoni apply yuptime ./timoni/yuptime -n yuptime -f values.cue
-```
-
-**Helm:**
-
-```bash
-# Upgrade with new version
-helm upgrade yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
-  --version 0.0.19 \
-  -f values.yaml
-
-# Or reuse existing values
-helm upgrade yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
-  --version 0.0.19 \
-  --reuse-values
-```
-
-### Uninstalling
-
-**Timoni:**
-
-```bash
-timoni delete yuptime -n yuptime
-```
-
-**Helm:**
-
-```bash
-helm uninstall yuptime -n yuptime
-```
+</details>
 
 ## CRD Reference
 
-Yuptime defines 10 CRDs:
+Yuptime defines 5 Custom Resource Definitions:
 
-- **YuptimeSettings**: Global configuration (auth, scheduler, retention)
-- **Monitor**: Single health check (type, schedule, alerting)
-- **MonitorSet**: Bulk monitor definitions (inline, no child CRDs)
-- **NotificationProvider**: Alert credentials (8 provider types)
-- **NotificationPolicy**: Event routing (label selectors)
-- **StatusPage**: Public status page (groups, custom domain)
-- **MaintenanceWindow**: Recurring suppression (RRULE)
-- **Silence**: Ad-hoc alert muting (time-bounded)
-- **LocalUser**: Local accounts (argon2 hashing)
-- **ApiKey**: API tokens with scopes
+| CRD | Description | Scope |
+|-----|-------------|-------|
+| **Monitor** | Single health check definition | Namespaced |
+| **MonitorSet** | Bulk monitor definitions | Namespaced |
+| **MaintenanceWindow** | Scheduled suppression (RRULE) | Namespaced |
+| **Silence** | Ad-hoc alert muting | Namespaced |
+| **YuptimeSettings** | Global configuration | Cluster |
 
-## Monitor Types
+For complete API reference, see the [documentation](https://briansunter.github.io/yuptime).
 
-**HTTP:** Endpoints with validation (headers, body, TLS)
+## Alerting
 
-```yaml
-type: http
-http:
-  url: "https://api.example.com/health"
-  method: GET
-  headers:
-    Authorization: "Bearer TOKEN"
-  expectedStatus: 200
-  bodyContains: "healthy"
-```
-
-**TCP:** Port connectivity
+Yuptime integrates directly with Prometheus Alertmanager:
 
 ```yaml
-type: tcp
-tcp:
-  host: "db.example.com"
-  port: 5432
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: critical-api
+  namespace: yuptime
+spec:
+  type: http
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+  target:
+    http:
+      url: "https://api.example.com/health"
+  alerting:
+    alertmanagerUrl: "http://alertmanager.monitoring:9093"
+    labels:
+      severity: critical
+      team: platform
 ```
 
-**DNS:** DNS queries
+## Metrics
 
-```yaml
-type: dns
-dns:
-  server: "8.8.8.8"
-  query: "example.com"
-  queryType: A
+Yuptime exposes Prometheus metrics on port 3000:
+
+```bash
+# Port forward and scrape metrics
+kubectl port-forward -n yuptime svc/yuptime-api 3000:3000
+curl http://localhost:3000/metrics
 ```
 
-**Ping:** ICMP checks (Linux only)
-
-```yaml
-type: ping
-ping:
-  host: "example.com"
-  count: 3
-```
-
-**WebSocket:** Connection testing
-
-```yaml
-type: websocket
-websocket:
-  url: "wss://example.com/ws"
-```
-
-**Kubernetes:** Resource health
-
-```yaml
-type: kubernetes
-kubernetes:
-  resource: deployment
-  name: my-app
-  namespace: production
-```
-
-**JSON Query:** Extract and validate JSON responses
-
-```yaml
-type: http
-http:
-  url: "https://api.example.com/health"
-jsonQuery:
-  - path: "status"
-    equals: "ok"
-```
+Key metrics:
+- `yuptime_monitor_status` - Current monitor status (1=up, 0=down)
+- `yuptime_monitor_latency_seconds` - Check latency histogram
+- `yuptime_monitor_checks_total` - Total checks performed
+- `yuptime_monitor_failures_total` - Total check failures
 
 ## Development
 
-**Prerequisites:** Bun 1.1+, Node.js 20+, Kubernetes cluster
-
-**Setup:**
-
 ```bash
-git clone https://github.com/yuptime/yuptime.git
+# Clone and install
+git clone https://github.com/briansunter/yuptime.git
 cd yuptime
 bun install
 
-# Terminal 1: Backend
+# Run development server
 bun run dev
 
-# Terminal 2: Frontend
-cd web && bun install && bun run dev
+# Run tests
+bun run test
+
+# Type checking and linting
+bun run type-check
+bun run lint
 ```
 
-**Commands:**
-
-```bash
-bun run dev              # Development server
-bun run build            # Build TypeScript + frontend
-bun run type-check       # TypeScript check
-bun run lint             # Biome linter
-bun run lint:fix         # Auto-fix issues
-bun run db:push          # Push schema changes
-bun run test             # Run tests
-bun run test:ci          # CI mode
-```
-
-**Pre-commit hooks:** Lint, type-check, and tests run automatically.
-
-**Test checker executor locally:**
-
-```bash
-bun src/checker-executor/cli.ts <namespace> <monitor-name>
-```
-
-## Deployment
-
-**Production:**
-- Use PostgreSQL (not SQLite)
-- PersistentVolumeClaim for storage
-- Set CPU/memory requests and limits
-- Enable Prometheus metrics
-
-**Environment Variables:**
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Database connection | SQLite file |
-| `KUBERNETES_NAMESPACE` | Namespace (auto-detected) | - |
-| `NODE_ENV` | Environment | `production` |
-| `PORT` | API server port | `3000` |
-
-**Build images:**
-
-```bash
-docker build -t yuptime:yuptime .
-docker build -f Dockerfile.checker -t yuptime:checker .
-```
-
-## Troubleshooting
-
-**Checker jobs not running:**
-
-```bash
-kubectl describe role yuptime-checker -n yuptime
-kubectl logs -n yuptime <scheduler-pod>
-```
-
-**Alerts not sending:**
-
-```bash
-kubectl get notificationproviders -n yuptime
-kubectl logs -n yuptime <yuptime-pod>
-```
-
-**Database issues:**
-
-```bash
-kubectl get secret yuptime-db -n yuptime
-kubectl exec -n yuptime <pod> -- env | grep DATABASE
-```
+See the [Development Guide](https://briansunter.github.io/yuptime/development/) for more details.
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Tech Stack
-
-- **Runtime**: Bun 1.1+
-- **Backend**: Fastify
-- **Frontend**: React + TanStack Router + shadcn/ui + Tailwind
-- **Database**: Drizzle ORM (SQLite/PostgreSQL)
-- **Kubernetes**: @kubernetes/client-node with informers
-- **Deployment**: Timoni (CUE) + Helm (OCI) to GHCR
-
-## Implementation Status
-
-**Complete:**
-- ✅ CRDs, controller, scheduler, priority queue
-- ✅ 8 checker types (HTTP, TCP, DNS, Ping, WebSocket, JSON query, Kubernetes, Steam)
-- ✅ 8 notification providers (Slack, Discord, Telegram, SMTP, Webhook, PagerDuty, Pushover, Mattermost)
-- ✅ Status pages with custom domains
-- ✅ Suppressions (MaintenanceWindows with RRULE, Silences)
-- ✅ Database-free checker executor (direct K8s API updates)
-- ✅ Authentication (OIDC + local users + API keys)
-- ✅ Pre-commit hooks (lint, type-check, tests)
-- ✅ CI/CD with GHCR publishing (images + Helm chart + Timoni module)
-
-**In Progress:**
-- 🚧 Prometheus metrics and observability
-- 🚧 Frontend dashboard polish
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a Pull Request.
 
 ## License
 
-Apache License 2.0
+[Apache License 2.0](LICENSE)
 
 ## Support
 
-- [docs/](docs/)
-- [GitHub Issues](https://github.com/yuptime/yuptime/issues)
-- [GitHub Discussions](https://github.com/yuptime/yuptime/discussions)
+- 📖 [Documentation](https://briansunter.github.io/yuptime)
+- 🐛 [Issue Tracker](https://github.com/briansunter/yuptime/issues)
+- 💬 [Discussions](https://github.com/briansunter/yuptime/discussions)
