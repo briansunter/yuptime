@@ -38,7 +38,7 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 							}
 							type: {
 								type: "string"
-								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "websocket", "push", "steam", "k8s", "docker", "mysql", "postgresql", "redis", "grpc"]
+								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "xmlQuery", "htmlQuery", "websocket", "push", "steam", "k8s", "docker", "mysql", "postgresql", "redis", "grpc"]
 							}
 							schedule: {
 								type: "object"
@@ -419,6 +419,76 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 											notContains: {
 												type: "array"
 												items: type: "string"
+											}
+										}
+									}
+									jsonQuery: {
+										type: "object"
+										required: ["path"]
+										properties: {
+											mode: {
+												type:    "string"
+												enum: ["jsonpath", "jsonpath-plus"]
+												default: "jsonpath-plus"
+											}
+											path: type: "string"
+											equals: "x-kubernetes-preserve-unknown-fields": true
+											contains: type: "string"
+											exists: type:      "boolean"
+											count: type:       "integer"
+											greaterThan: type: "number"
+											lessThan: type:    "number"
+										}
+									}
+									xmlQuery: {
+										type: "object"
+										required: ["path"]
+										properties: {
+											mode: {
+												type:    "string"
+												enum: ["xpath"]
+												default: "xpath"
+											}
+											path: type:            "string"
+											equals: type:          "string"
+											contains: type:        "string"
+											exists: type:          "boolean"
+											count: type:           "integer"
+											ignoreNamespace: {
+												type:    "boolean"
+												default: false
+											}
+										}
+									}
+									htmlQuery: {
+										type: "object"
+										required: ["selector"]
+										properties: {
+											mode: {
+												type:    "string"
+												enum: ["css"]
+												default: "css"
+											}
+											selector: type: "string"
+											exists: type:   "boolean"
+											count: type:    "integer"
+											text: {
+												type: "object"
+												properties: {
+													equals: type:   "string"
+													contains: type: "string"
+													matches: type:  "string"
+												}
+											}
+											attribute: {
+												type: "object"
+												required: ["name"]
+												properties: {
+													name: type:     "string"
+													equals: type:   "string"
+													contains: type: "string"
+													exists: type:   "boolean"
+												}
 											}
 										}
 									}
