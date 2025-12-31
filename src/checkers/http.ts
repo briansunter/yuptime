@@ -418,7 +418,7 @@ export async function checkKeyword(monitor: Monitor, timeout: number): Promise<C
 }
 
 /**
- * Execute HTTP check with JSON path validation
+ * Execute HTTP check with JSON path validation (enhanced with full JSONPath support)
  */
 export async function checkJsonQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
   // First do the HTTP check
@@ -454,24 +454,24 @@ export async function checkJsonQuery(monitor: Monitor, timeout: number): Promise
     clearTimeout(timeoutHandle);
     const data = await response.json();
 
-    // Simple JSONPath implementation for basic paths
-    const value = getJsonPath(data, criteria.path);
+    // Use enhanced JSONPath parser
+    const { queryJsonPath, validateJsonPathResult } = await import("../lib/parsers");
+    const result = queryJsonPath(data, criteria.path);
+    const validation = validateJsonPathResult(result, {
+      equals: criteria.equals,
+      contains: criteria.contains,
+      exists: criteria.exists,
+      count: criteria.count,
+      greaterThan: criteria.greaterThan,
+      lessThan: criteria.lessThan,
+    });
 
-    if (criteria.exists && value === undefined) {
+    if (!validation.valid) {
       return {
         state: "down",
         latencyMs: httpResult.latencyMs,
-        reason: "JSON_PATH_NOT_FOUND",
-        message: `JSONPath "${criteria.path}" did not exist`,
-      };
-    }
-
-    if (criteria.equals !== undefined && value !== criteria.equals) {
-      return {
-        state: "down",
-        latencyMs: httpResult.latencyMs,
-        reason: "JSON_VALUE_MISMATCH",
-        message: `JSONPath value "${value}" does not equal "${criteria.equals}"`,
+        reason: "JSON_VALIDATION_FAILED",
+        message: validation.message,
       };
     }
 
@@ -489,37 +489,141 @@ export async function checkJsonQuery(monitor: Monitor, timeout: number): Promise
 }
 
 /**
- * Simple JSONPath getter for basic dot notation
+ * Execute HTTP check with XML/XPath validation
  */
-function getJsonPath(obj: unknown, path: string): unknown {
-  const parts = path.split(".");
-  let current: unknown = obj;
+export async function checkXmlQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
+  // First do the HTTP check
+  const httpResult = await checkHttp(monitor, timeout);
 
-  for (const part of parts) {
-    if (current === null || current === undefined) {
-      return undefined;
-    }
-
-    // Handle array index notation: $.items[0]
-    const arrayMatch = part.match(/(\w+)\[(\d+)\]/);
-    if (arrayMatch) {
-      const key = arrayMatch[1];
-      const indexStr = arrayMatch[2];
-      if (!key || !indexStr) {
-        return undefined;
-      }
-      const index = parseInt(indexStr, 10);
-      if (Number.isNaN(index)) {
-        return undefined;
-      }
-      const obj = current as Record<string, unknown>;
-      const arr = obj[key] as Array<unknown> | undefined;
-      current = arr?.[index];
-    } else {
-      const obj = current as Record<string, unknown>;
-      current = obj[part === "$" ? "" : part];
-    }
+  if (httpResult.state === "down") {
+    return httpResult;
   }
 
-  return current;
+  const target = monitor.spec.target.http;
+  if (!target) {
+    return {
+      state: "down",
+      latencyMs: httpResult.latencyMs,
+      reason: "INVALID_CONFIG",
+      message: "No HTTP target for XML query",
+    };
+  }
+
+  const criteria = monitor.spec.successCriteria?.xmlQuery;
+  if (!criteria) {
+    return httpResult;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), timeout * 1000);
+
+    const response = await fetch(target.url, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutHandle);
+    const xml = await response.text();
+
+    // Use XPath parser
+    const { queryXPath, validateXPathResult } = await import("../lib/parsers");
+    const result = queryXPath(xml, criteria.path, {
+      ignoreNamespace: criteria.ignoreNamespace,
+    });
+    const validation = validateXPathResult(result, {
+      equals: criteria.equals,
+      contains: criteria.contains,
+      exists: criteria.exists,
+      count: criteria.count,
+    });
+
+    if (!validation.valid) {
+      return {
+        state: "down",
+        latencyMs: httpResult.latencyMs,
+        reason: "XML_VALIDATION_FAILED",
+        message: validation.message,
+      };
+    }
+
+    return httpResult;
+  } catch (error) {
+    logger.warn({ monitor: monitor.metadata.name, error }, "XML query failed");
+
+    return {
+      state: "down",
+      latencyMs: httpResult.latencyMs,
+      reason: "XML_ERROR",
+      message: error instanceof Error ? error.message : "Invalid XML response",
+    };
+  }
+}
+
+/**
+ * Execute HTTP check with HTML/CSS selector validation
+ */
+export async function checkHtmlQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
+  // First do the HTTP check
+  const httpResult = await checkHttp(monitor, timeout);
+
+  if (httpResult.state === "down") {
+    return httpResult;
+  }
+
+  const target = monitor.spec.target.http;
+  if (!target) {
+    return {
+      state: "down",
+      latencyMs: httpResult.latencyMs,
+      reason: "INVALID_CONFIG",
+      message: "No HTTP target for HTML query",
+    };
+  }
+
+  const criteria = monitor.spec.successCriteria?.htmlQuery;
+  if (!criteria) {
+    return httpResult;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), timeout * 1000);
+
+    const response = await fetch(target.url, {
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutHandle);
+    const html = await response.text();
+
+    // Use CSS selector parser
+    const { queryCssSelector, validateCssSelectorResult } = await import("../lib/parsers");
+    const result = queryCssSelector(html, criteria.selector);
+    const validation = validateCssSelectorResult(result, {
+      exists: criteria.exists,
+      count: criteria.count,
+      text: criteria.text,
+      attribute: criteria.attribute,
+    });
+
+    if (!validation.valid) {
+      return {
+        state: "down",
+        latencyMs: httpResult.latencyMs,
+        reason: "HTML_VALIDATION_FAILED",
+        message: validation.message,
+      };
+    }
+
+    return httpResult;
+  } catch (error) {
+    logger.warn({ monitor: monitor.metadata.name, error }, "HTML query failed");
+
+    return {
+      state: "down",
+      latencyMs: httpResult.latencyMs,
+      reason: "HTML_ERROR",
+      message: error instanceof Error ? error.message : "Invalid HTML response",
+    };
+  }
 }

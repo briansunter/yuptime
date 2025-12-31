@@ -2,7 +2,14 @@ import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import { checkDns } from "./dns";
 import { checkGrpc } from "./grpc";
-import { type CheckResult, checkHttp, checkJsonQuery, checkKeyword } from "./http";
+import {
+  type CheckResult,
+  checkHtmlQuery,
+  checkHttp,
+  checkJsonQuery,
+  checkKeyword,
+  checkXmlQuery,
+} from "./http";
 import { checkKubernetes } from "./kubernetes";
 import { checkMySql } from "./mysql";
 import { checkPing } from "./ping";
@@ -34,6 +41,12 @@ export async function executeCheck(monitor: Monitor, timeout: number): Promise<C
 
       case "jsonQuery":
         return await checkJsonQuery(monitor, timeout);
+
+      case "xmlQuery":
+        return await checkXmlQuery(monitor, timeout);
+
+      case "htmlQuery":
+        return await checkHtmlQuery(monitor, timeout);
 
       // Network checks
       case "tcp":

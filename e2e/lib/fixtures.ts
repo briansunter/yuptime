@@ -779,3 +779,324 @@ export const grpcFixtures = {
       tls: { enabled: true, verify: true },
     }),
 };
+
+/**
+ * Create a JSON Query monitor for E2E testing
+ */
+export function createJsonQueryMonitor(overrides: {
+  name: string;
+  url?: string;
+  path: string;
+  equals?: unknown;
+  exists?: boolean;
+  contains?: string;
+  count?: number;
+  greaterThan?: number;
+  lessThan?: number;
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "jsonQuery",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        http: {
+          url: overrides.url ?? getHttpUrl("/json/query"),
+        },
+      },
+      successCriteria: {
+        jsonQuery: {
+          path: overrides.path,
+          ...(overrides.equals !== undefined && { equals: overrides.equals }),
+          ...(overrides.exists !== undefined && { exists: overrides.exists }),
+          ...(overrides.contains !== undefined && { contains: overrides.contains }),
+          ...(overrides.count !== undefined && { count: overrides.count }),
+          ...(overrides.greaterThan !== undefined && { greaterThan: overrides.greaterThan }),
+          ...(overrides.lessThan !== undefined && { lessThan: overrides.lessThan }),
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create an XML Query monitor for E2E testing
+ */
+export function createXmlQueryMonitor(overrides: {
+  name: string;
+  url?: string;
+  path: string;
+  equals?: string;
+  exists?: boolean;
+  contains?: string;
+  count?: number;
+  ignoreNamespace?: boolean;
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "xmlQuery",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        http: {
+          url: overrides.url ?? getHttpUrl("/xml"),
+        },
+      },
+      successCriteria: {
+        xmlQuery: {
+          path: overrides.path,
+          ...(overrides.equals !== undefined && { equals: overrides.equals }),
+          ...(overrides.exists !== undefined && { exists: overrides.exists }),
+          ...(overrides.contains !== undefined && { contains: overrides.contains }),
+          ...(overrides.count !== undefined && { count: overrides.count }),
+          ...(overrides.ignoreNamespace !== undefined && { ignoreNamespace: overrides.ignoreNamespace }),
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Create an HTML Query monitor for E2E testing
+ */
+export function createHtmlQueryMonitor(overrides: {
+  name: string;
+  url?: string;
+  selector: string;
+  exists?: boolean;
+  count?: number;
+  text?: {
+    equals?: string;
+    contains?: string;
+    matches?: string;
+  };
+  attribute?: {
+    name: string;
+    equals?: string;
+    contains?: string;
+    exists?: boolean;
+  };
+  timeoutSeconds?: number;
+  labels?: Record<string, string>;
+}): Monitor {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1",
+    kind: "Monitor",
+    metadata: {
+      name: overrides.name,
+      namespace: E2E_NAMESPACE,
+      labels: {
+        "e2e-test": "true",
+        ...overrides.labels,
+      },
+    },
+    spec: {
+      enabled: true,
+      type: "htmlQuery",
+      schedule: {
+        intervalSeconds: 30,
+        timeoutSeconds: overrides.timeoutSeconds ?? 10,
+      },
+      target: {
+        http: {
+          url: overrides.url ?? getHttpUrl("/html"),
+        },
+      },
+      successCriteria: {
+        htmlQuery: {
+          selector: overrides.selector,
+          ...(overrides.exists !== undefined && { exists: overrides.exists }),
+          ...(overrides.count !== undefined && { count: overrides.count }),
+          ...(overrides.text && { text: overrides.text }),
+          ...(overrides.attribute && { attribute: overrides.attribute }),
+        },
+      },
+    },
+  };
+}
+
+// Pre-built fixtures for JSON Query tests
+export const jsonQueryFixtures = {
+  // Check status equals "healthy"
+  statusEquals: () =>
+    createJsonQueryMonitor({
+      name: "json-status-equals",
+      path: "$.status",
+      equals: "healthy",
+    }),
+
+  // Check status equals wrong value (should fail)
+  statusWrong: () =>
+    createJsonQueryMonitor({
+      name: "json-status-wrong",
+      path: "$.status",
+      equals: "unhealthy",
+    }),
+
+  // Check services array count
+  servicesCount: () =>
+    createJsonQueryMonitor({
+      name: "json-services-count",
+      path: "$.services[*]",
+      count: 3,
+    }),
+
+  // Check nested value
+  nestedValue: () =>
+    createJsonQueryMonitor({
+      name: "json-nested-value",
+      path: "$.metadata.version",
+      equals: "1.2.3",
+    }),
+
+  // Check value exists
+  valueExists: () =>
+    createJsonQueryMonitor({
+      name: "json-value-exists",
+      path: "$.services[0].name",
+      exists: true,
+    }),
+
+  // Check value doesn't exist (should pass)
+  valueNotExists: () =>
+    createJsonQueryMonitor({
+      name: "json-value-not-exists",
+      path: "$.nonexistent",
+      exists: false,
+    }),
+
+  // Check numeric comparison
+  numericGreater: () =>
+    createJsonQueryMonitor({
+      name: "json-numeric-greater",
+      path: "$.code",
+      greaterThan: 100,
+    }),
+};
+
+// Pre-built fixtures for XML Query tests
+export const xmlQueryFixtures = {
+  // Check status element value
+  statusEquals: () =>
+    createXmlQueryMonitor({
+      name: "xml-status-equals",
+      path: "/response/status/text()",
+      equals: "healthy",
+    }),
+
+  // Check status element wrong value (should fail)
+  statusWrong: () =>
+    createXmlQueryMonitor({
+      name: "xml-status-wrong",
+      path: "/response/status/text()",
+      equals: "unhealthy",
+    }),
+
+  // Check attribute value
+  attributeEquals: () =>
+    createXmlQueryMonitor({
+      name: "xml-attribute-equals",
+      path: "//service[@id='api']/@status",
+      equals: "up",
+    }),
+
+  // Check element exists
+  elementExists: () =>
+    createXmlQueryMonitor({
+      name: "xml-element-exists",
+      path: "/response/metadata/version",
+      exists: true,
+    }),
+
+  // Check element count
+  serviceCount: () =>
+    createXmlQueryMonitor({
+      name: "xml-service-count",
+      path: "//service",
+      count: 3,
+    }),
+};
+
+// Pre-built fixtures for HTML Query tests
+export const htmlQueryFixtures = {
+  // Check element text
+  statusText: () =>
+    createHtmlQueryMonitor({
+      name: "html-status-text",
+      selector: "#status",
+      text: { contains: "operational" },
+    }),
+
+  // Check element text wrong (should fail)
+  statusTextWrong: () =>
+    createHtmlQueryMonitor({
+      name: "html-status-text-wrong",
+      selector: "#status",
+      text: { contains: "down" },
+    }),
+
+  // Check element exists
+  elementExists: () =>
+    createHtmlQueryMonitor({
+      name: "html-element-exists",
+      selector: ".docs-link",
+      exists: true,
+    }),
+
+  // Check element count
+  serviceCount: () =>
+    createHtmlQueryMonitor({
+      name: "html-service-count",
+      selector: ".service",
+      count: 3,
+    }),
+
+  // Check attribute value
+  attributeEquals: () =>
+    createHtmlQueryMonitor({
+      name: "html-attribute-equals",
+      selector: ".docs-link",
+      attribute: {
+        name: "href",
+        contains: "example.com",
+      },
+    }),
+
+  // Check class selector
+  classSelector: () =>
+    createHtmlQueryMonitor({
+      name: "html-class-selector",
+      selector: ".status-healthy",
+      exists: true,
+    }),
+};

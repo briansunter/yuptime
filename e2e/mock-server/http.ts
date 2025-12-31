@@ -70,6 +70,104 @@ async function handleRequest(req: Request): Promise<Response> {
     });
   }
 
+  // JSON query endpoint for E2E testing
+  if (path === "/json/query") {
+    return json({
+      status: "healthy",
+      code: 200,
+      services: [
+        { name: "api", status: "up", latency: 45 },
+        { name: "database", status: "up", latency: 12 },
+        { name: "cache", status: "up", latency: 3 },
+      ],
+      metadata: {
+        version: "1.2.3",
+        environment: "production",
+      },
+    });
+  }
+
+  // XML endpoint for XPath testing
+  if (path === "/xml") {
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <status>healthy</status>
+  <code>200</code>
+  <services>
+    <service id="api" status="up">
+      <name>API Server</name>
+      <latency>45</latency>
+    </service>
+    <service id="db" status="up">
+      <name>Database</name>
+      <latency>12</latency>
+    </service>
+    <service id="cache" status="up">
+      <name>Cache</name>
+      <latency>3</latency>
+    </service>
+  </services>
+  <metadata>
+    <version>1.2.3</version>
+    <environment>production</environment>
+  </metadata>
+</response>`;
+    return new Response(xmlContent, {
+      headers: { "Content-Type": "application/xml" },
+    });
+  }
+
+  // XML with missing element for failure testing
+  if (path === "/xml/minimal") {
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <status>degraded</status>
+</response>`;
+    return new Response(xmlContent, {
+      headers: { "Content-Type": "application/xml" },
+    });
+  }
+
+  // HTML endpoint for CSS selector testing
+  if (path === "/html") {
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <title>System Status</title>
+</head>
+<body>
+  <div id="status" class="status-healthy">System is operational</div>
+  <div class="metrics">
+    <span class="metric" data-name="uptime">99.9%</span>
+    <span class="metric" data-name="requests">1000000</span>
+  </div>
+  <ul class="services">
+    <li class="service up" data-id="api">API Server</li>
+    <li class="service up" data-id="db">Database</li>
+    <li class="service down" data-id="backup">Backup Service</li>
+  </ul>
+  <a href="https://example.com/docs" class="docs-link">Documentation</a>
+</body>
+</html>`;
+    return new Response(htmlContent, {
+      headers: { "Content-Type": "text/html" },
+    });
+  }
+
+  // HTML with failure state
+  if (path === "/html/error") {
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<body>
+  <div id="status" class="status-error">System is down</div>
+  <div class="error-message">Critical failure detected</div>
+</body>
+</html>`;
+    return new Response(htmlContent, {
+      headers: { "Content-Type": "text/html" },
+    });
+  }
+
   // Echo POST body
   if (path === "/echo" && req.method === "POST") {
     const body = await req.text();

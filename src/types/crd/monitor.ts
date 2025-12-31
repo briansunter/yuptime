@@ -218,12 +218,53 @@ export const SuccessCriteriaSchema = z.object({
       regex: z.array(z.string()).optional(),
     })
     .optional(),
+  // Enhanced JSONPath query (backwards compatible, supports wildcards, filters)
   jsonQuery: z
     .object({
-      mode: z.literal("jsonpath"),
+      mode: z.enum(["jsonpath", "jsonpath-plus"]).optional().default("jsonpath-plus"),
       path: z.string(),
       equals: z.unknown().optional(),
       exists: z.boolean().optional(),
+      contains: z.string().optional(), // Check if value contains string
+      count: z.number().optional(), // Check array result length
+      greaterThan: z.number().optional(),
+      lessThan: z.number().optional(),
+    })
+    .optional(),
+  // XML/XPath query
+  xmlQuery: z
+    .object({
+      mode: z.literal("xpath").optional().default("xpath"),
+      path: z.string(), // XPath expression
+      equals: z.string().optional(),
+      contains: z.string().optional(),
+      exists: z.boolean().optional(),
+      count: z.number().optional(),
+      ignoreNamespace: z.boolean().optional().default(false),
+    })
+    .optional(),
+  // HTML/CSS selector query
+  htmlQuery: z
+    .object({
+      mode: z.literal("css").optional().default("css"),
+      selector: z.string(), // CSS selector
+      exists: z.boolean().optional(),
+      count: z.number().optional(),
+      text: z
+        .object({
+          equals: z.string().optional(),
+          contains: z.string().optional(),
+          matches: z.string().optional(), // Regex pattern
+        })
+        .optional(),
+      attribute: z
+        .object({
+          name: z.string(),
+          equals: z.string().optional(),
+          contains: z.string().optional(),
+          exists: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
   tcp: z
@@ -398,6 +439,8 @@ export const MonitorSpecSchema = z.object({
     "dns",
     "keyword",
     "jsonQuery",
+    "xmlQuery",
+    "htmlQuery",
     "websocket",
     "push",
     "steam",
