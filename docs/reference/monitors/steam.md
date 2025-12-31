@@ -1,14 +1,14 @@
 # Steam Monitor
 
-The Steam monitor queries game servers using the Source Engine A2S protocol.
+Queries game servers using the Source Engine A2S protocol.
 
-## Example
+## Basic Example
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
-  name: steam-server-check
+  name: game-server
   namespace: yuptime
 spec:
   type: steam
@@ -26,39 +26,70 @@ spec:
 ```yaml
 target:
   steam:
-    host: "game.example.com"           # Game server host
-    port: 27015                         # Game server query port
-    minPlayers: 0                       # Minimum player count (optional)
-    maxPlayers: 32                      # Maximum player count (optional)
-    expectedMap: "de_dust2"             # Required map name (optional)
+    host: "game.example.com"           # Required: server host
+    port: 27015                         # Required: query port
+    minPlayers: 0                       # Optional: minimum player count
+    maxPlayers: 32                      # Optional: maximum player count
+    expectedMap: "de_dust2"             # Optional: required map name
 ```
 
-## Success Criteria
+## Examples
 
-The monitor validates:
+### Basic Server Check
 
-| Field | Description |
-|-------|-------------|
-| `minPlayers` | Fail if player count is below minimum |
-| `maxPlayers` | Fail if player count exceeds maximum |
-| `expectedMap` | Fail if server is running a different map |
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: csgo-server
+  namespace: yuptime
+  labels:
+    game: cs2
+spec:
+  type: steam
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 15
+  target:
+    steam:
+      host: "cs2.example.com"
+      port: 27015
+  alerting:
+    alertmanagerUrl: "http://alertmanager:9093"
+    labels:
+      severity: warning
+```
+
+### With Player Validation
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: tf2-server
+  namespace: yuptime
+spec:
+  type: steam
+  schedule:
+    intervalSeconds: 120
+    timeoutSeconds: 15
+  target:
+    steam:
+      host: "tf2.example.com"
+      port: 27015
+      minPlayers: 1
+      maxPlayers: 24
+```
 
 ## Supported Games
-
-Works with Source Engine and Source 2 games including:
 
 - Counter-Strike 2 / CS:GO
 - Dota 2
 - Team Fortress 2
 - Left 4 Dead / Left 4 Dead 2
 - Garry's Mod
-- Other Source-based games
+- Other Source Engine games
 
 ## Response Data
 
-The monitor extracts:
-- Server name
-- Current map
-- Player count / max players
-- Bot count
-- VAC status
+The monitor extracts: server name, current map, player count, bot count, and VAC status.

@@ -1,14 +1,14 @@
 # Redis Monitor
 
-The Redis monitor checks cache/database connectivity using the PING command.
+Checks Redis connectivity using the PING command.
 
-## Example
+## Basic Example
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
-  name: redis-check
+  name: redis-health
   namespace: yuptime
 spec:
   type: redis
@@ -17,7 +17,7 @@ spec:
     timeoutSeconds: 5
   target:
     redis:
-      host: "redis.default.svc.cluster.local"
+      host: "redis.cache.svc.cluster.local"
       port: 6379
 ```
 
@@ -26,14 +26,14 @@ spec:
 ```yaml
 target:
   redis:
-    host: "redis.example.com"          # Redis server host
-    port: 6379                          # Redis port (default: 6379)
-    database: 0                         # Redis database number 0-15 (default: 0)
-    credentialsSecretRef:               # Optional authentication
+    host: "redis.example.com"           # Required: server host
+    port: 6379                           # Optional: port (default: 6379)
+    database: 0                          # Optional: database 0-15 (default: 0)
+    credentialsSecretRef:
       name: redis-credentials
-      passwordKey: password             # Key for password (default: "password")
+      passwordKey: password              # Optional (default: "password")
     tls:
-      enabled: false                    # Enable TLS (default: false)
+      enabled: false                     # Optional: enable TLS
 ```
 
 ## Credentials Secret
@@ -46,11 +46,100 @@ metadata:
   namespace: yuptime
 type: Opaque
 stringData:
-  password: myredispassword
+  password: your_redis_password
 ```
 
-## Notes
+## Examples
 
-- Uses Redis PING command to verify connectivity
-- Authentication is optional for Redis instances without AUTH
-- Supports database selection (0-15)
+### Without Authentication
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: redis-cache
+  namespace: yuptime
+spec:
+  type: redis
+  schedule:
+    intervalSeconds: 15
+    timeoutSeconds: 5
+  target:
+    redis:
+      host: "redis.cache.svc.cluster.local"
+      port: 6379
+```
+
+### With Authentication
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: redis-auth
+  namespace: yuptime
+spec:
+  type: redis
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 5
+  target:
+    redis:
+      host: "redis.cache.svc.cluster.local"
+      port: 6379
+      credentialsSecretRef:
+        name: redis-credentials
+```
+
+### ElastiCache with TLS
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: elasticache
+  namespace: yuptime
+spec:
+  type: redis
+  schedule:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+  target:
+    redis:
+      host: "cluster.xxxx.cache.amazonaws.com"
+      port: 6379
+      credentialsSecretRef:
+        name: elasticache-credentials
+      tls:
+        enabled: true
+```
+
+### With Alerting
+
+```yaml
+apiVersion: monitoring.yuptime.io/v1
+kind: Monitor
+metadata:
+  name: redis-production
+  namespace: yuptime
+spec:
+  type: redis
+  schedule:
+    intervalSeconds: 15
+    timeoutSeconds: 5
+  target:
+    redis:
+      host: "redis.production.svc.cluster.local"
+      credentialsSecretRef:
+        name: redis-credentials
+  alerting:
+    alertmanagerUrl: "http://alertmanager:9093"
+    labels:
+      severity: critical
+```
+
+## Troubleshooting
+
+**Connection refused**: Redis not running or wrong host/port
+**NOAUTH Authentication required**: Password needed but not provided
+**Invalid DB index**: Database number must be 0-15
