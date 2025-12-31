@@ -12,13 +12,8 @@ rules:
   resources:
   - monitors
   - monitorsets
-  - notificationproviders
-  - notificationpolicies
-  - statuspages
   - maintenancewindows
   - silences
-  - localusers
-  - apikeys
   - yuptimesettings
   verbs:
   - get
@@ -33,13 +28,8 @@ rules:
   resources:
   - monitors/status
   - monitorsets/status
-  - notificationproviders/status
-  - notificationpolicies/status
-  - statuspages/status
   - maintenancewindows/status
   - silences/status
-  - localusers/status
-  - apikeys/status
   - yuptimesettings/status
   verbs:
   - get

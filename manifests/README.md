@@ -32,7 +32,6 @@ kubectl apply -f deployment.yaml
 - Secret
 - Deployment
 - Service
-- PersistentVolumeClaim
 - NetworkPolicy
 - PodDisruptionBudget
 
