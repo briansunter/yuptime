@@ -66,76 +66,6 @@ import (
 		}
 	}
 
-	// Database configuration
-	database: {
-		// Database type: sqlite, postgresql, or etcd
-		type: *"sqlite" | "postgresql" | "etcd"
-
-		// SQLite configuration (used when type="sqlite")
-		sqlite: {
-			path: *"/data/yuptime.db" | string
-		}
-
-		// PostgreSQL configuration (used when type="postgresql")
-		postgresql: {
-			host:     *"" | string
-			port:     *5432 | int & >0 & <=65535
-			database: *"yuptime" | string
-			username: *"yuptime" | string
-			// Password from secret
-			passwordSecretRef: {
-				name: *"" | string
-				key:  *"password" | string
-			}
-			sslMode: *"require" | "disable" | "prefer"
-		}
-
-		// etcd configuration (used when type="etcd")
-		etcd: {
-			endpoints: *"http://etcd:2379" | string
-			// Deploy etcd StatefulSet as part of this module
-			deploy: *false | bool
-		}
-	}
-
-	// Storage configuration
-	storage: {
-		enabled:      *true | bool
-		size:         *"1Gi" | string
-		storageClass: *"" | string // Empty uses default
-		accessMode:   *"ReadWriteOnce" | "ReadWriteMany" | "ReadOnlyMany"
-	}
-
-	// Authentication configuration
-	auth: {
-		// Authentication mode
-		mode: *"local" | "oidc" | "disabled"
-
-		// Session configuration
-		session: {
-			secret:      *"dev-secret-change-in-production" | string
-			maxAgeHours: *168 | int & >0 // 7 days default
-		}
-
-		// OIDC configuration (required when mode="oidc")
-		oidc: {
-			issuerUrl:   *"" | string
-			clientId:    *"" | string
-			redirectUrl: *"" | string
-			clientSecretRef: {
-				name: *"" | string
-				key:  *"client-secret" | string
-			}
-		}
-
-		// Admin user for local auth
-		adminUser: {
-			enabled:      *true | bool
-			username:     *"admin" | string
-			passwordHash: *"" | string // Argon2id hash
-		}
-	}
-
 	// Logging configuration
 	logging: {
 		level: *"info" | "debug" | "warn" | "error"
@@ -240,11 +170,6 @@ import (
 		}
 		svc: #Service & {#config: config}
 
-		// Storage
-		if config.storage.enabled {
-			pvc: #PersistentVolumeClaim & {#config: config}
-		}
-
 		// Network Policy
 		if config.networkPolicy.enabled {
 			netpol: #NetworkPolicy & {#config: config}
@@ -253,13 +178,6 @@ import (
 		// Pod Disruption Budget
 		if config.podDisruptionBudget.enabled {
 			pdb: #PodDisruptionBudget & {#config: config}
-		}
-
-		// etcd (optional)
-		if config.database.type == "etcd" && config.database.etcd.deploy {
-			etcdSvc: #EtcdService & {#config: config}
-			etcdHeadless: #EtcdHeadlessService & {#config: config}
-			etcdSts: #EtcdStatefulSet & {#config: config}
 		}
 
 		// CRDs (Timoni applies these first automatically)

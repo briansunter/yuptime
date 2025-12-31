@@ -2,9 +2,13 @@
 
 A [timoni.sh](https://timoni.sh) module for deploying Yuptime, a Kubernetes-native monitoring solution.
 
+## Architecture
+
+Yuptime uses a **pure CRD-based architecture** where all configuration and state is stored in Kubernetes Custom Resources. No external database is required - monitor results are written directly to the CRD status subresource.
+
 ## Prerequisites
 
-1. **Kubernetes cluster** (OrbStack, minikube, or any K8s cluster)
+1. **Kubernetes cluster** (OrbStack, minikube, or any K8s cluster v1.26+)
 2. **Timoni CLI**: `brew install stefanprodan/tap/timoni`
 
 ## Quick Start
@@ -26,7 +30,7 @@ A [timoni.sh](https://timoni.sh) module for deploying Yuptime, a Kubernetes-nati
 kubectl apply -f k8s/crds.yaml
 
 # Step 2: Deploy with Timoni
-timoni apply yuptime ./timoni/yuptime -n yuptime -f values-orbstack.cue
+timoni apply yuptime ./timoni/yuptime -n yuptime
 ```
 
 ## Creating Monitors
@@ -54,12 +58,12 @@ spec:
 | Option | Description | Default |
 |--------|-------------|---------|
 | `image.repository` | API image | `ghcr.io/yuptime/yuptime-api` |
-| `database.type` | Database backend (`sqlite`, `postgresql`, `etcd`) | `sqlite` |
-| `database.etcd.deploy` | Deploy etcd StatefulSet | `false` |
-| `auth.mode` | Authentication (`local`, `oidc`, `disabled`) | `local` |
-| `storage.enabled` | Enable PVC for data | `true` |
+| `checkerImage.repository` | Checker executor image | `ghcr.io/yuptime/yuptime-checker` |
+| `mode` | Application mode (`development`, `production`) | `development` |
+| `logging.level` | Log level (`debug`, `info`, `warn`, `error`) | `info` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `true` |
 | `podDisruptionBudget.enabled` | Enable PDB | `true` |
+| `crds.install` | Install CRDs via Timoni | `false` |
 
 ### Example: Local Development
 
@@ -70,13 +74,19 @@ values: {
         tag:        "latest"
         pullPolicy: "Never"
     }
-    database: {
-        type: "etcd"
-        etcd: deploy: true
-    }
     mode: "development"
 }
 ```
+
+## CRDs
+
+Yuptime defines 5 Custom Resources:
+
+1. **Monitor** - Single health check definition
+2. **MonitorSet** - Bulk monitor definitions with templating
+3. **MaintenanceWindow** - Planned maintenance (RRULE support)
+4. **Silence** - Ad-hoc alert muting
+5. **YuptimeSettings** - Cluster-scoped global configuration
 
 ## Uninstall
 

@@ -40,16 +40,6 @@ import (
 					port:     443
 				}]
 			},
-			// Allow PostgreSQL access (optional)
-			{
-				to: [{
-					podSelector: matchLabels: app: "postgres"
-				}]
-				ports: [{
-					protocol: "TCP"
-					port:     5432
-				}]
-			},
 			// Allow HTTP/HTTPS to any destination (for monitor checks)
 			{
 				to: [{
@@ -59,6 +49,17 @@ import (
 					{protocol: "TCP", port: 80},
 					{protocol: "TCP", port: 443},
 					{protocol: "TCP", port: 8080},
+				]
+			},
+			// Allow database monitor checks (MySQL, PostgreSQL, Redis)
+			{
+				to: [{
+					ipBlock: cidr: "0.0.0.0/0"
+				}]
+				ports: [
+					{protocol: "TCP", port: 3306},  // MySQL
+					{protocol: "TCP", port: 5432},  // PostgreSQL
+					{protocol: "TCP", port: 6379},  // Redis
 				]
 			},
 			// Allow DNS resolution
