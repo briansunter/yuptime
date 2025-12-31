@@ -1,4 +1,5 @@
 import * as net from "node:net";
+import { getDnsConfigFromEnv, resolveHostname } from "../lib/dns";
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
@@ -48,6 +49,23 @@ async function checkTcpWithSocketFactory(
   const startTime = Date.now();
 
   try {
+    // Get DNS config from monitor target or environment (injected by job-builder)
+    const dnsConfig = target.dns ?? getDnsConfigFromEnv();
+
+    // Resolve hostname (TCP uses system DNS by default, but allows override)
+    const resolvedHost = await resolveHostname(target.host, {
+      config: dnsConfig,
+      defaultToExternal: false, // TCP checker defaults to system DNS
+      timeoutMs: timeout * 1000,
+    });
+
+    if (resolvedHost !== target.host) {
+      logger.debug(
+        { monitor: monitor.metadata.name, originalHost: target.host, resolvedHost },
+        "Using resolved IP for TCP connection",
+      );
+    }
+
     return new Promise((resolve) => {
       // Create a TCP connection using injected socket factory
       const socket = socketFactory();
@@ -178,7 +196,7 @@ async function checkTcpWithSocketFactory(
         }
       });
 
-      socket.connect(target.port, target.host);
+      socket.connect(target.port, resolvedHost);
     });
   } catch (error) {
     const latencyMs = Date.now() - startTime;

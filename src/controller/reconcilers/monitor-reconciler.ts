@@ -41,7 +41,12 @@ const validateMonitorTarget = (resource: Monitor): string[] => {
     spec.target?.websocket ||
     spec.target?.push ||
     spec.target?.steam ||
-    spec.target?.k8s;
+    spec.target?.k8s ||
+    spec.target?.kubernetes ||
+    spec.target?.mysql ||
+    spec.target?.postgresql ||
+    spec.target?.redis ||
+    spec.target?.grpc;
 
   if (!hasTarget) {
     errors.push("At least one target must be configured");
@@ -89,6 +94,26 @@ const validateMonitorTarget = (resource: Monitor): string[] => {
     case "k8s":
       if (!spec.target?.k8s) {
         errors.push("Monitor type k8s requires k8s target");
+      }
+      break;
+    case "mysql":
+      if (!spec.target?.mysql) {
+        errors.push("Monitor type mysql requires mysql target");
+      }
+      break;
+    case "postgresql":
+      if (!spec.target?.postgresql) {
+        errors.push("Monitor type postgresql requires postgresql target");
+      }
+      break;
+    case "redis":
+      if (!spec.target?.redis) {
+        errors.push("Monitor type redis requires redis target");
+      }
+      break;
+    case "grpc":
+      if (!spec.target?.grpc) {
+        errors.push("Monitor type grpc requires grpc target");
       }
       break;
   }

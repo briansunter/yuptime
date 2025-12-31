@@ -38,7 +38,7 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 							}
 							type: {
 								type: "string"
-								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "websocket", "push", "steam", "k8s", "docker"]
+								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "xmlQuery", "htmlQuery", "websocket", "push", "steam", "k8s", "docker", "mysql", "postgresql", "redis", "grpc"]
 							}
 							schedule: {
 								type: "object"
@@ -104,6 +104,58 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 												type:    "integer"
 												default: 10
 											}
+											auth: {
+												type: "object"
+												properties: {
+													basic: {
+														type: "object"
+														properties: {
+															secretRef: {
+																type: "object"
+																required: ["name"]
+																properties: {
+																	name: type: "string"
+																	usernameKey: type: "string"
+																	passwordKey: type: "string"
+																}
+															}
+														}
+													}
+													bearer: {
+														type: "object"
+														properties: {
+															tokenSecretRef: {
+																type: "object"
+																required: ["name", "key"]
+																properties: {
+																	name: type: "string"
+																	key: type: "string"
+																}
+															}
+														}
+													}
+													oauth2: {
+														type: "object"
+														required: ["tokenUrl", "clientSecretRef"]
+														properties: {
+															tokenUrl: type: "string"
+															clientSecretRef: {
+																type: "object"
+																required: ["name"]
+																properties: {
+																	name: type: "string"
+																	clientIdKey: type: "string"
+																	clientSecretKey: type: "string"
+																}
+															}
+															scopes: {
+																type: "array"
+																items: type: "string"
+															}
+														}
+													}
+												}
+											}
 											headers: {
 												type: "array"
 												items: {
@@ -111,6 +163,13 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 													properties: {
 														name: type: "string"
 														value: type: "string"
+														valueFromSecretRef: {
+															type: "object"
+															properties: {
+																name: type: "string"
+																key: type: "string"
+															}
+														}
 													}
 												}
 											}
@@ -128,6 +187,17 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 													}
 													sni: type: "string"
 													warnBeforeDays: type: "integer"
+												}
+											}
+											dns: {
+												type: "object"
+												description: "DNS resolution override (HTTP uses external DNS by default)"
+												properties: {
+													useSystemResolver: type: "boolean"
+													resolvers: {
+														type: "array"
+														items: type: "string"
+													}
 												}
 											}
 										}
@@ -153,6 +223,17 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 													enabled: type: "boolean"
 													verify: type: "boolean"
 													sni: type: "string"
+												}
+											}
+											dns: {
+												type: "object"
+												description: "DNS resolution override (TCP uses system DNS by default)"
+												properties: {
+													useSystemResolver: type: "boolean"
+													resolvers: {
+														type: "array"
+														items: type: "string"
+													}
 												}
 											}
 										}
@@ -199,6 +280,120 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 											expect: type: "string"
 										}
 									}
+								mysql: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										database: type: "string"
+										credentialsSecretRef: {
+											type: "object"
+											properties: {
+												name: type: "string"
+												usernameKey: type: "string"
+												passwordKey: type: "string"
+											}
+										}
+										healthQuery: type: "string"
+									}
+								}
+								postgresql: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										database: type: "string"
+										credentialsSecretRef: {
+											type: "object"
+											properties: {
+												name: type: "string"
+												usernameKey: type: "string"
+												passwordKey: type: "string"
+											}
+										}
+										healthQuery: type: "string"
+										sslMode: {
+											type: "string"
+											enum: ["disable", "prefer", "require", "verify-ca", "verify-full"]
+										}
+									}
+								}
+								redis: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										database: {
+											type:    "integer"
+											minimum: 0
+										}
+										credentialsSecretRef: {
+											type: "object"
+											properties: {
+												name: type: "string"
+												passwordKey: type: "string"
+											}
+										}
+									}
+								}
+								grpc: {
+									type: "object"
+									required: [
+										"host",
+										"port",
+									]
+									properties: {
+										host: type: "string"
+										port: {
+											type:    "integer"
+											minimum: 1
+											maximum: 65535
+										}
+										service: type: "string"
+										tls: {
+											type: "object"
+											properties: {
+												enabled: type: "boolean"
+												verify: type: "boolean"
+											}
+										}
+										dns: {
+											type: "object"
+											description: "DNS resolution override (gRPC uses system DNS by default)"
+											properties: {
+												useSystemResolver: type: "boolean"
+												resolvers: {
+													type: "array"
+													items: type: "string"
+												}
+											}
+										}
+									}
+								}
 								}
 							}
 							successCriteria: {
@@ -224,6 +419,76 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 											notContains: {
 												type: "array"
 												items: type: "string"
+											}
+										}
+									}
+									jsonQuery: {
+										type: "object"
+										required: ["path"]
+										properties: {
+											mode: {
+												type:    "string"
+												enum: ["jsonpath", "jsonpath-plus"]
+												default: "jsonpath-plus"
+											}
+											path: type: "string"
+											equals: "x-kubernetes-preserve-unknown-fields": true
+											contains: type: "string"
+											exists: type:      "boolean"
+											count: type:       "integer"
+											greaterThan: type: "number"
+											lessThan: type:    "number"
+										}
+									}
+									xmlQuery: {
+										type: "object"
+										required: ["path"]
+										properties: {
+											mode: {
+												type:    "string"
+												enum: ["xpath"]
+												default: "xpath"
+											}
+											path: type:            "string"
+											equals: type:          "string"
+											contains: type:        "string"
+											exists: type:          "boolean"
+											count: type:           "integer"
+											ignoreNamespace: {
+												type:    "boolean"
+												default: false
+											}
+										}
+									}
+									htmlQuery: {
+										type: "object"
+										required: ["selector"]
+										properties: {
+											mode: {
+												type:    "string"
+												enum: ["css"]
+												default: "css"
+											}
+											selector: type: "string"
+											exists: type:   "boolean"
+											count: type:    "integer"
+											text: {
+												type: "object"
+												properties: {
+													equals: type:   "string"
+													contains: type: "string"
+													matches: type:  "string"
+												}
+											}
+											attribute: {
+												type: "object"
+												required: ["name"]
+												properties: {
+													name: type:     "string"
+													equals: type:   "string"
+													contains: type: "string"
+													exists: type:   "boolean"
+												}
 											}
 										}
 									}
@@ -1054,39 +1319,112 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 					spec: {
 						type: "object"
 						properties: {
-							auth: {
+							mode: {
 								type: "object"
 								properties: {
-									mode: {
-										type: "string"
-										enum: ["local", "oidc", "none"]
+									gitOpsReadOnly: {
+										type: "boolean"
+										default: false
 									}
-									oidc: {
+									singleInstanceRequired: {
+										type: "boolean"
+										default: true
+									}
+								}
+							}
+							scheduler: {
+								type: "object"
+								properties: {
+									minIntervalSeconds: {
+										type: "integer"
+										minimum: 1
+										default: 20
+									}
+									maxConcurrentNetChecks: {
+										type: "integer"
+										minimum: 1
+										default: 200
+									}
+									maxConcurrentPrivChecks: {
+										type: "integer"
+										minimum: 1
+										default: 20
+									}
+									defaultTimeoutSeconds: {
+										type: "integer"
+										minimum: 1
+										default: 10
+									}
+									jitterPercent: {
+										type: "integer"
+										minimum: 0
+										maximum: 100
+										default: 5
+									}
+									flapping: {
 										type: "object"
 										properties: {
-											issuer: type: "string"
-											clientId: type: "string"
-											clientSecretRef: {
-												type: "object"
-												properties: {
-													name: type: "string"
-													key: type: "string"
-												}
+											enabled: {
+												type: "boolean"
+												default: true
+											}
+											toggleThreshold: {
+												type: "integer"
+												minimum: 1
+												default: 6
+											}
+											windowMinutes: {
+												type: "integer"
+												minimum: 1
+												default: 10
+											}
+											suppressNotificationsMinutes: {
+												type: "integer"
+												minimum: 0
+												default: 30
 											}
 										}
 									}
 								}
 							}
-							retention: {
+							networking: {
 								type: "object"
 								properties: {
-									heartbeats: {
-										type: "object"
-										properties: days: type: "integer"
+									userAgent: {
+										type: "string"
+										default: "Yuptime/1.0"
 									}
-									incidents: {
+									dns: {
 										type: "object"
-										properties: days: type: "integer"
+										description: "DNS resolution settings (defaults to external DNS for true external testing)"
+										properties: {
+											resolvers: {
+												type: "array"
+												items: type: "string"
+												default: ["8.8.8.8", "1.1.1.1"]
+											}
+											timeoutSeconds: {
+												type: "integer"
+												minimum: 1
+												default: 5
+											}
+										}
+									}
+									ping: {
+										type: "object"
+										properties: {
+											mode: {
+												type: "string"
+												enum: ["icmp", "tcpFallback", "tcpOnly"]
+												default: "tcpFallback"
+											}
+											tcpFallbackPort: {
+												type: "integer"
+												minimum: 1
+												maximum: 65535
+												default: 443
+											}
+										}
 									}
 								}
 							}

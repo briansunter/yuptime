@@ -47,7 +47,46 @@ jobs:
 
           echo "Verifying mock server..."
           curl -f http://localhost:8080/health || exit 1
-          echo "✓ Mock server started"
+          echo "✓ HTTP mock server started"
+
+          # Verify gRPC server is listening
+          nc -z localhost 50151 && echo "✓ gRPC mock server started on port 50151" || echo "✗ gRPC mock server not accessible"
+
+      - name: Start Database Services
+        run: |
+          echo "Starting database services with Docker Compose..."
+          docker compose -f docker-compose.e2e.yml up -d
+
+          echo "Waiting for services to be healthy..."
+          # Wait for MySQL (using docker exec to check inside container)
+          echo "Waiting for MySQL..."
+          timeout 60 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T mysql mysqladmin ping -h localhost -u root -prootpass 2>/dev/null; do sleep 2; done'
+          echo "✓ MySQL ready"
+
+          # Wait for PostgreSQL (using docker exec to check inside container)
+          echo "Waiting for PostgreSQL..."
+          timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T postgresql pg_isready -U testuser -d testdb 2>/dev/null; do sleep 2; done'
+          echo "✓ PostgreSQL ready"
+
+          # Wait for Redis (no auth)
+          echo "Waiting for Redis..."
+          timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done'
+          echo "✓ Redis ready"
+
+          # Wait for Redis with auth
+          echo "Waiting for Redis (with auth)..."
+          timeout 30 bash -c 'until docker compose -f docker-compose.e2e.yml exec -T redis-auth redis-cli -a testpass ping 2>/dev/null | grep -q PONG; do sleep 2; done'
+          echo "✓ Redis (with auth) ready"
+
+          # Verify host port bindings
+          echo "Verifying host ports..."
+          nc -z localhost 13306 && echo "✓ MySQL port 13306 accessible" || echo "✗ MySQL port 13306 not accessible"
+          nc -z localhost 15432 && echo "✓ PostgreSQL port 15432 accessible" || echo "✗ PostgreSQL port 15432 not accessible"
+          nc -z localhost 16379 && echo "✓ Redis port 16379 accessible" || echo "✗ Redis port 16379 not accessible"
+          nc -z localhost 16380 && echo "✓ Redis (auth) port 16380 accessible" || echo "✗ Redis (auth) port 16380 not accessible"
+
+          echo "All database services started"
+          docker compose -f docker-compose.e2e.yml ps
 
       - name: Get Host IP for Minikube
         id: hostip
@@ -152,6 +191,13 @@ jobs:
 
           echo "Deploying Yuptime..."
           timoni apply yuptime ./timoni/yuptime -n yuptime -f values-ci.cue --timeout=5m
+
+      - name: Apply Database Secrets
+        run: |
+          echo "Applying database secrets for E2E tests..."
+          kubectl apply -f e2e/k8s/database-secrets.yaml
+          echo "✓ Database secrets applied"
+          kubectl get secrets -n yuptime
 
       - name: Wait for deployment
         timeout-minutes: 3
@@ -323,9 +369,12 @@ jobs:
           echo "Collecting logs..."
           kubectl logs -n yuptime -l app.kubernetes.io/name=yuptime --tail=100 || true
 
-          echo "Cleaning up..."
+          echo "Cleaning up Kubernetes resources..."
           timoni delete yuptime -n yuptime || true
           kubectl delete namespace yuptime --ignore-not-found || true
+
+          echo "Stopping database services..."
+          docker compose -f docker-compose.e2e.yml down -v || true
 
       - name: Report results
         if: always()

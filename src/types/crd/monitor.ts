@@ -1,6 +1,16 @@
 import { z } from "zod";
 import { SecretRefSchema, StatusBaseSchema } from "./common";
 
+// DNS resolution configuration (per-monitor override)
+export const DnsConfigSchema = z.object({
+  /** Use system DNS resolver instead of external resolvers */
+  useSystemResolver: z.boolean().optional(),
+  /** Custom DNS resolvers to use (overrides global/default resolvers) */
+  resolvers: z.array(z.string()).optional(),
+});
+
+export type DnsConfig = z.infer<typeof DnsConfigSchema>;
+
 // Monitor schedule configuration
 export const MonitorScheduleSchema = z.object({
   intervalSeconds: z.number().min(1),
@@ -18,12 +28,50 @@ export const MonitorScheduleSchema = z.object({
 
 export type MonitorSchedule = z.infer<typeof MonitorScheduleSchema>;
 
+// HTTP Authentication configuration
+export const HttpAuthSchema = z.object({
+  // Basic Authentication
+  basic: z
+    .object({
+      secretRef: z.object({
+        name: z.string(),
+        usernameKey: z.string().optional().default("username"),
+        passwordKey: z.string().optional().default("password"),
+      }),
+    })
+    .optional(),
+
+  // Bearer Token
+  bearer: z
+    .object({
+      tokenSecretRef: SecretRefSchema,
+    })
+    .optional(),
+
+  // OAuth2 Client Credentials Flow
+  oauth2: z
+    .object({
+      tokenUrl: z.string().url(),
+      clientSecretRef: z.object({
+        name: z.string(),
+        clientIdKey: z.string().optional().default("client_id"),
+        clientSecretKey: z.string().optional().default("client_secret"),
+      }),
+      scopes: z.array(z.string()).optional(),
+    })
+    .optional(),
+});
+
+export type HttpAuth = z.infer<typeof HttpAuthSchema>;
+
 // HTTP target configuration
 export const HttpTargetSchema = z.object({
   url: z.string().url(),
   method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"]).optional().default("GET"),
   followRedirects: z.boolean().optional().default(true),
   maxRedirects: z.number().min(0).optional().default(10),
+  // Authentication configuration (Basic, Bearer, OAuth2)
+  auth: HttpAuthSchema.optional(),
   headers: z
     .array(
       z.object({
@@ -56,6 +104,8 @@ export const HttpTargetSchema = z.object({
       urlFromSecretRef: SecretRefSchema.optional(),
     })
     .optional(),
+  // DNS resolution override (HTTP uses external DNS by default)
+  dns: DnsConfigSchema.optional(),
 });
 
 export type HttpTarget = z.infer<typeof HttpTargetSchema>;
@@ -73,6 +123,8 @@ export const TcpTargetSchema = z.object({
       sni: z.string().optional(),
     })
     .optional(),
+  // DNS resolution override (TCP uses system DNS by default)
+  dns: DnsConfigSchema.optional(),
 });
 
 export type TcpTarget = z.infer<typeof TcpTargetSchema>;
@@ -97,7 +149,8 @@ export const WebSocketTargetSchema = z.object({
     .array(
       z.object({
         name: z.string(),
-        value: z.string(),
+        value: z.string().optional(),
+        valueFromSecretRef: SecretRefSchema.optional(),
       }),
     )
     .optional(),
@@ -165,12 +218,53 @@ export const SuccessCriteriaSchema = z.object({
       regex: z.array(z.string()).optional(),
     })
     .optional(),
+  // Enhanced JSONPath query (backwards compatible, supports wildcards, filters)
   jsonQuery: z
     .object({
-      mode: z.literal("jsonpath"),
+      mode: z.enum(["jsonpath", "jsonpath-plus"]).optional().default("jsonpath-plus"),
       path: z.string(),
       equals: z.unknown().optional(),
       exists: z.boolean().optional(),
+      contains: z.string().optional(), // Check if value contains string
+      count: z.number().optional(), // Check array result length
+      greaterThan: z.number().optional(),
+      lessThan: z.number().optional(),
+    })
+    .optional(),
+  // XML/XPath query
+  xmlQuery: z
+    .object({
+      mode: z.literal("xpath").optional().default("xpath"),
+      path: z.string(), // XPath expression
+      equals: z.string().optional(),
+      contains: z.string().optional(),
+      exists: z.boolean().optional(),
+      count: z.number().optional(),
+      ignoreNamespace: z.boolean().optional().default(false),
+    })
+    .optional(),
+  // HTML/CSS selector query
+  htmlQuery: z
+    .object({
+      mode: z.literal("css").optional().default("css"),
+      selector: z.string(), // CSS selector
+      exists: z.boolean().optional(),
+      count: z.number().optional(),
+      text: z
+        .object({
+          equals: z.string().optional(),
+          contains: z.string().optional(),
+          matches: z.string().optional(), // Regex pattern
+        })
+        .optional(),
+      attribute: z
+        .object({
+          name: z.string(),
+          equals: z.string().optional(),
+          contains: z.string().optional(),
+          exists: z.boolean().optional(),
+        })
+        .optional(),
     })
     .optional(),
   tcp: z
@@ -222,6 +316,83 @@ export const KubernetesTargetSchema = z.object({
 
 export type KubernetesTarget = z.infer<typeof KubernetesTargetSchema>;
 
+// MySQL target configuration
+export const MySqlTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(3306),
+  database: z.string().optional(),
+  credentialsSecretRef: z.object({
+    name: z.string(),
+    usernameKey: z.string().optional().default("username"),
+    passwordKey: z.string().optional().default("password"),
+  }),
+  healthQuery: z.string().optional().default("SELECT 1"),
+  tls: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      verify: z.boolean().optional().default(true),
+    })
+    .optional(),
+});
+
+export type MySqlTarget = z.infer<typeof MySqlTargetSchema>;
+
+// PostgreSQL target configuration
+export const PostgreSqlTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(5432),
+  database: z.string().optional().default("postgres"),
+  credentialsSecretRef: z.object({
+    name: z.string(),
+    usernameKey: z.string().optional().default("username"),
+    passwordKey: z.string().optional().default("password"),
+  }),
+  healthQuery: z.string().optional().default("SELECT 1"),
+  sslMode: z
+    .enum(["disable", "prefer", "require", "verify-ca", "verify-full"])
+    .optional()
+    .default("prefer"),
+});
+
+export type PostgreSqlTarget = z.infer<typeof PostgreSqlTargetSchema>;
+
+// Redis target configuration
+export const RedisTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(6379),
+  database: z.number().min(0).max(15).optional().default(0),
+  credentialsSecretRef: z
+    .object({
+      name: z.string(),
+      passwordKey: z.string().optional().default("password"),
+    })
+    .optional(),
+  tls: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+    })
+    .optional(),
+});
+
+export type RedisTarget = z.infer<typeof RedisTargetSchema>;
+
+// gRPC target configuration
+export const GrpcTargetSchema = z.object({
+  host: z.string(),
+  port: z.number().min(1).max(65535).optional().default(50051),
+  service: z.string().optional().default(""),
+  tls: z
+    .object({
+      enabled: z.boolean().optional().default(false),
+      verify: z.boolean().optional().default(true),
+    })
+    .optional(),
+  // DNS resolution override (gRPC uses system DNS by default)
+  dns: DnsConfigSchema.optional(),
+});
+
+export type GrpcTarget = z.infer<typeof GrpcTargetSchema>;
+
 // Monitor target container
 export const MonitorTargetSchema = z.object({
   http: HttpTargetSchema.optional(),
@@ -233,6 +404,10 @@ export const MonitorTargetSchema = z.object({
   steam: SteamTargetSchema.optional(),
   k8s: K8sTargetSchema.optional(),
   kubernetes: KubernetesTargetSchema.optional(),
+  mysql: MySqlTargetSchema.optional(),
+  postgresql: PostgreSqlTargetSchema.optional(),
+  redis: RedisTargetSchema.optional(),
+  grpc: GrpcTargetSchema.optional(),
   keyword: z
     .object({
       target: z.union([HttpTargetSchema, z.object({ url: z.string() })]),
@@ -264,11 +439,17 @@ export const MonitorSpecSchema = z.object({
     "dns",
     "keyword",
     "jsonQuery",
+    "xmlQuery",
+    "htmlQuery",
     "websocket",
     "push",
     "steam",
     "k8s",
     "docker",
+    "mysql",
+    "postgresql",
+    "redis",
+    "grpc",
   ]),
   schedule: MonitorScheduleSchema,
   target: MonitorTargetSchema,

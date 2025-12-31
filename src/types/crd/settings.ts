@@ -28,7 +28,8 @@ export const YuptimeSettingsSpecSchema = z.object({
     userAgent: z.string().optional().default("Yuptime/1.0"),
     dns: z
       .object({
-        resolvers: z.array(z.string()).optional(),
+        // Default to external DNS for true external endpoint testing
+        resolvers: z.array(z.string()).optional().default(["8.8.8.8", "1.1.1.1"]),
         timeoutSeconds: z.number().min(1).optional().default(5),
       })
       .optional(),
@@ -39,26 +40,6 @@ export const YuptimeSettingsSpecSchema = z.object({
       })
       .optional(),
   }),
-
-  discovery: z
-    .object({
-      enabled: z.boolean().optional().default(false),
-      sources: z
-        .array(
-          z.object({
-            type: z.enum(["ingress", "gatewayapi", "service"]),
-          }),
-        )
-        .optional(),
-      behavior: z
-        .object({
-          showSuggestionsInUi: z.boolean().optional().default(true),
-          writeCrds: z.boolean().optional().default(false),
-          defaultHealthPath: z.string().optional().default("/healthz"),
-        })
-        .optional(),
-    })
-    .optional(),
 });
 
 export type YuptimeSettingsSpec = z.infer<typeof YuptimeSettingsSpecSchema>;
