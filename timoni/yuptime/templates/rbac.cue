@@ -20,13 +20,8 @@ import (
 			resources: [
 				"monitors",
 				"monitorsets",
-				"notificationproviders",
-				"notificationpolicies",
-				"statuspages",
 				"maintenancewindows",
 				"silences",
-				"localusers",
-				"apikeys",
 				"yuptimesettings",
 			]
 			verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -37,13 +32,8 @@ import (
 			resources: [
 				"monitors/status",
 				"monitorsets/status",
-				"notificationproviders/status",
-				"notificationpolicies/status",
-				"statuspages/status",
 				"maintenancewindows/status",
 				"silences/status",
-				"localusers/status",
-				"apikeys/status",
 				"yuptimesettings/status",
 			]
 			verbs: ["get", "update", "patch"]

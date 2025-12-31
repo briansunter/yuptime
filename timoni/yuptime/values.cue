@@ -26,59 +26,6 @@ values: {
 	// Application mode
 	mode: "development"
 
-	// Database configuration (SQLite by default)
-	database: {
-		type: "sqlite"
-		sqlite: path: "/data/yuptime.db"
-		postgresql: {
-			host:     ""
-			port:     5432
-			database: "yuptime"
-			username: "yuptime"
-			passwordSecretRef: {
-				name: ""
-				key:  "password"
-			}
-			sslMode: "require"
-		}
-		etcd: {
-			endpoints: "http://etcd:2379"
-			deploy:    false
-		}
-	}
-
-	// Storage enabled by default
-	storage: {
-		enabled:      true
-		size:         "1Gi"
-		storageClass: ""
-		accessMode:   "ReadWriteOnce"
-	}
-
-	// Authentication (local by default)
-	auth: {
-		mode: "local"
-		session: {
-			secret:      "dev-secret-change-in-production"
-			maxAgeHours: 168
-		}
-		oidc: {
-			issuerUrl:   ""
-			clientId:    ""
-			redirectUrl: ""
-			clientSecretRef: {
-				name: ""
-				key:  "client-secret"
-			}
-		}
-		adminUser: {
-			enabled:  true
-			username: "admin"
-			// Default password hash for: test1234
-			passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
-		}
-	}
-
 	// Logging
 	logging: level: "info"
 

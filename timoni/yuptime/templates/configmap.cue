@@ -17,8 +17,5 @@ import (
 	data: {
 		NODE_ENV:  #config.mode
 		LOG_LEVEL: #config.logging.level
-		if #config.database.type == "etcd" {
-			ETCD_ENDPOINTS: #config.database.etcd.endpoints
-		}
 	}
 }

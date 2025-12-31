@@ -17,18 +17,21 @@ spec:
         matchLabels:
           kubernetes.io/metadata.name: kube-system
   - ports:
-    - port: 5432
-      protocol: TCP
-    to:
-    - podSelector:
-        matchLabels:
-          app: postgres
-  - ports:
     - port: 80
       protocol: TCP
     - port: 443
       protocol: TCP
     - port: 8080
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  - ports:
+    - port: 3306
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    - port: 6379
       protocol: TCP
     to:
     - ipBlock:

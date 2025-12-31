@@ -40,13 +40,8 @@ rules:
   resources:
   - monitors
   - monitorsets
-  - notificationproviders
-  - notificationpolicies
-  - statuspages
   - maintenancewindows
   - silences
-  - localusers
-  - apikeys
   - yuptimesettings
   verbs:
   - get
@@ -61,13 +56,8 @@ rules:
   resources:
   - monitors/status
   - monitorsets/status
-  - notificationproviders/status
-  - notificationpolicies/status
-  - statuspages/status
   - maintenancewindows/status
   - silences/status
-  - localusers/status
-  - apikeys/status
   - yuptimesettings/status
   verbs:
   - get
@@ -230,9 +220,7 @@ metadata:
     app.kubernetes.io/version: 0.0.0-devel
   name: yuptime-config
   namespace: yuptime
-stringData:
-  admin-password-hash: $argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU
-  session-secret: dev-secret-change-in-production
+stringData: {}
 type: Opaque
 ---
 apiVersion: apps/v1
@@ -265,19 +253,10 @@ spec:
           value: info
         - name: PORT
           value: "3000"
-        - name: AUTH_MODE
-          value: local
-        - name: SESSION_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: session-secret
-              name: yuptime-config
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: DATABASE_URL
-          value: sqlite:/data/yuptime.db
         - name: NODE_TLS_REJECT_UNAUTHORIZED
           value: "0"
         image: ghcr.io/yuptime/yuptime-api:latest
@@ -318,8 +297,6 @@ spec:
           privileged: false
           readOnlyRootFilesystem: true
         volumeMounts:
-        - mountPath: /data
-          name: data
         - mountPath: /tmp
           name: tmp
       securityContext:
@@ -330,9 +307,6 @@ spec:
           type: RuntimeDefault
       serviceAccountName: yuptime
       volumes:
-      - name: data
-        persistentVolumeClaim:
-          claimName: yuptime-pvc
       - emptyDir: {}
         name: tmp
 ---
@@ -357,22 +331,6 @@ spec:
     app.kubernetes.io/name: yuptime
   type: ClusterIP
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: timoni
-    app.kubernetes.io/name: yuptime
-    app.kubernetes.io/version: 0.0.0-devel
-  name: yuptime-pvc
-  namespace: yuptime
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -392,18 +350,21 @@ spec:
         matchLabels:
           kubernetes.io/metadata.name: kube-system
   - ports:
-    - port: 5432
-      protocol: TCP
-    to:
-    - podSelector:
-        matchLabels:
-          app: postgres
-  - ports:
     - port: 80
       protocol: TCP
     - port: 443
       protocol: TCP
     - port: 8080
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  - ports:
+    - port: 3306
+      protocol: TCP
+    - port: 5432
+      protocol: TCP
+    - port: 6379
       protocol: TCP
     to:
     - ipBlock:

@@ -49,52 +49,9 @@ import (
 						{name: "NODE_ENV", value: #config.mode},
 						{name: "LOG_LEVEL", value: #config.logging.level},
 						{name: "PORT", value: "\(#config.service.port)"},
-						{name: "AUTH_MODE", value: #config.auth.mode},
-						{
-							name: "SESSION_SECRET"
-							valueFrom: secretKeyRef: {
-								name: #secretName
-								key:  "session-secret"
-							}
-						},
 						{
 							name: "KUBE_NAMESPACE"
 							valueFrom: fieldRef: fieldPath: "metadata.namespace"
-						},
-						// Database URL based on type
-						if #config.database.type == "sqlite" {
-							{name: "DATABASE_URL", value: "sqlite:" + #config.database.sqlite.path}
-						},
-						if #config.database.type == "postgresql" {
-							{
-								name: "DATABASE_URL"
-								valueFrom: secretKeyRef: {
-									name: #secretName
-									key:  "database-url"
-								}
-							}
-						},
-						if #config.database.type == "etcd" {
-							{name: "ETCD_ENDPOINTS", value: #config.database.etcd.endpoints}
-						},
-						// OIDC settings
-						if #config.auth.mode == "oidc" && #config.auth.oidc.issuerUrl != "" {
-							{name: "OIDC_ISSUER_URL", value: #config.auth.oidc.issuerUrl}
-						},
-						if #config.auth.mode == "oidc" && #config.auth.oidc.clientId != "" {
-							{name: "OIDC_CLIENT_ID", value: #config.auth.oidc.clientId}
-						},
-						if #config.auth.mode == "oidc" && #config.auth.oidc.redirectUrl != "" {
-							{name: "OIDC_REDIRECT_URL", value: #config.auth.oidc.redirectUrl}
-						},
-						if #config.auth.mode == "oidc" && #config.auth.oidc.clientSecretRef.name != "" {
-							{
-								name: "OIDC_CLIENT_SECRET"
-								valueFrom: secretKeyRef: {
-									name: #config.auth.oidc.clientSecretRef.name
-									key:  #config.auth.oidc.clientSecretRef.key
-								}
-							}
 						},
 						// TLS settings for development
 						if #config.mode == "development" {
@@ -131,20 +88,10 @@ import (
 					}
 
 					volumeMounts: [
-						{name: "data", mountPath: "/data"},
 						{name: "tmp", mountPath: "/tmp"},
 					]
 				}]
 				volumes: [
-					if #config.storage.enabled {
-						{
-							name: "data"
-							persistentVolumeClaim: claimName: #config.metadata.name + "-pvc"
-						}
-					},
-					if !#config.storage.enabled {
-						{name: "data", emptyDir: {}}
-					},
 					{name: "tmp", emptyDir: {}},
 				]
 				if #config.nodeSelector != _|_ {
