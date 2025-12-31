@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.19](https://github.com/briansunter/yuptime/compare/v0.0.18...v0.0.19) (2025-12-31)
+
+
+### Features
+
+* add comprehensive test coverage infrastructure ([890225e](https://github.com/briansunter/yuptime/commit/890225e782d1f3ca832e4d6e6b8966e9608448f8))
+* add database, gRPC checkers and auto-discovery controller ([#40](https://github.com/briansunter/yuptime/issues/40)) ([1ab3fa0](https://github.com/briansunter/yuptime/commit/1ab3fa0ede2c04c0788b2bf0d820c748f4d745ce))
+* add job to make packages public after publish ([2823de5](https://github.com/briansunter/yuptime/commit/2823de5933bcfb55fb1589fae331c847d1bcc481))
+
+
+### Bug Fixes
+
+* **docs:** enable GitHub Pages in workflow ([f1dcb04](https://github.com/briansunter/yuptime/commit/f1dcb04885213c03ad03389d08cc2e9a2ee44eee))
+* enforce strict linting with no warnings ([d3772ad](https://github.com/briansunter/yuptime/commit/d3772ad3bfe0fc86287b690ad248cc048992fc33))
+* remove coverage warnings for untested components ([ca7b771](https://github.com/briansunter/yuptime/commit/ca7b771654346030cabeaef07c7aae98a0266c2e))
+* resolve E2E test issues for all 36 tests passing ([#39](https://github.com/briansunter/yuptime/issues/39)) ([d73c34c](https://github.com/briansunter/yuptime/commit/d73c34c3e68444fe71816d75040343cef6d5d027))
+
 ## [0.0.18](https://github.com/briansunter/yuptime/compare/v0.0.17...v0.0.18) (2025-12-28)
 
 
