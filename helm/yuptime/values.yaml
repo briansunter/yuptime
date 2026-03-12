@@ -1,5 +1,6 @@
 # Default values for yuptime
-# This is generated from timoni/yuptime/values.cue - DO NOT EDIT MANUALLY
+# Mirrors timoni/yuptime/values.cue and templates/config.cue.
+# Do not edit manually without updating the Timoni module.
 
 image:
   repository: ghcr.io/yuptime/yuptime-api
@@ -11,76 +12,26 @@ checkerImage:
   pullPolicy: IfNotPresent
   tag: "" # Defaults to .Chart.AppVersion
 
-# Application mode
-mode: production
+mode: development
 
-# Database configuration
-database:
-  type: sqlite # sqlite | postgresql | etcd
-
-  # SQLite configuration
-  sqlite:
-    path: /data/yuptime.db
-
-  # PostgreSQL configuration
-  postgresql:
-    host: ""
-    port: 5432
-    database: yuptime
-    username: yuptime
-    passwordSecretRef:
-      name: ""
-      key: password
-    sslMode: require
-
-  # etcd configuration
-  etcd:
-    endpoints: http://etcd:2379
-    deploy: false
-
-# Storage configuration
-storage:
-  enabled: true
-  size: 1Gi
-  storageClass: "" # Uses default storage class if empty
-  accessMode: ReadWriteOnce
-
-# Authentication configuration
-auth:
-  mode: local # local | oidc | disabled
-
-  # Session configuration
-  session:
-    secret: "" # Generated if empty
-    maxAgeHours: 168
-
-  # OIDC configuration
-  oidc:
-    issuerUrl: ""
-    clientId: ""
-    redirectUrl: ""
-    clientSecretRef:
-      name: ""
-      key: client-secret
-
-  # Admin user configuration (local mode)
-  adminUser:
-    enabled: true
-    username: admin
-    passwordHash: "" # Default password hash for: test1234
-
-# Logging configuration
 logging:
   level: info # debug | info | warn | error
 
-# Service configuration
+replicas: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
 service:
   type: ClusterIP
   port: 3000
-  # Annotations for the service
   annotations: {}
 
-# Health probes
 probes:
   liveness:
     enabled: true
@@ -95,25 +46,13 @@ probes:
     timeoutSeconds: 5
     failureThreshold: 2
 
-# Resource limits and requests
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-# Node selector
+podAnnotations: {}
+imagePullSecrets: []
 nodeSelector: {}
-
-# Tolerations
 tolerations: []
-
-# Affinity rules
 affinity: {}
+topologySpreadConstraints: []
 
-# Optional features
 networkPolicy:
   enabled: true
 
@@ -121,10 +60,15 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
-# CRD installation
 crds:
-  install: false # CRDs should be applied separately
+  install: false
 
-# Test job configuration
 testResources:
   enabled: false
+
+test:
+  enabled: false
+  image:
+    repository: cgr.dev/chainguard/curl
+    pullPolicy: IfNotPresent
+    tag: latest

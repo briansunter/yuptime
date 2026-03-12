@@ -1,3 +1,5 @@
+import { createInterface } from "node:readline";
+import { Readable } from "node:stream";
 import {
   AppsV1Api,
   BatchV1Api,
@@ -5,9 +7,9 @@ import {
   CoreV1Api,
   CustomObjectsApi,
   KubeConfig,
-  Watch,
 } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
+import { isRecoverableAsyncError } from "../lib/recoverable-error";
 
 let kubeConfig: KubeConfig;
 
@@ -50,6 +52,156 @@ export function getK8sClient(): KubeConfig {
     throw new Error("Kubernetes client not initialized");
   }
   return kubeConfig;
+}
+
+function toNodeReadableStream(body: unknown): NodeJS.ReadableStream {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "on" in body &&
+    typeof (body as { on: unknown }).on === "function"
+  ) {
+    return body as NodeJS.ReadableStream;
+  }
+
+  if (body instanceof ReadableStream) {
+    return Readable.fromWeb(body) as NodeJS.ReadableStream;
+  }
+
+  if (typeof body === "object" && body !== null && Symbol.asyncIterator in body) {
+    return Readable.from(body as AsyncIterable<string | Uint8Array>);
+  }
+
+  throw new Error("Watch response body is not a readable stream");
+}
+
+type WatchQueryValue = string | number | boolean | undefined;
+
+export interface WatchHandle {
+  abort: () => void;
+}
+
+/**
+ * Start a Kubernetes watch using Bun-compatible fetch/stream handling.
+ * This absorbs expected aborts during proactive watch rotation instead of
+ * surfacing them as unhandled global async errors.
+ */
+export async function startK8sWatch<T>(
+  path: string,
+  queryParams: Record<string, WatchQueryValue>,
+  onEvent: (type: string, obj: T) => void,
+  onDone: (error?: unknown) => void,
+): Promise<WatchHandle> {
+  const kc = getK8sClient();
+  const cluster = kc.getCurrentCluster();
+  if (!cluster) {
+    throw new Error("No current cluster configured");
+  }
+
+  const url = new URL(cluster.server + path);
+  url.searchParams.set("watch", "true");
+  for (const [key, value] of Object.entries(queryParams)) {
+    if (value !== undefined) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  const requestInit: Record<string, unknown> = {};
+  await kc.applyToFetchOptions(requestInit);
+
+  const controller = new AbortController();
+  let doneCalled = false;
+  const doneOnce = (error?: unknown) => {
+    if (doneCalled) {
+      return;
+    }
+
+    doneCalled = true;
+    onDone(error);
+  };
+
+  const watchLoop = (async () => {
+    try {
+      const response = await fetch(url, {
+        ...requestInit,
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          ...((requestInit.headers as Record<string, string> | undefined) ?? {}),
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        doneOnce();
+        return;
+      }
+
+      const stream = toNodeReadableStream(response.body);
+      const lines = createInterface({
+        input: stream,
+        crlfDelay: Infinity,
+      });
+
+      try {
+        for await (const line of lines) {
+          if (!line) {
+            continue;
+          }
+
+          try {
+            const data = JSON.parse(line) as { type?: string; object?: T };
+            if (data.type && data.object) {
+              onEvent(data.type, data.object);
+            }
+          } catch {
+            // Ignore malformed watch events and continue streaming.
+          }
+        }
+
+        doneOnce();
+      } catch (error) {
+        if (controller.signal.aborted && isRecoverableAsyncError(error)) {
+          doneOnce();
+          return;
+        }
+
+        doneOnce(error);
+      } finally {
+        lines.close();
+        (stream as { destroy?: () => void }).destroy?.();
+      }
+    } catch (error) {
+      if (controller.signal.aborted && isRecoverableAsyncError(error)) {
+        doneOnce();
+        return;
+      }
+
+      doneOnce(error);
+    }
+  })();
+
+  watchLoop.catch((error) => {
+    if (controller.signal.aborted && isRecoverableAsyncError(error)) {
+      doneOnce();
+      return;
+    }
+
+    doneOnce(error);
+  });
+
+  return {
+    abort: () => {
+      controller.abort();
+    },
+  };
 }
 
 /**
@@ -259,17 +411,14 @@ export function createCRDWatcher(
      */
     watch(
       onEvent: (type: string, obj: unknown) => void,
-      onError?: (error: Error) => void,
+      onError?: (error?: unknown) => void,
       ns?: string,
     ) {
-      const kc = getK8sClient();
       const path = ns
         ? `/apis/${group}/${version}/namespaces/${ns}/${plural}`
         : `/apis/${group}/${version}/${plural}`;
 
-      const watch = new Watch(kc);
-
-      return watch.watch(
+      return startK8sWatch(
         path,
         {},
         (phase, obj) => {

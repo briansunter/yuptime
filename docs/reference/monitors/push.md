@@ -1,6 +1,6 @@
 # Push Monitor
 
-Receives status updates via HTTP webhooks instead of actively polling. Ideal for cron jobs, batch processes, and custom integrations.
+Tracks freshness of externally-reported results instead of making an active network request.
 
 ## Basic Example
 
@@ -43,16 +43,9 @@ target:
 | `expireSeconds` | No | `300` | Status expiration time |
 | `gracePeriodSeconds` | No | `60` | Grace period before unhealthy |
 
-## Sending Pushes
+## Current Status
 
-Send a push to report status:
-
-```bash
-curl -X POST "https://yuptime.example.com/api/push/yuptime/backup-job" \
-  -H "Authorization: Bearer my-secure-token" \
-  -H "Content-Type: application/json" \
-  -d '{"status": "up", "message": "Backup completed"}'
-```
+The current repository does not expose a built-in push ingestion HTTP route. The `push` monitor type and checker exist, but you need an external component to write the latest result into monitor status if you want to use it end-to-end today.
 
 ## Examples
 
@@ -76,10 +69,6 @@ spec:
         key: token
       expireSeconds: 90000    # 25 hours
       gracePeriodSeconds: 3600
-  alerting:
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: warning
 ```
 
 ### Heartbeat from External System

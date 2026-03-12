@@ -1,18 +1,16 @@
 package templates
 
 customresourcedefinition: "monitors.monitoring.yuptime.io": {
-	// Yuptime Custom Resource Definitions
-	// API Group: monitoring.yuptime.io/v1
 	apiVersion: "apiextensions.k8s.io/v1"
 	kind:       "CustomResourceDefinition"
 	metadata: name: "monitors.monitoring.yuptime.io"
 	spec: {
 		group: "monitoring.yuptime.io"
 		names: {
-			kind:     "Monitor"
-			listKind: "MonitorList"
-			plural:   "monitors"
-			singular: "monitor"
+			kind:       "Monitor"
+			listKind:   "MonitorList"
+			plural:     "monitors"
+			singular:   "monitor"
 			shortNames: ["mon"]
 		}
 		scope: "Namespaced"
@@ -38,7 +36,25 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 							}
 							type: {
 								type: "string"
-								enum: ["http", "tcp", "ping", "dns", "keyword", "jsonQuery", "xmlQuery", "htmlQuery", "websocket", "push", "steam", "k8s", "docker", "mysql", "postgresql", "redis", "grpc"]
+								enum: [
+									"http",
+									"tcp",
+									"ping",
+									"dns",
+									"keyword",
+									"jsonQuery",
+									"xmlQuery",
+									"htmlQuery",
+									"websocket",
+									"push",
+									"steam",
+									"k8s",
+									"docker",
+									"mysql",
+									"postgresql",
+									"redis",
+									"grpc",
+								]
 							}
 							schedule: {
 								type: "object"
@@ -87,412 +103,70 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 								type: "object"
 								properties: {
 									http: {
-										type: "object"
-										required: ["url"]
-										properties: {
-											url: type: "string"
-											method: {
-												type: "string"
-												enum: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"]
-												default: "GET"
-											}
-											followRedirects: {
-												type:    "boolean"
-												default: true
-											}
-											maxRedirects: {
-												type:    "integer"
-												default: 10
-											}
-											auth: {
-												type: "object"
-												properties: {
-													basic: {
-														type: "object"
-														properties: {
-															secretRef: {
-																type: "object"
-																required: ["name"]
-																properties: {
-																	name: type: "string"
-																	usernameKey: type: "string"
-																	passwordKey: type: "string"
-																}
-															}
-														}
-													}
-													bearer: {
-														type: "object"
-														properties: {
-															tokenSecretRef: {
-																type: "object"
-																required: ["name", "key"]
-																properties: {
-																	name: type: "string"
-																	key: type: "string"
-																}
-															}
-														}
-													}
-													oauth2: {
-														type: "object"
-														required: ["tokenUrl", "clientSecretRef"]
-														properties: {
-															tokenUrl: type: "string"
-															clientSecretRef: {
-																type: "object"
-																required: ["name"]
-																properties: {
-																	name: type: "string"
-																	clientIdKey: type: "string"
-																	clientSecretKey: type: "string"
-																}
-															}
-															scopes: {
-																type: "array"
-																items: type: "string"
-															}
-														}
-													}
-												}
-											}
-											headers: {
-												type: "array"
-												items: {
-													type: "object"
-													properties: {
-														name: type: "string"
-														value: type: "string"
-														valueFromSecretRef: {
-															type: "object"
-															properties: {
-																name: type: "string"
-																key: type: "string"
-															}
-														}
-													}
-												}
-											}
-											expectedContentType: type: "string"
-											maxBodyBytes: {
-												type:    "integer"
-												default: 1048576
-											}
-											tls: {
-												type: "object"
-												properties: {
-													verify: {
-														type:    "boolean"
-														default: true
-													}
-													sni: type: "string"
-													warnBeforeDays: type: "integer"
-												}
-											}
-											dns: {
-												type: "object"
-												description: "DNS resolution override (HTTP uses external DNS by default)"
-												properties: {
-													useSystemResolver: type: "boolean"
-													resolvers: {
-														type: "array"
-														items: type: "string"
-													}
-												}
-											}
-										}
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
 									tcp: {
-										type: "object"
-										required: [
-											"host",
-											"port",
-										]
-										properties: {
-											host: type: "string"
-											port: {
-												type:    "integer"
-												minimum: 1
-												maximum: 65535
-											}
-											send: type: "string"
-											expect: type: "string"
-											tls: {
-												type: "object"
-												properties: {
-													enabled: type: "boolean"
-													verify: type: "boolean"
-													sni: type: "string"
-												}
-											}
-											dns: {
-												type: "object"
-												description: "DNS resolution override (TCP uses system DNS by default)"
-												properties: {
-													useSystemResolver: type: "boolean"
-													resolvers: {
-														type: "array"
-														items: type: "string"
-													}
-												}
-											}
-										}
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
 									dns: {
-										type: "object"
-										required: [
-											"name",
-											"recordType",
-										]
-										properties: {
-											name: type: "string"
-											recordType: {
-												type: "string"
-												enum: ["A", "AAAA", "CNAME", "TXT", "MX", "SRV"]
-											}
-											expected: {
-												type: "object"
-												properties: values: {
-													type: "array"
-													items: type: "string"
-												}
-											}
-										}
-									}
-									ping: {
-										type: "object"
-										required: ["host"]
-										properties: {
-											host: type: "string"
-											packetCount: {
-												type:    "integer"
-												minimum: 1
-												default: 1
-											}
-										}
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
 									websocket: {
-										type: "object"
-										required: ["url"]
-										properties: {
-											url: type: "string"
-											send: type: "string"
-											expect: type: "string"
-										}
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
-								mysql: {
-									type: "object"
-									required: [
-										"host",
-										"port",
-									]
-									properties: {
-										host: type: "string"
-										port: {
-											type:    "integer"
-											minimum: 1
-											maximum: 65535
-										}
-										database: type: "string"
-										credentialsSecretRef: {
-											type: "object"
-											properties: {
-												name: type: "string"
-												usernameKey: type: "string"
-												passwordKey: type: "string"
-											}
-										}
-										healthQuery: type: "string"
+									ping: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
-								}
-								postgresql: {
-									type: "object"
-									required: [
-										"host",
-										"port",
-									]
-									properties: {
-										host: type: "string"
-										port: {
-											type:    "integer"
-											minimum: 1
-											maximum: 65535
-										}
-										database: type: "string"
-										credentialsSecretRef: {
-											type: "object"
-											properties: {
-												name: type: "string"
-												usernameKey: type: "string"
-												passwordKey: type: "string"
-											}
-										}
-										healthQuery: type: "string"
-										sslMode: {
-											type: "string"
-											enum: ["disable", "prefer", "require", "verify-ca", "verify-full"]
-										}
+									push: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
-								}
-								redis: {
-									type: "object"
-									required: [
-										"host",
-										"port",
-									]
-									properties: {
-										host: type: "string"
-										port: {
-											type:    "integer"
-											minimum: 1
-											maximum: 65535
-										}
-										database: {
-											type:    "integer"
-											minimum: 0
-										}
-										credentialsSecretRef: {
-											type: "object"
-											properties: {
-												name: type: "string"
-												passwordKey: type: "string"
-											}
-										}
+									steam: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
-								}
-								grpc: {
-									type: "object"
-									required: [
-										"host",
-										"port",
-									]
-									properties: {
-										host: type: "string"
-										port: {
-											type:    "integer"
-											minimum: 1
-											maximum: 65535
-										}
-										service: type: "string"
-										tls: {
-											type: "object"
-											properties: {
-												enabled: type: "boolean"
-												verify: type: "boolean"
-											}
-										}
-										dns: {
-											type: "object"
-											description: "DNS resolution override (gRPC uses system DNS by default)"
-											properties: {
-												useSystemResolver: type: "boolean"
-												resolvers: {
-													type: "array"
-													items: type: "string"
-												}
-											}
-										}
+									k8s: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
 									}
-								}
+									kubernetes: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
+									mysql: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
+									postgresql: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
+									redis: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
+									grpc: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
+									keyword: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
+									jsonQuery: {
+										type:                                   "object"
+										"x-kubernetes-preserve-unknown-fields": true
+									}
 								}
 							}
 							successCriteria: {
-								type: "object"
-								properties: {
-									http: {
-										type: "object"
-										properties: {
-											acceptedStatusCodes: {
-												type: "array"
-												items: type: "integer"
-											}
-											latencyMsUnder: type: "integer"
-										}
-									}
-									keyword: {
-										type: "object"
-										properties: {
-											contains: {
-												type: "array"
-												items: type: "string"
-											}
-											notContains: {
-												type: "array"
-												items: type: "string"
-											}
-										}
-									}
-									jsonQuery: {
-										type: "object"
-										required: ["path"]
-										properties: {
-											mode: {
-												type:    "string"
-												enum: ["jsonpath", "jsonpath-plus"]
-												default: "jsonpath-plus"
-											}
-											path: type: "string"
-											equals: "x-kubernetes-preserve-unknown-fields": true
-											contains: type: "string"
-											exists: type:      "boolean"
-											count: type:       "integer"
-											greaterThan: type: "number"
-											lessThan: type:    "number"
-										}
-									}
-									xmlQuery: {
-										type: "object"
-										required: ["path"]
-										properties: {
-											mode: {
-												type:    "string"
-												enum: ["xpath"]
-												default: "xpath"
-											}
-											path: type:            "string"
-											equals: type:          "string"
-											contains: type:        "string"
-											exists: type:          "boolean"
-											count: type:           "integer"
-											ignoreNamespace: {
-												type:    "boolean"
-												default: false
-											}
-										}
-									}
-									htmlQuery: {
-										type: "object"
-										required: ["selector"]
-										properties: {
-											mode: {
-												type:    "string"
-												enum: ["css"]
-												default: "css"
-											}
-											selector: type: "string"
-											exists: type:   "boolean"
-											count: type:    "integer"
-											text: {
-												type: "object"
-												properties: {
-													equals: type:   "string"
-													contains: type: "string"
-													matches: type:  "string"
-												}
-											}
-											attribute: {
-												type: "object"
-												required: ["name"]
-												properties: {
-													name: type:     "string"
-													equals: type:   "string"
-													contains: type: "string"
-													exists: type:   "boolean"
-												}
-											}
-										}
-									}
-								}
+								type:                                   "object"
+								"x-kubernetes-preserve-unknown-fields": true
 							}
 							alerting: {
 								type: "object"
@@ -503,6 +177,7 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 									}
 									resendIntervalMinutes: {
 										type:    "integer"
+										minimum: 0
 										default: 0
 									}
 									notifyOn: {
@@ -528,9 +203,17 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 									}
 								}
 							}
+							alertmanagerUrl: {
+								type:   "string"
+								format: "uri"
+							}
 							tags: {
 								type: "array"
 								items: type: "string"
+							}
+							annotations: {
+								type: "object"
+								additionalProperties: type: "string"
 							}
 						}
 					}
@@ -543,10 +226,10 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 								items: {
 									type: "object"
 									properties: {
-										type: type: "string"
-										status: type: "string"
-										reason: type: "string"
-										message: type: "string"
+										type:               type: "string"
+										status:             type: "string"
+										reason:             type: "string"
+										message:            type: "string"
 										lastTransitionTime: type: "string"
 									}
 								}
@@ -560,18 +243,26 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 									}
 									checkedAt: type: "string"
 									latencyMs: type: "number"
-									attempts: type: "integer"
-									reason: type: "string"
-									message: type: "string"
+									attempts:  type: "integer"
+									reason:    type: "string"
+									message:   type: "string"
 								}
 							}
 							uptime: {
 								type: "object"
 								properties: {
-									last1h: type: "number"
+									last1h:  type: "number"
 									last24h: type: "number"
-									last7d: type: "number"
+									last7d:  type: "number"
 									last30d: type: "number"
+								}
+							}
+							cert: {
+								type: "object"
+								properties: {
+									expiresAt:     type: "string"
+									daysRemaining: type: "number"
+									valid:         type: "boolean"
 								}
 							}
 							nextRunAt: type: "string"
@@ -600,6 +291,7 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 		}]
 	}
 }
+
 customresourcedefinition: "maintenancewindows.monitoring.yuptime.io": {
 	apiVersion: "apiextensions.k8s.io/v1"
 	kind:       "CustomResourceDefinition"
@@ -625,29 +317,37 @@ customresourcedefinition: "maintenancewindows.monitoring.yuptime.io": {
 						type: "object"
 						required: [
 							"schedule",
-							"durationMinutes",
+							"behavior",
 						]
 						properties: {
+							enabled: {
+								type:    "boolean"
+								default: true
+							}
 							schedule: {
-								type:        "string"
-								description: "RRULE format schedule"
-							}
-							durationMinutes: {
-								type:    "integer"
-								minimum: 1
-							}
-							description: type: "string"
-							selector: {
 								type: "object"
+								required: [
+									"start",
+									"end",
+								]
 								properties: {
-									matchNamespaces: {
-										type: "array"
-										items: type: "string"
-									}
-									matchLabels: {
+									start: type: "string"
+									end:   type: "string"
+									recurrence: {
 										type: "object"
-										additionalProperties: type: "string"
+										properties: rrule: type: "string"
 									}
+								}
+							}
+							match: {
+								type:                                   "object"
+								"x-kubernetes-preserve-unknown-fields": true
+							}
+							behavior: {
+								type: "object"
+								properties: suppressNotifications: {
+									type:    "boolean"
+									default: true
 								}
 							}
 						}
@@ -656,20 +356,22 @@ customresourcedefinition: "maintenancewindows.monitoring.yuptime.io": {
 						type: "object"
 						properties: {
 							observedGeneration: type: "integer"
-							nextOccurrenceAt: type: "string"
 							conditions: {
 								type: "array"
 								items: {
 									type: "object"
 									properties: {
-										type: type: "string"
-										status: type: "string"
-										reason: type: "string"
-										message: type: "string"
+										type:               type: "string"
+										status:             type: "string"
+										reason:             type: "string"
+										message:            type: "string"
 										lastTransitionTime: type: "string"
 									}
 								}
 							}
+							isActive:       type: "boolean"
+							nextOccurrence: type: "string"
+							monitorCount:   type: "integer"
 						}
 					}
 				}
@@ -678,6 +380,7 @@ customresourcedefinition: "maintenancewindows.monitoring.yuptime.io": {
 		}]
 	}
 }
+
 customresourcedefinition: "silences.monitoring.yuptime.io": {
 	apiVersion: "apiextensions.k8s.io/v1"
 	kind:       "CustomResourceDefinition"
@@ -702,52 +405,65 @@ customresourcedefinition: "silences.monitoring.yuptime.io": {
 					spec: {
 						type: "object"
 						required: [
-							"startsAt",
-							"endsAt",
+							"expiresAt",
+							"match",
 						]
 						properties: {
-							startsAt: {
-								type:   "string"
-								format: "date-time"
-							}
-							endsAt: {
-								type:   "string"
-								format: "date-time"
-							}
-							reason: type: "string"
-							selector: {
+							expiresAt: type: "string"
+							match: {
 								type: "object"
 								properties: {
-									matchNamespaces: {
+									names: {
+										type: "array"
+										items: {
+											type: "object"
+											required: [
+												"namespace",
+												"name",
+											]
+											properties: {
+												namespace: type: "string"
+												name:      type: "string"
+											}
+										}
+									}
+									namespaces: {
 										type: "array"
 										items: type: "string"
 									}
-									matchLabels: {
+									labels: {
 										type: "object"
 										additionalProperties: type: "string"
 									}
+									tags: {
+										type: "array"
+										items: type: "string"
+									}
 								}
 							}
+							reason: type: "string"
 						}
 					}
 					status: {
 						type: "object"
 						properties: {
 							observedGeneration: type: "integer"
-							active: type: "boolean"
 							conditions: {
 								type: "array"
 								items: {
 									type: "object"
 									properties: {
-										type: type: "string"
-										status: type: "string"
-										reason: type: "string"
-										message: type: "string"
+										type:               type: "string"
+										status:             type: "string"
+										reason:             type: "string"
+										message:            type: "string"
 										lastTransitionTime: type: "string"
 									}
 								}
 							}
+							isActive:      type: "boolean"
+							expiresIn:     type: "string"
+							affectedCount: type: "integer"
 						}
 					}
 				}
@@ -756,6 +472,7 @@ customresourcedefinition: "silences.monitoring.yuptime.io": {
 		}]
 	}
 }
+
 customresourcedefinition: "monitorsets.monitoring.yuptime.io": {
 	apiVersion: "apiextensions.k8s.io/v1"
 	kind:       "CustomResourceDefinition"
@@ -779,16 +496,27 @@ customresourcedefinition: "monitorsets.monitoring.yuptime.io": {
 				properties: {
 					spec: {
 						type: "object"
+						required: ["items"]
 						properties: {
-							template: {
+							defaults: {
 								type:                                   "object"
 								"x-kubernetes-preserve-unknown-fields": true
 							}
-							targets: {
+							items: {
 								type: "array"
 								items: {
-									type:                                   "object"
-									"x-kubernetes-preserve-unknown-fields": true
+									type: "object"
+									required: [
+										"name",
+										"spec",
+									]
+									properties: {
+										name: type: "string"
+										spec: {
+											type:                                   "object"
+											"x-kubernetes-preserve-unknown-fields": true
+										}
+									}
 								}
 							}
 						}
@@ -802,11 +530,28 @@ customresourcedefinition: "monitorsets.monitoring.yuptime.io": {
 								items: {
 									type: "object"
 									properties: {
-										type: type: "string"
-										status: type: "string"
-										reason: type: "string"
-										message: type: "string"
+										type:               type: "string"
+										status:             type: "string"
+										reason:             type: "string"
+										message:            type: "string"
 										lastTransitionTime: type: "string"
+									}
+								}
+							}
+							validCount:   type: "integer"
+							invalidCount: type: "integer"
+							itemStatuses: {
+								type: "array"
+								items: {
+									type: "object"
+									required: [
+										"name",
+										"ready",
+									]
+									properties: {
+										name:    type: "string"
+										ready:   type: "boolean"
+										message: type: "string"
 									}
 								}
 							}
@@ -818,6 +563,7 @@ customresourcedefinition: "monitorsets.monitoring.yuptime.io": {
 		}]
 	}
 }
+
 customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 	apiVersion: "apiextensions.k8s.io/v1"
 	kind:       "CustomResourceDefinition"
@@ -837,19 +583,25 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 			storage: true
 			schema: openAPIV3Schema: {
 				type: "object"
+				required: ["spec"]
 				properties: {
 					spec: {
 						type: "object"
+						required: [
+							"mode",
+							"scheduler",
+							"networking",
+						]
 						properties: {
 							mode: {
 								type: "object"
 								properties: {
 									gitOpsReadOnly: {
-										type: "boolean"
+										type:    "boolean"
 										default: false
 									}
 									singleInstanceRequired: {
-										type: "boolean"
+										type:    "boolean"
 										default: true
 									}
 								}
@@ -858,27 +610,27 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 								type: "object"
 								properties: {
 									minIntervalSeconds: {
-										type: "integer"
+										type:    "integer"
 										minimum: 1
 										default: 20
 									}
 									maxConcurrentNetChecks: {
-										type: "integer"
+										type:    "integer"
 										minimum: 1
 										default: 200
 									}
 									maxConcurrentPrivChecks: {
-										type: "integer"
+										type:    "integer"
 										minimum: 1
 										default: 20
 									}
 									defaultTimeoutSeconds: {
-										type: "integer"
+										type:    "integer"
 										minimum: 1
 										default: 10
 									}
 									jitterPercent: {
-										type: "integer"
+										type:    "integer"
 										minimum: 0
 										maximum: 100
 										default: 5
@@ -887,21 +639,21 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 										type: "object"
 										properties: {
 											enabled: {
-												type: "boolean"
+												type:    "boolean"
 												default: true
 											}
 											toggleThreshold: {
-												type: "integer"
+												type:    "integer"
 												minimum: 1
 												default: 6
 											}
 											windowMinutes: {
-												type: "integer"
+												type:    "integer"
 												minimum: 1
 												default: 10
 											}
 											suppressNotificationsMinutes: {
-												type: "integer"
+												type:    "integer"
 												minimum: 0
 												default: 30
 											}
@@ -913,20 +665,18 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 								type: "object"
 								properties: {
 									userAgent: {
-										type: "string"
+										type:    "string"
 										default: "Yuptime/1.0"
 									}
 									dns: {
 										type: "object"
-										description: "DNS resolution settings (defaults to external DNS for true external testing)"
 										properties: {
 											resolvers: {
 												type: "array"
 												items: type: "string"
-												default: ["8.8.8.8", "1.1.1.1"]
 											}
 											timeoutSeconds: {
-												type: "integer"
+												type:    "integer"
 												minimum: 1
 												default: 5
 											}
@@ -936,12 +686,12 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 										type: "object"
 										properties: {
 											mode: {
-												type: "string"
+												type:    "string"
 												enum: ["icmp", "tcpFallback", "tcpOnly"]
 												default: "tcpFallback"
 											}
 											tcpFallbackPort: {
-												type: "integer"
+												type:    "integer"
 												minimum: 1
 												maximum: 65535
 												default: 443
@@ -961,13 +711,18 @@ customresourcedefinition: "yuptimesettings.monitoring.yuptime.io": {
 								items: {
 									type: "object"
 									properties: {
-										type: type: "string"
-										status: type: "string"
-										reason: type: "string"
-										message: type: "string"
+										type:               type: "string"
+										status:             type: "string"
+										reason:             type: "string"
+										message:            type: "string"
 										lastTransitionTime: type: "string"
 									}
 								}
+							}
+							lastValidation: type: "string"
+							errors: {
+								type: "array"
+								items: type: "string"
 							}
 						}
 					}

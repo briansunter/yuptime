@@ -57,6 +57,8 @@ const validateMonitorTarget = (resource: Monitor): string[] => {
     case "http":
     case "keyword":
     case "jsonQuery":
+    case "xmlQuery":
+    case "htmlQuery":
       if (!spec.target?.http) {
         errors.push(`Monitor type ${spec.type} requires http target`);
       }
@@ -92,8 +94,8 @@ const validateMonitorTarget = (resource: Monitor): string[] => {
       }
       break;
     case "k8s":
-      if (!spec.target?.k8s) {
-        errors.push("Monitor type k8s requires k8s target");
+      if (!spec.target?.k8s && !spec.target?.kubernetes) {
+        errors.push("Monitor type k8s requires k8s or kubernetes target");
       }
       break;
     case "mysql":

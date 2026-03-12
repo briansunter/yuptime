@@ -13,7 +13,10 @@ import {
   createSettingsReconciler,
   createSilenceReconciler,
 } from "./reconcilers";
-import { createTypeSafeReconciliationHandler } from "./reconcilers/handler";
+import {
+  createTypeSafeDeleteHandler,
+  createTypeSafeReconciliationHandler,
+} from "./reconcilers/handler";
 import type { TypeSafeReconciler } from "./reconcilers/types";
 
 // Global instances
@@ -121,6 +124,14 @@ function registerAllReconcilers(kubeConfig: KubeConfig) {
 
     // Register with the informer registry
     registry.registerReconciler(informerRegistry, config.kind, handler);
+
+    if (config.deleteHandler) {
+      registry.registerDeleteHandler(
+        informerRegistry,
+        config.kind,
+        createTypeSafeDeleteHandler(config as unknown as TypeSafeReconciler<object>),
+      );
+    }
 
     logger.debug({ kind: config.kind }, `Registered reconciler for ${config.kind}`);
   }

@@ -31,10 +31,9 @@ target:
     service: ""                         # Optional: service name (empty = server health)
     tls:
       enabled: false                    # Enable TLS
-      skipVerify: false                 # Skip certificate verification
-      sni: "grpc-service.example.com"   # Server Name Indication
-    metadata:                           # Optional: gRPC metadata
-      authorization: "Bearer token"
+      verify: true                      # Verify certificate
+    dns:
+      useSystemResolver: true
 ```
 
 | Field | Required | Default | Description |
@@ -43,7 +42,7 @@ target:
 | `port` | Yes | - | Server port |
 | `service` | No | `""` | Service name to check |
 | `tls.enabled` | No | `false` | Enable TLS |
-| `tls.skipVerify` | No | `false` | Skip TLS verification |
+| `tls.verify` | No | `true` | Verify TLS certificates |
 
 ## Health Status Mapping
 
@@ -114,10 +113,11 @@ spec:
       host: "payment.production.svc.cluster.local"
       port: 50051
       service: "payments.v1.PaymentService"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
   alerting:
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: critical
+    notifyOn:
+      down: true
+      up: false
 ```
 
 ## Service Implementation

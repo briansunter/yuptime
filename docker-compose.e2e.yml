@@ -71,4 +71,4 @@ services:
 
 networks:
   default:
-    name: yuptime-e2e
+    name: yuptime-e2e-host

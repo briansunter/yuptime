@@ -134,6 +134,9 @@ function getMonitorUrl(monitor: Monitor): string {
   if (target?.k8s) {
     return `${target.k8s.resource.kind}/${target.k8s.resource.name}`;
   }
+  if (target?.kubernetes) {
+    return `${target.kubernetes.kind}/${target.kubernetes.name}`;
+  }
 
   return "unknown";
 }

@@ -48,9 +48,9 @@ keywords:
   - kubernetes
   - crd
   - gitops
-home: https://github.com/yuptime/yuptime
+home: https://github.com/briansunter/yuptime
 sources:
-  - https://github.com/yuptime/yuptime
+  - https://github.com/briansunter/yuptime
 maintainers:
   - name: briansunter
     email: brian@yuptime.io
@@ -59,9 +59,9 @@ annotations:
   artifacthub.io/license: Apache-2.0
   artifacthub.io/links: |
     - name: Documentation
-      url: https://docs.yuptime.io
+      url: https://briansunter.github.io/yuptime
     - name: Support
-      url: https://github.com/yuptime/yuptime/issues
+      url: https://github.com/briansunter/yuptime/issues
 `;
 }
 
@@ -69,15 +69,10 @@ annotations:
  * Generate values.yaml from CUE values schema
  */
 function generateValuesYaml(): string {
-  // Read CUE values file
-  const cueValuesPath = join(CUE_MODULE_PATH, "values.cue");
-  const cueValues = readFileSync(cueValuesPath, "utf-8");
-
-  // Parse key values from CUE (simplified - in production would use proper CUE parser)
-  // For now, we'll generate a comprehensive values.yaml based on what we know
-
+  // Keep this in lockstep with timoni/yuptime/values.cue and templates/config.cue.
   return `# Default values for yuptime
-# This is generated from timoni/yuptime/values.cue - DO NOT EDIT MANUALLY
+# Mirrors timoni/yuptime/values.cue and templates/config.cue.
+# Do not edit manually without updating the Timoni module.
 
 image:
   repository: ghcr.io/yuptime/yuptime-api
@@ -89,76 +84,26 @@ checkerImage:
   pullPolicy: IfNotPresent
   tag: "" # Defaults to .Chart.AppVersion
 
-# Application mode
-mode: production
+mode: development
 
-# Database configuration
-database:
-  type: sqlite # sqlite | postgresql | etcd
-
-  # SQLite configuration
-  sqlite:
-    path: /data/yuptime.db
-
-  # PostgreSQL configuration
-  postgresql:
-    host: ""
-    port: 5432
-    database: yuptime
-    username: yuptime
-    passwordSecretRef:
-      name: ""
-      key: password
-    sslMode: require
-
-  # etcd configuration
-  etcd:
-    endpoints: http://etcd:2379
-    deploy: false
-
-# Storage configuration
-storage:
-  enabled: true
-  size: 1Gi
-  storageClass: "" # Uses default storage class if empty
-  accessMode: ReadWriteOnce
-
-# Authentication configuration
-auth:
-  mode: local # local | oidc | disabled
-
-  # Session configuration
-  session:
-    secret: "" # Generated if empty
-    maxAgeHours: 168
-
-  # OIDC configuration
-  oidc:
-    issuerUrl: ""
-    clientId: ""
-    redirectUrl: ""
-    clientSecretRef:
-      name: ""
-      key: client-secret
-
-  # Admin user configuration (local mode)
-  adminUser:
-    enabled: true
-    username: admin
-    passwordHash: "" # Default password hash for: test1234
-
-# Logging configuration
 logging:
   level: info # debug | info | warn | error
 
-# Service configuration
+replicas: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
 service:
   type: ClusterIP
   port: 3000
-  # Annotations for the service
   annotations: {}
 
-# Health probes
 probes:
   liveness:
     enabled: true
@@ -173,25 +118,13 @@ probes:
     timeoutSeconds: 5
     failureThreshold: 2
 
-# Resource limits and requests
-resources:
-  requests:
-    cpu: 100m
-    memory: 128Mi
-  limits:
-    cpu: 500m
-    memory: 512Mi
-
-# Node selector
+podAnnotations: {}
+imagePullSecrets: []
 nodeSelector: {}
-
-# Tolerations
 tolerations: []
-
-# Affinity rules
 affinity: {}
+topologySpreadConstraints: []
 
-# Optional features
 networkPolicy:
   enabled: true
 
@@ -199,13 +132,18 @@ podDisruptionBudget:
   enabled: true
   minAvailable: 1
 
-# CRD installation
 crds:
-  install: false # CRDs should be applied separately
+  install: false
 
-# Test job configuration
 testResources:
   enabled: false
+
+test:
+  enabled: false
+  image:
+    repository: cgr.dev/chainguard/curl
+    pullPolicy: IfNotPresent
+    tag: latest
 `;
 }
 
@@ -374,13 +312,15 @@ To learn more about the release, try:
     namespace: {{ .Release.Namespace }}
   spec:
     type: http
-    http:
-      url: https://example.com
+    target:
+      http:
+        url: https://example.com
     schedule:
       intervalSeconds: 60
+      timeoutSeconds: 10
   EOF
 
-For more information, visit: https://docs.yuptime.io
+For more information, visit: https://briansunter.github.io/yuptime
 `;
 }
 

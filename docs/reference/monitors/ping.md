@@ -49,10 +49,11 @@ spec:
     ping:
       host: "10.0.0.1"
       packetCount: 5
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
   alerting:
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: critical
+    notifyOn:
+      down: true
+      up: false
 ```
 
 ### External Host

@@ -24,10 +24,12 @@ To learn more about the release, try:
     namespace: {{ .Release.Namespace }}
   spec:
     type: http
-    http:
-      url: https://example.com
+    target:
+      http:
+        url: https://example.com
     schedule:
       intervalSeconds: 60
+      timeoutSeconds: 10
   EOF
 
-For more information, visit: https://docs.yuptime.io
+For more information, visit: https://briansunter.github.io/yuptime

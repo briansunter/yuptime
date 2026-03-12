@@ -71,6 +71,8 @@
 - Stateless checkers with no database access — results written directly to K8s API
 - Each check runs in isolated Job pods for security and resource management
 
+The Timoni module under `timoni/yuptime/` is the authoritative packaging and CRD source. The checked-in `k8s/`, `helm/yuptime/`, and `manifests/` trees are mirrors kept in sync from that CUE-first workflow.
+
 ## Quick Start
 
 ### Prerequisites
@@ -149,7 +151,7 @@ Direct Kubernetes resource application — no tools required.
 
 ```bash
 # Apply CRDs first
-kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/manifests/crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/k8s/crds.yaml
 
 # Create namespace and apply all resources
 kubectl create namespace yuptime
@@ -210,7 +212,7 @@ kubectl describe monitor example-website -n yuptime
 
 ## Monitor Types
 
-Yuptime supports **14 monitor types** for comprehensive infrastructure monitoring:
+Yuptime currently exposes **17 monitor enum values**. `docker` is reserved in the schema but not implemented yet; the others map to active checkers.
 
 | Type | Description | Use Case |
 |------|-------------|----------|
@@ -223,11 +225,14 @@ Yuptime supports **14 monitor types** for comprehensive infrastructure monitorin
 | **mysql** | MySQL connectivity | Database health |
 | **postgresql** | PostgreSQL connectivity | Database health |
 | **redis** | Redis PING | Cache health |
-| **kubernetes** | K8s resource health | Deployments, pods |
+| **k8s** | K8s resource health | Deployments, pods |
 | **push** | Push-based monitoring | Custom apps |
 | **steam** | Steam game servers | Gaming infrastructure |
 | **keyword** | Content matching | Page content validation |
 | **jsonQuery** | JSON response validation | API response checking |
+| **xmlQuery** | XML/XPath validation | XML APIs, feeds |
+| **htmlQuery** | HTML/CSS selector validation | Page structure checks |
+| **docker** | Reserved placeholder | Not implemented |
 
 ## Examples
 
@@ -249,13 +254,11 @@ spec:
     http:
       url: "https://api.example.com/health"
       method: GET
-      headers:
-        Authorization: "Bearer ${API_TOKEN}"
-      authType: bearer
-      bearerToken:
-        secretRef:
-          name: api-credentials
-          key: token
+      auth:
+        bearer:
+          tokenSecretRef:
+            name: api-credentials
+            key: token
   successCriteria:
     http:
       acceptedStatusCodes: [200]
@@ -283,13 +286,9 @@ spec:
       method: GET
   successCriteria:
     jsonQuery:
-      queries:
-        - path: "$.status"
-          operator: equals
-          value: "healthy"
-        - path: "$.services[*].status"
-          operator: all_equal
-          value: "up"
+      mode: jsonpath-plus
+      path: "$.status"
+      equals: "healthy"
 ```
 
 </details>
@@ -335,11 +334,11 @@ spec:
       host: "mysql.database.svc.cluster.local"
       port: 3306
       database: "myapp"
-      user: "monitor"
-      passwordSecretRef:
+      credentialsSecretRef:
         name: mysql-credentials
-        key: password
-      query: "SELECT 1"
+        usernameKey: username
+        passwordKey: password
+      healthQuery: "SELECT 1"
 ```
 
 </details>
@@ -378,16 +377,19 @@ metadata:
   name: my-app-deployment
   namespace: yuptime
 spec:
-  type: kubernetes
+  type: k8s
   schedule:
     intervalSeconds: 60
     timeoutSeconds: 30
   target:
-    kubernetes:
-      kind: Deployment
-      name: my-app
-      namespace: production
-      expectedReplicas: 3
+    k8s:
+      resource:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: my-app
+      check:
+        type: AvailableReplicasAtLeast
+        min: 3
 ```
 
 </details>
@@ -409,22 +411,21 @@ spec:
     successCriteria:
       http:
         acceptedStatusCodes: [200]
-  monitors:
+    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  items:
     - name: users-api
-      type: http
-      target:
-        http:
-          url: "https://api.example.com/users"
-      labels:
-        team: backend
+      spec:
+        type: http
+        target:
+          http:
+            url: "https://api.example.com/users"
 
     - name: orders-api
-      type: http
-      target:
-        http:
-          url: "https://api.example.com/orders"
-      labels:
-        team: backend
+      spec:
+        type: http
+        target:
+          http:
+            url: "https://api.example.com/orders"
 ```
 
 </details>
@@ -439,11 +440,18 @@ metadata:
   name: weekly-maintenance
   namespace: yuptime
 spec:
-  schedule: "RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=2"
-  duration: "2h"
-  selector:
+  enabled: true
+  schedule:
+    start: "2026-03-15T02:00:00Z"
+    end: "2026-03-15T04:00:00Z"
+    recurrence:
+      rrule: "FREQ=WEEKLY;BYDAY=SU"
+  match:
     matchLabels:
-      environment: production
+      matchLabels:
+        environment: production
+  behavior:
+    suppressNotifications: true
 ```
 
 </details>
@@ -458,14 +466,14 @@ metadata:
   name: emergency-silence
   namespace: yuptime
 spec:
-  startsAt: "2025-12-30T10:00:00Z"
-  endsAt: "2025-12-30T12:00:00Z"
-  matchers:
-    - name: severity
-      value: critical
-      isRegex: false
-  comment: "Emergency maintenance window"
-  createdBy: "ops-team"
+  expiresAt: "2026-03-16T12:00:00Z"
+  match:
+    names:
+      - namespace: yuptime
+        name: critical-api
+    tags:
+      - production
+  reason: "Emergency maintenance window"
 ```
 
 </details>
@@ -502,11 +510,11 @@ spec:
   target:
     http:
       url: "https://api.example.com/health"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
   alerting:
-    alertmanagerUrl: "http://alertmanager.monitoring:9093"
-    labels:
-      severity: critical
-      team: platform
+    notifyOn:
+      down: true
+      up: false
 ```
 
 ## Metrics

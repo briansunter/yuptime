@@ -1,6 +1,6 @@
 # YuptimeSettings
 
-The YuptimeSettings CRD is a cluster-scoped resource that configures global Yuptime behavior.
+`YuptimeSettings` is the single cluster-scoped settings object for Yuptime.
 
 ## Example
 
@@ -8,103 +8,77 @@ The YuptimeSettings CRD is a cluster-scoped resource that configures global Yupt
 apiVersion: monitoring.yuptime.io/v1
 kind: YuptimeSettings
 metadata:
-  name: default
+  name: yuptime
 spec:
   mode:
     gitOpsReadOnly: true
     singleInstanceRequired: true
   scheduler:
-    defaultInterval: 60
-    minInterval: 10
-    maxConcurrentChecks: 100
-    jitterWindow: 30
-    flappingDetection:
+    minIntervalSeconds: 20
+    maxConcurrentNetChecks: 200
+    maxConcurrentPrivChecks: 20
+    defaultTimeoutSeconds: 10
+    jitterPercent: 5
+    flapping:
       enabled: true
-      threshold: 3
-      window: 300
+      toggleThreshold: 6
+      windowMinutes: 10
+      suppressNotificationsMinutes: 30
   networking:
     userAgent: "Yuptime/1.0"
-    dnsResolvers:
-      - "8.8.8.8"
-      - "8.8.4.4"
-    pingMode: icmp
-```
-
-## Spec
-
-### `mode` (optional)
-
-Global operational mode settings:
-
-```yaml
-mode:
-  gitOpsReadOnly: true        # Never modify spec (GitOps mode)
-  singleInstanceRequired: true # Ensure only one scheduler runs
-```
-
-### `scheduler` (optional)
-
-Scheduler configuration:
-
-```yaml
-scheduler:
-  defaultInterval: 60          # Default check interval (seconds)
-  minInterval: 10              # Minimum allowed interval
-  maxConcurrentChecks: 100     # Max simultaneous checks
-  jitterWindow: 30             # Jitter window (seconds)
-  flappingDetection:
-    enabled: true              # Detect flapping monitors
-    threshold: 3               # State changes before marking as flapping
-    window: 300                # Time window (seconds)
-```
-
-### `networking` (optional)
-
-Network configuration:
-
-```yaml
-networking:
-  userAgent: "Yuptime/1.0"     # HTTP User-Agent header
-  dnsResolvers:                # Custom DNS resolvers
-    - "8.8.8.8"
-    - "8.8.4.4"
-  pingMode: icmp               # icmp or tcp
-  httpTimeout: 30              # Default HTTP timeout
-```
-
-### `alerting` (optional)
-
-Global alerting configuration:
-
-```yaml
-alerting:
-  defaultAlertmanagerUrl: "http://alertmanager.monitoring:9093"
-  defaultLabels:
-    cluster: production
-```
-
-### `retention` (optional)
-
-Data retention settings:
-
-```yaml
-retention:
-  checkResults: 30d            # How long to keep check results
-  jobs: 1h                     # How long to keep completed jobs
+    dns:
+      resolvers:
+        - "8.8.8.8"
+        - "1.1.1.1"
+      timeoutSeconds: 5
+    ping:
+      mode: tcpFallback
+      tcpFallbackPort: 443
 ```
 
 ## Scope
 
-YuptimeSettings is **cluster-scoped** — there should be only one instance named `default`:
+`YuptimeSettings` is cluster-scoped. The authoritative object name is `yuptime`, and the resource has no namespace.
+
+## Spec
+
+### `spec.mode`
 
 ```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: YuptimeSettings
-metadata:
-  name: default    # Always "default"
-# No namespace field
-spec:
-  # ...
+mode:
+  gitOpsReadOnly: true
+  singleInstanceRequired: true
+```
+
+### `spec.scheduler`
+
+```yaml
+scheduler:
+  minIntervalSeconds: 20
+  maxConcurrentNetChecks: 200
+  maxConcurrentPrivChecks: 20
+  defaultTimeoutSeconds: 10
+  jitterPercent: 5
+  flapping:
+    enabled: true
+    toggleThreshold: 6
+    windowMinutes: 10
+    suppressNotificationsMinutes: 30
+```
+
+### `spec.networking`
+
+```yaml
+networking:
+  userAgent: "Yuptime/1.0"
+  dns:
+    resolvers:
+      - "8.8.8.8"
+      - "1.1.1.1"
+    timeoutSeconds: 5
+  ping:
+    mode: tcpFallback
+    tcpFallbackPort: 443
 ```
 
 ## Status
@@ -112,46 +86,16 @@ spec:
 ```yaml
 status:
   observedGeneration: 1
+  lastValidation: "2026-03-15T10:00:00Z"
   conditions:
     - type: Ready
       status: "True"
       reason: "ConfigurationValid"
-      message: "Settings applied successfully"
+      lastTransitionTime: "2026-03-15T10:00:00Z"
 ```
 
-## Field Reference
+## Notes
 
-### Scheduler Options
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `defaultInterval` | int | 60 | Default check interval in seconds |
-| `minInterval` | int | 10 | Minimum allowed interval |
-| `maxConcurrentChecks` | int | 100 | Maximum simultaneous checks |
-| `jitterWindow` | int | 30 | Jitter window in seconds |
-| `flappingDetection.enabled` | bool | true | Enable flapping detection |
-| `flappingDetection.threshold` | int | 3 | State changes before flapping |
-| `flappingDetection.window` | int | 300 | Flapping detection window (seconds) |
-
-### Networking Options
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `userAgent` | string | "Yuptime/1.0" | HTTP User-Agent header |
-| `dnsResolvers` | []string | system | Custom DNS resolvers |
-| `pingMode` | string | "icmp" | Ping mode: icmp or tcp |
-| `httpTimeout` | int | 30 | Default HTTP timeout |
-
-### Mode Options
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `gitOpsReadOnly` | bool | true | Never modify CRD specs |
-| `singleInstanceRequired` | bool | true | Enforce single scheduler |
-
-## Best Practices
-
-1. **Create early** — Apply YuptimeSettings before creating monitors
-2. **Use GitOps mode** — Keep `gitOpsReadOnly: true` for production
-3. **Tune jitter** — Adjust `jitterWindow` based on number of monitors
-4. **Set DNS resolvers** — Use reliable resolvers for consistent results
+- Create `YuptimeSettings` before large monitor rollouts so global defaults are in place.
+- Keep `gitOpsReadOnly: true` unless you explicitly need mutable control-plane behavior.
+- Prefer a small `jitterPercent` instead of overly long intervals when spreading load.

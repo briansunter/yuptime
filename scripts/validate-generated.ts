@@ -42,21 +42,21 @@ function validateHelmChart(): boolean {
     });
     console.log("  ✅ Default values");
 
-    // Test with PostgreSQL
-    console.log("  Testing with PostgreSQL...");
+    // Test with CRD installation enabled
+    console.log("  Testing with CRD installation enabled...");
     execSync(
-      `helm template yuptime ${HELM_OUTPUT_PATH} --set database.type=postgresql`,
+      `helm template yuptime ${HELM_OUTPUT_PATH} --set crds.install=true`,
       { stdio: "pipe" }
     );
-    console.log("  ✅ PostgreSQL");
+    console.log("  ✅ CRD installation");
 
-    // Test with etcd
-    console.log("  Testing with etcd...");
+    // Test production mode toggle
+    console.log("  Testing production mode...");
     execSync(
-      `helm template yuptime ${HELM_OUTPUT_PATH} --set database.type=etcd --set database.etcd.deploy=true`,
+      `helm template yuptime ${HELM_OUTPUT_PATH} --set mode=production`,
       { stdio: "pipe" }
     );
-    console.log("  ✅ etcd");
+    console.log("  ✅ production mode");
 
     console.log("✅ Helm chart validation passed\n");
     return true;

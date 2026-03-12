@@ -32,7 +32,7 @@ target:
     expect: "PONG"              # Optional: expected response
     tls:
       enabled: false            # Enable TLS
-      skipVerify: false         # Skip certificate verification
+      verify: true              # Verify certificate
       sni: "db.example.com"     # Server Name Indication
 ```
 

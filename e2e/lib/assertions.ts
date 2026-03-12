@@ -51,11 +51,11 @@ export function assertUptime(
   }
 
   if (expected.min1h !== undefined) {
-    expect(status.uptime.percent1h).toBeGreaterThanOrEqual(expected.min1h);
+    expect(status.uptime.last1h).toBeGreaterThanOrEqual(expected.min1h);
   }
 
   if (expected.max1h !== undefined) {
-    expect(status.uptime.percent1h).toBeLessThanOrEqual(expected.max1h);
+    expect(status.uptime.last1h).toBeLessThanOrEqual(expected.max1h);
   }
 }
 

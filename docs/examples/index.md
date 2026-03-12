@@ -1,17 +1,6 @@
 # Examples
 
-Real-world examples of Yuptime configurations for common use cases.
-
-## Quick Links
-
-- [HTTP Monitoring](#basic-http-monitor) — Websites, APIs, health endpoints
-- [API with Authentication](#api-with-authentication) — Bearer, Basic, OAuth2
-- [Database Monitoring](#database-health-check) — MySQL, PostgreSQL, Redis
-- [Kubernetes Resources](#kubernetes-deployment) — Deployments, pods, services
-- [API Validation](#json-api-validation) — JSON/XML/HTML response checking
-- [Bulk Monitoring](#monitorset-for-multiple-endpoints) — MonitorSet for multiple endpoints
-- [Maintenance Windows](#maintenance-window) — Scheduled suppressions
-- [Complete Setup](#complete-production-setup) — Full production example
+These examples use the current monitor-only CRD surface and the CUE-backed schema mirrors in this repository.
 
 ## Basic HTTP Monitor
 
@@ -35,7 +24,7 @@ spec:
       acceptedStatusCodes: [200]
 ```
 
-## API with Authentication
+## API With Bearer Authentication
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -52,17 +41,17 @@ spec:
     http:
       url: "https://api.example.com/health"
       method: GET
-      authType: bearer
-      bearerToken:
-        secretRef:
-          name: api-credentials
-          key: token
+      auth:
+        bearer:
+          tokenSecretRef:
+            name: api-credentials
+            key: token
   successCriteria:
     http:
       acceptedStatusCodes: [200]
 ```
 
-## Database Health Check
+## PostgreSQL Health Check
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -80,37 +69,36 @@ spec:
       host: "postgres.database.svc.cluster.local"
       port: 5432
       database: "myapp"
-      user: "monitor"
-      password:
-        secretRef:
-          name: postgres-credentials
-          key: password
-      query: "SELECT 1"
+      credentialsSecretRef:
+        name: postgres-credentials
+        usernameKey: username
+        passwordKey: password
+      healthQuery: "SELECT 1"
       sslMode: require
 ```
 
-## Kubernetes Deployment
+## Kubernetes Resource Health
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
-  name: app-deployment
+  name: api-deployment
   namespace: yuptime
 spec:
-  type: kubernetes
+  type: k8s
   schedule:
     intervalSeconds: 60
-    timeoutSeconds: 30
+    timeoutSeconds: 10
   target:
     kubernetes:
-      kind: Deployment
-      name: my-app
       namespace: production
-      expectedReplicas: 3
+      name: api
+      kind: Deployment
+      minReadyReplicas: 2
 ```
 
-## JSON API Validation
+## JSON Response Validation
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -129,16 +117,12 @@ spec:
       method: GET
   successCriteria:
     jsonQuery:
-      queries:
-        - path: "$.status"
-          operator: equals
-          value: "healthy"
-        - path: "$.services[*].status"
-          operator: all_equal
-          value: "up"
+      mode: jsonpath-plus
+      path: "$.status"
+      equals: "healthy"
 ```
 
-## MonitorSet for Multiple Endpoints
+## MonitorSet
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -151,24 +135,20 @@ spec:
     schedule:
       intervalSeconds: 30
       timeoutSeconds: 10
-    alerting:
-      alertmanagerUrl: "http://alertmanager:9093"
-  monitors:
+    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  items:
     - name: users-service
-      type: http
-      target:
-        http:
-          url: "http://users-service.default:8080/health"
+      spec:
+        type: http
+        target:
+          http:
+            url: "http://users-service.default:8080/health"
     - name: orders-service
-      type: http
-      target:
-        http:
-          url: "http://orders-service.default:8080/health"
-    - name: payments-service
-      type: http
-      target:
-        http:
-          url: "http://payments-service.default:8080/health"
+      spec:
+        type: http
+        target:
+          http:
+            url: "http://orders-service.default:8080/health"
 ```
 
 ## Maintenance Window
@@ -180,34 +160,41 @@ metadata:
   name: weekly-maintenance
   namespace: yuptime
 spec:
-  schedule: "RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=2"
-  duration: "2h"
-  selector:
+  enabled: true
+  schedule:
+    start: "2026-03-15T02:00:00Z"
+    end: "2026-03-15T04:00:00Z"
+    recurrence:
+      rrule: "FREQ=WEEKLY;BYDAY=SU"
+  match:
     matchLabels:
-      environment: production
+      matchLabels:
+        environment: production
+  behavior:
+    suppressNotifications: true
 ```
 
 ## Complete Production Setup
 
-A comprehensive example with all components:
-
 ```yaml
-# 1. Global settings
 apiVersion: monitoring.yuptime.io/v1
 kind: YuptimeSettings
 metadata:
-  name: default
+  name: yuptime
 spec:
   mode:
     gitOpsReadOnly: true
   scheduler:
-    maxConcurrentChecks: 50
-    jitterWindow: 30
+    minIntervalSeconds: 30
+    maxConcurrentNetChecks: 50
+    jitterPercent: 5
   networking:
-    dnsResolvers:
-      - "8.8.8.8"
+    userAgent: "Yuptime/1.0"
+    dns:
+      resolvers:
+        - "8.8.8.8"
+        - "1.1.1.1"
 ---
-# 2. Main API monitor
 apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
@@ -224,51 +211,13 @@ spec:
   target:
     http:
       url: "https://api.example.com/health"
-      method: GET
   successCriteria:
     http:
       acceptedStatusCodes: [200]
-      maxLatencyMs: 500
+      latencyMsUnder: 500
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
   alerting:
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: critical
----
-# 3. Database monitor
-apiVersion: monitoring.yuptime.io/v1
-kind: Monitor
-metadata:
-  name: main-db
-  namespace: yuptime
-  labels:
-    tier: critical
-    environment: production
-spec:
-  type: postgresql
-  schedule:
-    intervalSeconds: 60
-    timeoutSeconds: 10
-  target:
-    postgresql:
-      host: "postgres.database.svc.cluster.local"
-      port: 5432
-      database: "production"
-      user: "monitor"
-      password:
-        secretRef:
-          name: db-credentials
-          key: password
----
-# 4. Maintenance window
-apiVersion: monitoring.yuptime.io/v1
-kind: MaintenanceWindow
-metadata:
-  name: db-maintenance
-  namespace: yuptime
-spec:
-  schedule: "RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=2"
-  duration: "1h"
-  selector:
-    matchLabels:
-      tier: critical
+    notifyOn:
+      down: true
+      up: false
 ```

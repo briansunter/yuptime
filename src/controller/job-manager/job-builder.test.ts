@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildJobForMonitor, extractSecretEnvVars } from "./job-builder";
+import { buildJobForMonitor, buildJobLabelSelector, extractSecretEnvVars } from "./job-builder";
 import type { Monitor } from "./types";
 
 /**
@@ -310,6 +310,12 @@ describe("buildJobForMonitor", () => {
     });
   });
 
+  test("sanitizes monitor id when building job label selectors", () => {
+    expect(buildJobLabelSelector("test-ns/test-mon")).toBe(
+      "monitoring.yuptime.io/monitor=test-ns-test-mon",
+    );
+  });
+
   test("uses yuptime-checker service account", () => {
     const monitor = createTestMonitor({
       http: { url: "https://example.com" },
@@ -318,6 +324,22 @@ describe("buildJobForMonitor", () => {
     const job = buildJobForMonitor(monitor, 0);
 
     expect(job.spec?.template?.spec?.serviceAccountName).toBe("yuptime-checker");
+  });
+
+  test("uses configured checker image pull policy from environment", () => {
+    process.env.CHECKER_IMAGE_PULL_POLICY = "Never";
+
+    try {
+      const monitor = createTestMonitor({
+        http: { url: "https://example.com" },
+      });
+
+      const job = buildJobForMonitor(monitor, 0, "yuptime-checker:test");
+
+      expect(job.spec?.template?.spec?.containers?.[0]?.imagePullPolicy).toBe("Never");
+    } finally {
+      delete process.env.CHECKER_IMAGE_PULL_POLICY;
+    }
   });
 
   test("sets security context for non-root execution", () => {

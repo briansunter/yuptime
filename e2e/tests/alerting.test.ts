@@ -2,8 +2,6 @@
  * Alerting E2E Tests
  *
  * Tests for maintenance windows and silences CRD operations.
- * Note: Full alerting integration requires NotificationPolicy and NotificationProvider
- * CRDs which are more complex to set up. These tests verify the basic CRD operations.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -57,8 +55,9 @@ describe("Alerting E2E", () => {
       const created = await createMaintenanceWindow(mw);
 
       expect(created.metadata.name).toBe(mw.metadata.name);
-      expect(created.spec.durationMinutes).toBeGreaterThan(0);
-      expect(created.spec.schedule).toBeDefined();
+      expect(created.spec.schedule.start).toBeDefined();
+      expect(created.spec.schedule.end).toBeDefined();
+      expect(created.spec.behavior?.suppressNotifications).toBe(true);
     });
 
     test("can create maintenance window with label selector", async () => {
@@ -71,7 +70,9 @@ describe("Alerting E2E", () => {
       const created = await createMaintenanceWindow(mw);
 
       expect(created.metadata.name).toBe(mw.metadata.name);
-      expect(created.spec.selector?.matchLabels).toEqual({ "maintenance-group": "database" });
+      expect(created.spec.match?.matchLabels?.matchLabels).toEqual({
+        "maintenance-group": "database",
+      });
     });
 
     test("can create expired maintenance window", async () => {
@@ -85,8 +86,8 @@ describe("Alerting E2E", () => {
       const created = await createMaintenanceWindow(mw);
 
       expect(created.metadata.name).toBe(mw.metadata.name);
-      // Expired window has shorter duration (30 min)
-      expect(created.spec.durationMinutes).toBe(30);
+      const end = new Date(created.spec.schedule.end);
+      expect(end.getTime()).toBeLessThan(Date.now());
     });
 
     test("monitors still run during maintenance window", async () => {
@@ -125,8 +126,7 @@ describe("Alerting E2E", () => {
       const created = await createSilence(silence);
 
       expect(created.metadata.name).toBe(silence.metadata.name);
-      expect(created.spec.startsAt).toBeDefined();
-      expect(created.spec.endsAt).toBeDefined();
+      expect(created.spec.expiresAt).toBeDefined();
     });
 
     test("can create silence with label selector", async () => {
@@ -139,7 +139,7 @@ describe("Alerting E2E", () => {
       const created = await createSilence(silence);
 
       expect(created.metadata.name).toBe(silence.metadata.name);
-      expect(created.spec.selector?.matchLabels).toEqual({ "silence-test": "true" });
+      expect(created.spec.match.labels).toEqual({ "silence-test": "true" });
     });
 
     test("can create expired silence", async () => {
@@ -153,9 +153,8 @@ describe("Alerting E2E", () => {
       const created = await createSilence(silence);
 
       expect(created.metadata.name).toBe(silence.metadata.name);
-      // Expired silence should have endsAt in the past
-      const endsAt = new Date(created.spec.endsAt);
-      expect(endsAt.getTime()).toBeLessThan(Date.now());
+      const expiresAt = new Date(created.spec.expiresAt);
+      expect(expiresAt.getTime()).toBeLessThan(Date.now());
     });
 
     test("monitors still run during silence", async () => {

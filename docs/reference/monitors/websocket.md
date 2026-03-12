@@ -92,10 +92,11 @@ spec:
       url: "wss://api.example.com/ws"
       send: '{"type": "ping"}'
       expect: "pong"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
   alerting:
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: warning
+    notifyOn:
+      down: true
+      up: false
 ```
 
 ## Notes

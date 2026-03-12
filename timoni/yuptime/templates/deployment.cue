@@ -49,6 +49,8 @@ import (
 						{name: "NODE_ENV", value: #config.mode},
 						{name: "LOG_LEVEL", value: #config.logging.level},
 						{name: "PORT", value: "\(#config.service.port)"},
+						{name: "CHECKER_IMAGE", value: #config.checkerImage.reference},
+						{name: "CHECKER_IMAGE_PULL_POLICY", value: #config.checkerImage.pullPolicy},
 						{
 							name: "KUBE_NAMESPACE"
 							valueFrom: fieldRef: fieldPath: "metadata.namespace"

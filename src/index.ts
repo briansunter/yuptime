@@ -8,6 +8,7 @@
 import { controller } from "./controller";
 import { config, validateConfig } from "./lib/config";
 import { logger } from "./lib/logger";
+import { isRecoverableAsyncError } from "./lib/recoverable-error";
 import { createMetricsServer } from "./server/metrics-server";
 
 let metricsServer: ReturnType<typeof createMetricsServer> | null = null;
@@ -59,6 +60,24 @@ const gracefulShutdown = async () => {
 
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
+process.on("unhandledRejection", (reason) => {
+  if (isRecoverableAsyncError(reason)) {
+    logger.warn({ reason }, "Recovered from unhandled async timeout/abort");
+    return;
+  }
+
+  logger.error({ reason }, "Unhandled promise rejection");
+  process.exit(1);
+});
+process.on("uncaughtException", (error) => {
+  if (isRecoverableAsyncError(error)) {
+    logger.warn({ error }, "Recovered from uncaught timeout/abort");
+    return;
+  }
+
+  logger.error({ error }, "Uncaught exception");
+  process.exit(1);
+});
 
 // Start the app
 main().catch((error) => {

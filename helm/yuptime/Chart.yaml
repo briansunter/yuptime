@@ -11,9 +11,9 @@ keywords:
   - kubernetes
   - crd
   - gitops
-home: https://github.com/yuptime/yuptime
+home: https://github.com/briansunter/yuptime
 sources:
-  - https://github.com/yuptime/yuptime
+  - https://github.com/briansunter/yuptime
 maintainers:
   - name: briansunter
     email: brian@yuptime.io
@@ -22,6 +22,6 @@ annotations:
   artifacthub.io/license: Apache-2.0
   artifacthub.io/links: |
     - name: Documentation
-      url: https://docs.yuptime.io
+      url: https://briansunter.github.io/yuptime
     - name: Support
-      url: https://github.com/yuptime/yuptime/issues
+      url: https://github.com/briansunter/yuptime/issues

@@ -12,7 +12,16 @@ import type { CheckResult } from "./index";
 
 export async function checkKubernetes(monitor: Monitor, _timeout: number): Promise<CheckResult> {
   const spec = monitor.spec;
-  const target = spec.target.kubernetes;
+  const target =
+    spec.target.kubernetes ??
+    (spec.target.k8s
+      ? {
+          namespace: monitor.metadata.namespace,
+          name: spec.target.k8s.resource.name,
+          kind: spec.target.k8s.resource.kind,
+          minReadyReplicas: spec.target.k8s.check.min,
+        }
+      : undefined);
 
   if (!target) {
     return {

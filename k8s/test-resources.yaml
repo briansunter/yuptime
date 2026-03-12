@@ -1,29 +1,25 @@
-# Test resources for Yuptime
+# Test resources for the current CUE-authoritative CRD surface
 ---
-# Secret for admin user password hash
-apiVersion: v1
-kind: Secret
-metadata:
-  name: admin-password
-  namespace: default
-type: Opaque
-stringData:
-  # Password: test1234 (min 8 chars required)
-  hash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
-
----
-# LocalUser - admin user
 apiVersion: monitoring.yuptime.io/v1
-kind: LocalUser
+kind: YuptimeSettings
 metadata:
-  name: admin
-  namespace: default
+  name: yuptime
 spec:
-  username: admin
-  role: admin
-  passwordHashSecretRef:
-    name: admin-password
-    key: hash
+  mode:
+    gitOpsReadOnly: true
+    singleInstanceRequired: true
+  scheduler:
+    minIntervalSeconds: 20
+    maxConcurrentNetChecks: 100
+    maxConcurrentPrivChecks: 20
+    defaultTimeoutSeconds: 10
+    jitterPercent: 5
+  networking:
+    userAgent: "Yuptime/1.0"
+    dns:
+      resolvers:
+        - "8.8.8.8"
+        - "1.1.1.1"
 
 ---
 # Monitor - HTTP check for Google
@@ -165,42 +161,98 @@ spec:
     - api
 
 ---
-# StatusPage - Public status page
+# Monitor - Kubernetes deployment readiness
 apiVersion: monitoring.yuptime.io/v1
-kind: StatusPage
+kind: Monitor
 metadata:
-  name: public-status
-  namespace: default
+  name: api-deployment
+  namespace: yuptime
+  labels:
+    env: production
+    service: api
 spec:
-  slug: status
-  title: Service Status
-  published: true
-  content:
-    description: Real-time status of our infrastructure
-    branding:
-      primaryColor: "#10b981"
-  groups:
-    - name: External Services
-      description: Third-party services we depend on
-      monitors:
-        - ref:
-            namespace: default
-            name: google-http
-        - ref:
-            namespace: default
-            name: cloudflare-http
-    - name: DNS
-      description: DNS resolution services
-      monitors:
-        - ref:
-            namespace: default
-            name: google-dns-tcp
-        - ref:
-            namespace: default
-            name: google-dns-resolve
-    - name: Internal
-      description: Internal services
-      monitors:
-        - ref:
-            namespace: yuptime
-            name: yuptime-api-health
+  enabled: true
+  type: k8s
+  schedule:
+    intervalSeconds: 60
+    timeoutSeconds: 15
+  target:
+    k8s:
+      resource:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: api
+      check:
+        type: AvailableReplicasAtLeast
+        min: 2
+  tags:
+    - kubernetes
+    - internal
+
+---
+# MonitorSet - Batch HTTP checks with shared defaults
+apiVersion: monitoring.yuptime.io/v1
+kind: MonitorSet
+metadata:
+  name: edge-services
+  namespace: yuptime
+spec:
+  defaults:
+    schedule:
+      intervalSeconds: 60
+      timeoutSeconds: 10
+    successCriteria:
+      http:
+        acceptedStatusCodes: [200]
+    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  items:
+    - name: marketing-site
+      spec:
+        type: http
+        target:
+          http:
+            url: "https://example.com"
+    - name: api-gateway
+      spec:
+        type: http
+        target:
+          http:
+            url: "https://api.example.com/health"
+
+---
+# MaintenanceWindow - Weekly recurring deployment window
+apiVersion: monitoring.yuptime.io/v1
+kind: MaintenanceWindow
+metadata:
+  name: weekly-maintenance
+  namespace: yuptime
+spec:
+  enabled: true
+  schedule:
+    start: "2026-03-15T02:00:00Z"
+    end: "2026-03-15T04:00:00Z"
+    recurrence:
+      rrule: "FREQ=WEEKLY;BYDAY=SU"
+  match:
+    matchLabels:
+      matchLabels:
+        env: production
+  behavior:
+    suppressNotifications: true
+
+---
+# Silence - Temporary mute for a known incident
+apiVersion: monitoring.yuptime.io/v1
+kind: Silence
+metadata:
+  name: api-incident
+  namespace: yuptime
+spec:
+  expiresAt: "2026-03-16T12:00:00Z"
+  match:
+    names:
+      - namespace: yuptime
+        name: api-deployment
+    tags:
+      - internal
+  reason: "Temporary mute during incident response"

@@ -10,6 +10,9 @@ This directory contains Kubernetes manifests generated from the CUE templates in
 ## Usage
 
 ```bash
+# Apply CRDs from the authoritative CUE-backed mirror
+kubectl apply -f ../k8s/crds.yaml
+
 # Apply all resources
 kubectl apply -f all.yaml
 

@@ -8,6 +8,12 @@ import { createCRDWatcher } from "./k8s-client";
 
 const GROUP = "monitoring.yuptime.io";
 const VERSION = "v1";
+const WATCH_RESTART_DELAY_MS = 1000;
+const WATCH_ROTATION_INTERVAL_MS = 4 * 60 * 1000;
+let watchersStopping = false;
+const restartTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const rotationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const watcherGenerations = new Map<string, number>();
 
 /**
  * Define all CRD types and their metadata
@@ -181,12 +187,78 @@ function removeCachedResource(kind: string, namespace: string, name: string) {
   removeCachedResourceInMemory(kind, namespace, name);
 }
 
+function clearRestartTimer(kind: string) {
+  const timer = restartTimers.get(kind);
+  if (timer) {
+    clearTimeout(timer);
+    restartTimers.delete(kind);
+  }
+}
+
+function clearRotationTimer(kind: string) {
+  const timer = rotationTimers.get(kind);
+  if (timer) {
+    clearTimeout(timer);
+    rotationTimers.delete(kind);
+  }
+}
+
+function scheduleWatcherRestart(kind: keyof typeof CRD_DEFINITIONS, error?: unknown) {
+  if (watchersStopping || restartTimers.has(kind)) {
+    return;
+  }
+
+  logger.warn({ kind, error }, "Scheduling CRD watcher restart");
+
+  const timer = setTimeout(async () => {
+    restartTimers.delete(kind);
+
+    if (watchersStopping) {
+      return;
+    }
+
+    const existingWatcher = registry.getWatcher(informerRegistry, kind);
+    const nextGeneration = (watcherGenerations.get(kind) ?? 0) + 1;
+    watcherGenerations.set(kind, nextGeneration);
+    existingWatcher?.abort?.();
+
+    try {
+      await startCRDWatcher(kind, nextGeneration);
+      logger.info({ kind }, "CRD watcher restarted");
+    } catch (restartError) {
+      logger.error({ kind, error: restartError }, "Failed to restart CRD watcher");
+      scheduleWatcherRestart(kind, restartError);
+    }
+  }, WATCH_RESTART_DELAY_MS);
+
+  restartTimers.set(kind, timer);
+}
+
+function scheduleWatcherRotation(kind: keyof typeof CRD_DEFINITIONS, generation: number) {
+  clearRotationTimer(kind);
+
+  const timer = setTimeout(() => {
+    if (watchersStopping || watcherGenerations.get(kind) !== generation) {
+      return;
+    }
+
+    logger.info({ kind }, "Rotating CRD watcher proactively");
+    scheduleWatcherRestart(kind);
+  }, WATCH_ROTATION_INTERVAL_MS);
+
+  rotationTimers.set(kind, timer);
+}
+
 /**
  * Start watching a single CRD type
  */
-export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
+export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS, generation?: number) {
   const def = CRD_DEFINITIONS[kind];
   const watcher = createCRDWatcher(GROUP, VERSION, def.plural);
+  const activeGeneration = generation ?? (watcherGenerations.get(kind) ?? 0) + 1;
+  watcherGenerations.set(kind, activeGeneration);
+  clearRestartTimer(kind);
+  clearRotationTimer(kind);
 
   logger.info({ kind }, `Starting watcher for ${kind}`);
 
@@ -208,6 +280,10 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
   // Watch for changes
   const watchAbort = await watcher.watch(
     (phase, obj) => {
+      if (watcherGenerations.get(kind) !== activeGeneration) {
+        return;
+      }
+
       const resource = obj;
 
       switch (phase) {
@@ -231,12 +307,17 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
       }
     },
     (error) => {
+      if (watchersStopping || watcherGenerations.get(kind) !== activeGeneration) {
+        return;
+      }
+
       logger.error({ kind, error }, `Watcher error for ${kind}`);
-      // Could implement reconnection logic here
+      scheduleWatcherRestart(kind, error);
     },
   );
 
   registry.setWatcher(informerRegistry, kind, watchAbort);
+  scheduleWatcherRotation(kind, activeGeneration);
 }
 
 /**
@@ -244,6 +325,7 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS) {
  */
 export async function startAllWatchers() {
   logger.info("Starting CRD watchers...");
+  watchersStopping = false;
 
   for (const kind of Object.keys(CRD_DEFINITIONS)) {
     try {
@@ -261,6 +343,16 @@ export async function startAllWatchers() {
  */
 export async function stopAllWatchers() {
   logger.info("Stopping all CRD watchers...");
+  watchersStopping = true;
+  for (const [kind, timer] of restartTimers.entries()) {
+    clearTimeout(timer);
+    restartTimers.delete(kind);
+  }
+  for (const [kind, timer] of rotationTimers.entries()) {
+    clearTimeout(timer);
+    rotationTimers.delete(kind);
+  }
+  watcherGenerations.clear();
   await registry.stopAll(informerRegistry);
   logger.info("All CRD watchers stopped");
 }

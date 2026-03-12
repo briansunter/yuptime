@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { CheckResult } from "../checkers";
 import { executeCheck as runCheck } from "../checkers";
-import type { Monitor } from "../types/crd";
+import { type Monitor, MonitorSchema } from "../types/crd";
 
 const logger = console;
 
@@ -66,7 +66,7 @@ export async function loadMonitorCRD(namespace: string, name: string): Promise<M
       throw new Error(`Failed to get monitor: ${response.status} ${text}`);
     }
 
-    return (await response.json()) as Monitor;
+    return MonitorSchema.parse(await response.json());
   } catch (error) {
     logger.error(`Failed to load Monitor CRD ${namespace}/${name}:`, error);
     throw error;

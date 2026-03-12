@@ -1,6 +1,6 @@
 # Silence
 
-The Silence CRD defines ad-hoc periods when alerts should be suppressed. Unlike MaintenanceWindows, Silences are one-time events with explicit start and end times.
+`Silence` mutes alerts until a fixed expiration time.
 
 ## Example
 
@@ -11,100 +11,65 @@ metadata:
   name: emergency-silence
   namespace: yuptime
 spec:
-  startsAt: "2025-12-30T10:00:00Z"
-  endsAt: "2025-12-30T12:00:00Z"
-  matchers:
-    - name: severity
-      value: critical
-      isRegex: false
-  comment: "Emergency maintenance for database migration"
-  createdBy: "ops-team"
+  expiresAt: "2026-03-16T12:00:00Z"
+  match:
+    names:
+      - namespace: yuptime
+        name: critical-api
+    namespaces:
+      - yuptime
+    labels:
+      severity: critical
+    tags:
+      - production
+  reason: "Emergency maintenance for database migration"
 ```
 
 ## Spec
 
-### `startsAt` (required)
+### `spec.expiresAt`
 
-When the silence starts (ISO 8601 format):
+UTC timestamp when the silence stops applying.
 
-```yaml
-startsAt: "2025-12-30T10:00:00Z"
-```
+### `spec.match`
 
-### `endsAt` (required)
-
-When the silence ends (ISO 8601 format):
+Select monitors by exact name references, namespaces, labels, or tags.
 
 ```yaml
-endsAt: "2025-12-30T12:00:00Z"
+match:
+  names:
+    - namespace: yuptime
+      name: critical-api
+  namespaces:
+    - yuptime
+  labels:
+    severity: critical
+  tags:
+    - production
 ```
 
-### `matchers` (required)
+### `spec.reason`
 
-Selects which monitors are silenced:
-
-```yaml
-matchers:
-  # Exact match
-  - name: severity
-    value: critical
-    isRegex: false
-
-  # Regex match
-  - name: service
-    value: "api-.*"
-    isRegex: true
-
-  # Label match
-  - name: team
-    value: platform
-    isRegex: false
-```
-
-### `comment` (required)
-
-Explanation for why this silence was created:
-
-```yaml
-comment: "Silencing alerts during planned database upgrade"
-```
-
-### `createdBy` (required)
-
-Who created the silence:
-
-```yaml
-createdBy: "ops-team"
-# or
-createdBy: "john.doe@example.com"
-```
+Optional free-form explanation for the silence.
 
 ## Status
 
 ```yaml
 status:
-  state: active              # pending, active, expired
-  affectedMonitors:
-    - api-health
-    - db-check
+  observedGeneration: 1
+  isActive: true
+  expiresIn: "1h30m"
+  affectedCount: 4
   conditions:
-    - type: Active
+    - type: Ready
       status: "True"
       reason: "SilenceActive"
-      lastTransitionTime: "2025-12-30T10:00:00Z"
+      lastTransitionTime: "2026-03-15T10:00:00Z"
 ```
-
-## Silence States
-
-| State | Description |
-|-------|-------------|
-| `pending` | Start time is in the future |
-| `active` | Currently suppressing alerts |
-| `expired` | End time has passed |
 
 ## Examples
 
-### Emergency Silence
+### Incident Response
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -113,96 +78,32 @@ metadata:
   name: incident-123
   namespace: yuptime
 spec:
-  startsAt: "2025-12-30T10:00:00Z"
-  endsAt: "2025-12-30T14:00:00Z"
-  matchers:
-    - name: severity
-      value: critical
-      isRegex: false
-  comment: "INC-123: Emergency maintenance for database corruption"
-  createdBy: "incident-commander"
+  expiresAt: "2026-03-15T14:00:00Z"
+  match:
+    labels:
+      service: payments
+  reason: "INC-123 mitigation in progress"
 ```
 
-### Deploy Silence
+### Deployment Mute
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
 kind: Silence
 metadata:
-  name: deploy-2025-12-30
+  name: deploy-2026-03-15
   namespace: yuptime
 spec:
-  startsAt: "2025-12-30T14:00:00Z"
-  endsAt: "2025-12-30T14:30:00Z"
-  matchers:
-    - name: environment
-      value: production
-      isRegex: false
-    - name: tier
-      value: "api"
-      isRegex: false
-  comment: "Silencing during v2.5.0 deployment"
-  createdBy: "deploy-pipeline"
+  expiresAt: "2026-03-15T14:30:00Z"
+  match:
+    tags:
+      - production
+      - api
+  reason: "Temporary mute during rollout"
 ```
 
-### Service-Specific Silence
+## Notes
 
-```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: Silence
-metadata:
-  name: payment-maintenance
-  namespace: yuptime
-spec:
-  startsAt: "2025-12-30T02:00:00Z"
-  endsAt: "2025-12-30T04:00:00Z"
-  matchers:
-    - name: service
-      value: "payment-.*"
-      isRegex: true
-  comment: "Payment service maintenance and PCI compliance updates"
-  createdBy: "security-team"
-```
-
-## Use Cases
-
-### vs. MaintenanceWindow
-
-| Use Case | Resource |
-|----------|----------|
-| Weekly/recurring maintenance | MaintenanceWindow |
-| One-time planned work | Silence |
-| Emergency/incident response | Silence |
-| Deploy window | Either (Silence for one-off, MW for recurring) |
-
-### Automation
-
-Silences can be created automatically by CI/CD pipelines:
-
-```yaml
-# In your deployment pipeline
-- name: Create deployment silence
-  run: |
-    cat <<EOF | kubectl apply -f -
-    apiVersion: monitoring.yuptime.io/v1
-    kind: Silence
-    metadata:
-      name: deploy-${{ github.run_id }}
-      namespace: yuptime
-    spec:
-      startsAt: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      endsAt: "$(date -u -d '+30 minutes' +%Y-%m-%dT%H:%M:%SZ)"
-      matchers:
-        - name: environment
-          value: production
-          isRegex: false
-      comment: "Deployment ${{ github.run_id }}"
-      createdBy: "github-actions"
-    EOF
-
-- name: Deploy application
-  run: kubectl rollout restart deployment/my-app
-
-- name: Remove silence
-  run: kubectl delete silence deploy-${{ github.run_id }} -n yuptime
-```
+- Use `Silence` for one-off events.
+- Use `MaintenanceWindow` for recurring periods.
+- `expiresAt` must be in the future when the resource is created.

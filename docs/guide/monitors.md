@@ -1,17 +1,14 @@
 # Monitors
 
-Monitors are the core resource in Yuptime. Each monitor defines a single health check that runs on a schedule.
+Monitors are the core resource in Yuptime. A monitor defines:
 
-## Overview
+- the check type
+- the schedule
+- the target
+- optional success criteria
+- optional Alertmanager integration
 
-A monitor consists of:
-- **Type**: What kind of check (HTTP, TCP, DNS, etc.)
-- **Schedule**: How often to run and timeout
-- **Target**: What to check
-- **Success Criteria**: What constitutes success
-- **Alerting**: Where to send alerts (optional)
-
-## Basic Structure
+## Basic Shape
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
@@ -19,115 +16,48 @@ kind: Monitor
 metadata:
   name: my-monitor
   namespace: yuptime
-  labels:
-    team: platform
 spec:
-  type: http                    # Monitor type
+  type: http
   schedule:
-    intervalSeconds: 60         # Check every 60 seconds
-    timeoutSeconds: 30          # Timeout after 30 seconds
+    intervalSeconds: 60
+    timeoutSeconds: 30
   target:
-    http:                       # Target config (varies by type)
+    http:
       url: "https://example.com"
-      method: GET
   successCriteria:
-    http:                       # Success criteria (varies by type)
+    http:
       acceptedStatusCodes: [200]
-  alerting:                     # Optional
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: critical
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
 ```
 
 ## Monitor Types
 
-| Type | Description | Target Key |
-|------|-------------|------------|
-| `http` | HTTP/HTTPS endpoints | `target.http` |
-| `tcp` | TCP port connectivity | `target.tcp` |
-| `dns` | DNS record queries | `target.dns` |
-| `ping` | ICMP ping | `target.ping` |
-| `websocket` | WebSocket connections | `target.websocket` |
-| `grpc` | gRPC health checks | `target.grpc` |
-| `mysql` | MySQL database | `target.mysql` |
-| `postgresql` | PostgreSQL database | `target.postgresql` |
-| `redis` | Redis cache | `target.redis` |
-| `kubernetes` | K8s resource health | `target.kubernetes` |
-| `push` | Push-based monitoring | `target.push` |
-| `steam` | Steam game servers | `target.steam` |
+| Type | Target Key |
+|------|------------|
+| `http` | `target.http` |
+| `tcp` | `target.tcp` |
+| `dns` | `target.dns` |
+| `ping` | `target.ping` |
+| `websocket` | `target.websocket` |
+| `grpc` | `target.grpc` |
+| `mysql` | `target.mysql` |
+| `postgresql` | `target.postgresql` |
+| `redis` | `target.redis` |
+| `k8s` | `target.kubernetes` or `target.k8s` |
+| `push` | `target.push` |
+| `steam` | `target.steam` |
+| `keyword` | `target.http` |
+| `jsonQuery` | `target.http` |
+| `xmlQuery` | `target.http` |
+| `htmlQuery` | `target.http` |
 
-## Schedule
+`docker` is currently reserved in the enum but not implemented.
 
-```yaml
-schedule:
-  intervalSeconds: 60    # How often to run (required)
-  timeoutSeconds: 30     # Max time for check (required)
-```
-
-**Recommendations**:
-- Critical services: 30 seconds
-- Standard services: 60 seconds
-- Background services: 300 seconds
-
-## Labels
-
-Use labels for:
-- Organizing monitors
-- Selecting in MaintenanceWindows and Silences
-- Routing alerts in Alertmanager
-
-```yaml
-metadata:
-  labels:
-    team: platform
-    environment: production
-    tier: critical
-    service: api
-```
-
-## Status
-
-The controller updates the status subresource:
-
-```yaml
-status:
-  state: healthy              # healthy, unhealthy, degraded, unknown
-  lastCheck:
-    timestamp: "2025-12-30T10:00:00Z"
-    success: true
-    latencyMs: 125
-    message: "HTTP 200 OK"
-  uptime:
-    last24h: 99.95
-    last7d: 99.98
-```
-
-## Viewing Monitors
-
-```bash
-# List all monitors
-kubectl get monitors -n yuptime
-
-# Wide output with status
-kubectl get monitors -n yuptime -o wide
-
-# Detailed status
-kubectl describe monitor my-monitor -n yuptime
-
-# JSON output
-kubectl get monitor my-monitor -n yuptime -o jsonpath='{.status}'
-```
-
-## Common Patterns
+## Example Patterns
 
 ### Health Endpoint
 
 ```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: Monitor
-metadata:
-  name: api-health
-  namespace: yuptime
 spec:
   type: http
   schedule:
@@ -136,21 +66,15 @@ spec:
   target:
     http:
       url: "https://api.example.com/health"
-      method: GET
   successCriteria:
     http:
       acceptedStatusCodes: [200]
-      maxLatencyMs: 500
+      latencyMsUnder: 500
 ```
 
 ### Database Check
 
 ```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: Monitor
-metadata:
-  name: postgres-health
-  namespace: yuptime
 spec:
   type: postgresql
   schedule:
@@ -161,36 +85,24 @@ spec:
       host: "postgres.db.svc.cluster.local"
       port: 5432
       database: "myapp"
-      user: "monitor"
-      password:
-        secretRef:
-          name: db-credentials
-          key: password
+      credentialsSecretRef:
+        name: db-credentials
+        usernameKey: username
+        passwordKey: password
 ```
 
-### Deployment Health
+### Kubernetes Resource
 
 ```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: Monitor
-metadata:
-  name: app-deployment
-  namespace: yuptime
 spec:
-  type: kubernetes
+  type: k8s
   schedule:
     intervalSeconds: 60
     timeoutSeconds: 30
   target:
     kubernetes:
-      kind: Deployment
-      name: my-app
       namespace: production
-      expectedReplicas: 3
+      name: my-app
+      kind: Deployment
+      minReadyReplicas: 3
 ```
-
-## Next Steps
-
-- [HTTP Monitor Reference](/reference/monitors/http)
-- [CRD Reference](/reference/crds/monitor)
-- [Examples](/examples/)

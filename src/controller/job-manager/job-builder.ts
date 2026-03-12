@@ -9,6 +9,24 @@ import type { Monitor } from "./types";
 // Default checker image from environment or fallback
 const DEFAULT_CHECKER_IMAGE = process.env.CHECKER_IMAGE || "yuptime-checker:latest";
 
+function sanitizeMonitorLabel(monitorId: string): string {
+  return monitorId.replace(/\//g, "-");
+}
+
+function getCheckerImagePullPolicy(image: string): "Always" | "IfNotPresent" | "Never" {
+  const configuredPolicy = process.env.CHECKER_IMAGE_PULL_POLICY;
+
+  if (
+    configuredPolicy === "Always" ||
+    configuredPolicy === "IfNotPresent" ||
+    configuredPolicy === "Never"
+  ) {
+    return configuredPolicy;
+  }
+
+  return image === "yuptime-checker:latest" ? "Never" : "Always";
+}
+
 /**
  * Extract secret-backed environment variables from monitor spec.
  * These are injected into the Job pod using Kubernetes valueFrom.secretKeyRef,
@@ -157,7 +175,7 @@ export function buildJobForMonitor(
   const namespace = monitor.metadata.namespace || "default";
   const monitorId = `${namespace}/${monitor.metadata.name}`;
   // Sanitize monitor ID for Kubernetes labels (replace '/' with '-')
-  const monitorLabelId = monitorId.replace(/\//g, "-");
+  const monitorLabelId = sanitizeMonitorLabel(monitorId);
   const timestamp = Date.now();
 
   return {
@@ -217,7 +235,7 @@ export function buildJobForMonitor(
             {
               name: "checker",
               image,
-              imagePullPolicy: image === "yuptime-checker:latest" ? "Never" : "Always",
+              imagePullPolicy: getCheckerImagePullPolicy(image),
               args: ["--monitor", monitorId],
               env: [
                 {
@@ -273,5 +291,5 @@ export function buildJobForMonitor(
  * Build a job name filter for listing jobs
  */
 export function buildJobLabelSelector(monitorId: string): string {
-  return `monitoring.yuptime.io/monitor=${monitorId}`;
+  return `monitoring.yuptime.io/monitor=${sanitizeMonitorLabel(monitorId)}`;
 }

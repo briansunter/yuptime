@@ -8,11 +8,11 @@
  */
 
 import { CustomObjectsApi, type KubeConfig, type V1Job } from "@kubernetes/client-node";
-import { Watch } from "@kubernetes/client-node/dist/watch";
 import { sendAlertToAlertmanager } from "../../alerting";
 import { logger } from "../../lib/logger";
 import { recordCheckResult } from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd/monitor";
+import { startK8sWatch, type WatchHandle } from "../k8s-client";
 
 export interface JobCompletionWatcherConfig {
   kubeConfig: KubeConfig;
@@ -24,10 +24,66 @@ export interface JobCompletionWatcherConfig {
  */
 export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
   const customObjectsApi = config.kubeConfig.makeApiClient(CustomObjectsApi);
+  const WATCH_RESTART_DELAY_MS = 1000;
+  const WATCH_ROTATION_INTERVAL_MS = 4 * 60 * 1000;
 
   let watching = false;
-  let watch: Watch | null = null;
+  let watchHandle: WatchHandle | null = null;
+  let restartTimer: ReturnType<typeof setTimeout> | null = null;
+  let rotationTimer: ReturnType<typeof setTimeout> | null = null;
+  let watchGeneration = 0;
   const processedJobs = new Set<string>();
+
+  function clearRestartTimer() {
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+  }
+
+  function clearRotationTimer() {
+    if (rotationTimer) {
+      clearTimeout(rotationTimer);
+      rotationTimer = null;
+    }
+  }
+
+  function scheduleRestart(error?: unknown) {
+    if (!watching || restartTimer) {
+      return;
+    }
+
+    logger.warn({ error }, "Scheduling Job completion watcher restart");
+
+    restartTimer = setTimeout(async () => {
+      restartTimer = null;
+
+      if (!watching) {
+        return;
+      }
+
+      try {
+        await startWatch(watchGeneration + 1);
+        logger.info("Job completion watcher restarted successfully");
+      } catch (restartError) {
+        logger.error({ error: restartError }, "Failed to restart Job completion watcher");
+        scheduleRestart(restartError);
+      }
+    }, WATCH_RESTART_DELAY_MS);
+  }
+
+  function scheduleRotation(generation: number) {
+    clearRotationTimer();
+
+    rotationTimer = setTimeout(() => {
+      if (!watching || watchGeneration !== generation) {
+        return;
+      }
+
+      logger.info("Rotating Job completion watcher proactively");
+      scheduleRestart();
+    }, WATCH_ROTATION_INTERVAL_MS);
+  }
 
   /**
    * Handle Job completion
@@ -119,6 +175,65 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
     logger.info({ monitorName, fromState, toState, reason }, "Monitor state changed");
   }
 
+  async function startWatch(generation = watchGeneration + 1) {
+    const path = "/apis/batch/v1/jobs";
+    watchGeneration = generation;
+
+    clearRotationTimer();
+    watchHandle?.abort();
+
+    watchHandle = await startK8sWatch<V1Job>(
+      path,
+      { labelSelector: "app.kubernetes.io/component=checker" },
+      (phase: string, apiObj: V1Job) => {
+        // Only process when job is completed (succeeded or failed)
+        if (phase === "MODIFIED") {
+          const job = apiObj;
+          const status = job.status;
+          const annotations = job.metadata?.annotations || {};
+          const monitorId = annotations["monitoring.yuptime.io/monitor"];
+
+          // Only process jobs that have actually completed
+          if (monitorId && (status?.succeeded || status?.failed)) {
+            // Check if we've already processed this job
+            const processedKey = `${job.metadata?.name}-${status?.succeeded || status?.failed}`;
+
+            if (!processedJobs.has(processedKey)) {
+              processedJobs.add(processedKey);
+              handleJobCompletion(apiObj).catch((error) => {
+                logger.error({ error }, "Unexpected failure while handling Job completion");
+              });
+
+              // Clean up old processed job keys (keep last 100)
+              if (processedJobs.size > 100) {
+                const entries = Array.from(processedJobs);
+                processedJobs.clear();
+                for (const key of entries.slice(-100)) {
+                  processedJobs.add(key);
+                }
+              }
+            }
+          }
+        }
+      },
+      (err: unknown) => {
+        if (!watching || generation !== watchGeneration) {
+          return;
+        }
+
+        if (err) {
+          logger.error({ error: err }, "Job watch error");
+        } else {
+          logger.warn("Job watch closed, restarting");
+        }
+
+        scheduleRestart(err);
+      },
+    );
+
+    scheduleRotation(generation);
+  }
+
   /**
    * Start watching Jobs
    */
@@ -132,51 +247,9 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
     logger.info("Starting Job completion watcher...");
 
     try {
-      const path = "/apis/batch/v1/jobs";
-      watch = new Watch(config.kubeConfig);
-
-      // Watch for changes to Jobs
-      await watch.watch(
-        path,
-        { labelSelector: "app.kubernetes.io/component=checker" },
-        // callback
-        (phase: string, apiObj: V1Job) => {
-          // Only process when job is completed (succeeded or failed)
-          if (phase === "MODIFIED") {
-            const job = apiObj;
-            const status = job.status;
-            const annotations = job.metadata?.annotations || {};
-            const monitorId = annotations["monitoring.yuptime.io/monitor"];
-
-            // Only process jobs that have actually completed
-            if (monitorId && (status?.succeeded || status?.failed)) {
-              // Check if we've already processed this job
-              const processedKey = `${job.metadata?.name}-${status?.succeeded || status?.failed}`;
-
-              if (!processedJobs.has(processedKey)) {
-                processedJobs.add(processedKey);
-                handleJobCompletion(apiObj);
-
-                // Clean up old processed job keys (keep last 100)
-                if (processedJobs.size > 100) {
-                  const entries = Array.from(processedJobs);
-                  processedJobs.clear();
-                  for (const key of entries.slice(-100)) {
-                    processedJobs.add(key);
-                  }
-                }
-              }
-            }
-          }
-        },
-        // done callback
-        (err: unknown) => {
-          if (err) {
-            logger.error({ error: err }, "Job watch error");
-          }
-        },
-      );
-
+      clearRestartTimer();
+      clearRotationTimer();
+      await startWatch();
       logger.info("Job completion watcher started successfully");
     } catch (error) {
       logger.error({ error }, "Failed to start Job completion watcher");
@@ -194,10 +267,11 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
     }
 
     watching = false;
-
-    // Note: Watch.watch() doesn't return AbortController in this version
-    // The watch will be cleaned up when the object is garbage collected
-    watch = null;
+    clearRestartTimer();
+    clearRotationTimer();
+    watchHandle?.abort();
+    watchHandle = null;
+    watchGeneration = 0;
 
     logger.info("Job completion watcher stopped");
   }

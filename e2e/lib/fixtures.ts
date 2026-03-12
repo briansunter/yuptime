@@ -427,33 +427,22 @@ export function createGrpcMonitor(overrides: {
 }
 
 /**
- * Create a MaintenanceWindow for E2E testing
- * Uses RRULE format for schedule with durationMinutes
+ * Create a MaintenanceWindow for E2E testing.
  */
 export function createMaintenanceWindowFixture(overrides: {
   name: string;
-  schedule?: string; // RRULE format, defaults to "now" (one-time occurrence)
-  durationMinutes?: number;
+  recurrenceRule?: string;
   matchNamespaces?: string[];
   matchLabels?: Record<string, string>;
-  expired?: boolean; // If true, schedule is in the past
+  expired?: boolean;
 }): MaintenanceWindow {
-  // Default schedule: one-time occurrence starting now
-  // For expired, use a past date
   const now = new Date();
-  let schedule = overrides.schedule;
-
-  if (!schedule) {
-    if (overrides.expired) {
-      // One-time occurrence 2 hours ago
-      const pastDate = new Date(now.getTime() - 7200000);
-      schedule = `DTSTART:${pastDate.toISOString().replace(/[-:]/g, "").split(".")[0]}Z\nRRULE:FREQ=YEARLY;COUNT=1`;
-    } else {
-      // One-time occurrence starting 1 minute ago (to ensure it's active now)
-      const startDate = new Date(now.getTime() - 60000);
-      schedule = `DTSTART:${startDate.toISOString().replace(/[-:]/g, "").split(".")[0]}Z\nRRULE:FREQ=YEARLY;COUNT=1`;
-    }
-  }
+  const start = overrides.expired
+    ? new Date(now.getTime() - 7200000)
+    : new Date(now.getTime() - 60000);
+  const end = overrides.expired
+    ? new Date(now.getTime() - 3600000)
+    : new Date(now.getTime() + 3600000);
 
   return {
     apiVersion: "monitoring.yuptime.io/v1",
@@ -463,45 +452,46 @@ export function createMaintenanceWindowFixture(overrides: {
       namespace: E2E_NAMESPACE,
     },
     spec: {
-      schedule,
-      durationMinutes: overrides.expired ? 30 : (overrides.durationMinutes ?? 120), // 2 hours default
-      selector: {
+      enabled: true,
+      schedule: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        ...(overrides.recurrenceRule && {
+          recurrence: {
+            rrule: overrides.recurrenceRule,
+          },
+        }),
+      },
+      match: {
         ...(overrides.matchNamespaces && {
           matchNamespaces: overrides.matchNamespaces,
         }),
         ...(overrides.matchLabels && {
-          matchLabels: overrides.matchLabels,
+          matchLabels: {
+            matchLabels: overrides.matchLabels,
+          },
         }),
+      },
+      behavior: {
+        suppressNotifications: true,
       },
     },
   };
 }
 
 /**
- * Create a Silence for E2E testing
- * Uses startsAt and endsAt timestamps
+ * Create a Silence for E2E testing.
  */
 export function createSilenceFixture(overrides: {
   name: string;
-  startsAt?: Date;
-  endsAt?: Date;
   matchNamespaces?: string[];
   matchLabels?: Record<string, string>;
-  expired?: boolean; // If true, silence is already expired
+  expired?: boolean;
 }): Silence {
   const now = new Date();
-  let startsAt: Date;
-  let endsAt: Date;
-
-  if (overrides.expired) {
-    // Expired silence: ended 1 hour ago
-    startsAt = overrides.startsAt ?? new Date(now.getTime() - 7200000); // 2 hours ago
-    endsAt = overrides.endsAt ?? new Date(now.getTime() - 3600000); // 1 hour ago
-  } else {
-    // Active silence: started 1 minute ago, ends in 1 hour
-    startsAt = overrides.startsAt ?? new Date(now.getTime() - 60000); // 1 min ago
-    endsAt = overrides.endsAt ?? new Date(now.getTime() + 3600000); // 1 hour from now
-  }
+  const expiresAt = overrides.expired
+    ? new Date(now.getTime() - 3600000)
+    : new Date(now.getTime() + 3600000);
 
   return {
     apiVersion: "monitoring.yuptime.io/v1",
@@ -511,14 +501,14 @@ export function createSilenceFixture(overrides: {
       namespace: E2E_NAMESPACE,
     },
     spec: {
-      startsAt: startsAt.toISOString(),
-      endsAt: endsAt.toISOString(),
-      selector: {
+      expiresAt: expiresAt.toISOString(),
+      reason: "E2E test silence",
+      match: {
         ...(overrides.matchNamespaces && {
-          matchNamespaces: overrides.matchNamespaces,
+          namespaces: overrides.matchNamespaces,
         }),
         ...(overrides.matchLabels && {
-          matchLabels: overrides.matchLabels,
+          labels: overrides.matchLabels,
         }),
       },
     },
@@ -573,8 +563,6 @@ export const httpFixtures = {
         http: { latencyMsUnder: 100 },
       },
     }),
-
-  // Note: Alerting is configured via NotificationPolicy CRD, not directly on Monitor
 };
 
 export const tcpFixtures = {

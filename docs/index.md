@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Yuptime
   text: Kubernetes-native Monitoring
-  tagline: All configuration is CRDs. GitOps-native. Database-free.
+  tagline: CRD-driven, GitOps-friendly, and database-free.
   image:
     src: /logo.svg
     alt: Yuptime
@@ -19,69 +19,57 @@ hero:
 features:
   - icon: 🎯
     title: GitOps-Native
-    details: All configuration lives in Git as YAML manifests. Works seamlessly with Flux, Argo CD, and any GitOps workflow.
+    details: Store monitor configuration as Kubernetes resources in Git and let your normal deployment workflow apply it.
   - icon: 📦
     title: Database-Free
-    details: No databases to manage. State lives in CRD status subresources — the Kubernetes API is your storage layer.
+    details: Runtime state lives in CRD status subresources and metrics are exported directly for Prometheus.
   - icon: 🔒
     title: Isolated Execution
-    details: Each health check runs in its own Kubernetes Job pod for security, resource isolation, and reliability.
+    details: Each check runs in its own Kubernetes Job pod instead of sharing process state.
   - icon: 📊
     title: Prometheus Metrics
-    details: Native Prometheus metrics export for Grafana dashboards. Monitor your monitors with the tools you already use.
+    details: Scrape `/metrics` and build Grafana dashboards with your existing monitoring stack.
   - icon: 🔔
     title: Alertmanager Integration
-    details: Direct webhook integration with Prometheus Alertmanager. Route alerts to Slack, PagerDuty, email, and more.
+    details: Send monitor state changes directly to Alertmanager with per-monitor routing control.
   - icon: ⏰
-    title: Smart Suppressions
-    details: Maintenance windows with RRULE scheduling and ad-hoc silences. Never get paged during planned downtime.
+    title: Suppressions
+    details: Use maintenance windows and silences to mute alerts during planned or ad-hoc work.
 ---
-
-<style>
-:root {
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #3eaf7c 30%, #2d9363);
-}
-</style>
 
 ## Quick Start
 
-Install Yuptime in under 5 minutes:
+The Timoni module under `timoni/yuptime/` is the authoritative packaging source for this repository. The checked-in `k8s/`, `helm/yuptime/`, and `manifests/` trees are mirrors kept aligned from that CUE-first workflow.
 
 ::: code-group
 
 ```bash [Timoni]
-# Install with Timoni (recommended)
 timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
   --version latest \
   --namespace yuptime
 ```
 
 ```bash [Helm]
-# Install with Helm
 helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
   --namespace yuptime \
   --create-namespace
 ```
 
 ```bash [kubectl]
-# Apply CRDs first
-kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/manifests/crds.yaml
-
-# Create namespace and deploy
+kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/k8s/crds.yaml
 kubectl create namespace yuptime
 kubectl apply -f https://raw.githubusercontent.com/briansunter/yuptime/master/manifests/all.yaml -n yuptime
 ```
 
 :::
 
-Then create your first monitor:
+Then create a simple HTTP monitor:
 
 ```yaml
 apiVersion: monitoring.yuptime.io/v1
 kind: Monitor
 metadata:
-  name: my-website
+  name: website-health
   namespace: yuptime
 spec:
   type: http
@@ -91,66 +79,40 @@ spec:
   target:
     http:
       url: "https://example.com"
-      method: GET
   successCriteria:
     http:
       acceptedStatusCodes: [200]
 ```
 
-```bash
-kubectl apply -f monitor.yaml
-```
-
-[Read the full guide →](/guide/getting-started)
-
 ## Monitor Types
 
-Yuptime supports **14 monitor types** for comprehensive infrastructure monitoring:
+Yuptime currently exposes 17 monitor enum values. `docker` is reserved but not implemented; the rest map to active checkers or protocol-specific validation flows.
 
 | Type | Description |
 |------|-------------|
-| [HTTP](/reference/monitors/http) | HTTP/HTTPS endpoints with authentication, headers, and response validation |
-| [TCP](/reference/monitors/tcp) | TCP port connectivity with optional send/expect patterns |
-| [DNS](/reference/monitors/dns) | DNS record queries (A, AAAA, CNAME, TXT, MX, SRV) |
-| [Ping](/reference/monitors/ping) | ICMP ping checks with packet count |
-| [WebSocket](/reference/monitors/websocket) | WebSocket connection testing |
-| [gRPC](/reference/monitors/grpc) | gRPC health checks using standard health protocol |
-| [MySQL](/reference/monitors/mysql) | MySQL database connectivity and custom queries |
-| [PostgreSQL](/reference/monitors/postgresql) | PostgreSQL database health with SSL support |
-| [Redis](/reference/monitors/redis) | Redis PING command with authentication |
-| [Kubernetes](/reference/monitors/kubernetes) | Deployment, StatefulSet, DaemonSet, Pod health |
-| [Push](/reference/monitors/push) | Push-based monitoring for custom applications |
-| [Steam](/reference/monitors/steam) | Steam game server monitoring |
+| [HTTP](/reference/monitors/http) | HTTP/HTTPS endpoints |
+| [TCP](/reference/monitors/tcp) | TCP connectivity and send/expect checks |
+| [DNS](/reference/monitors/dns) | DNS lookups |
+| [Ping](/reference/monitors/ping) | ICMP reachability |
+| [WebSocket](/reference/monitors/websocket) | WebSocket connectivity |
+| [gRPC](/reference/monitors/grpc) | gRPC health checks |
+| [MySQL](/reference/monitors/mysql) | MySQL connectivity |
+| [PostgreSQL](/reference/monitors/postgresql) | PostgreSQL connectivity |
+| [Redis](/reference/monitors/redis) | Redis connectivity |
+| [Kubernetes](/reference/monitors/kubernetes) | In-cluster resource health |
+| [Push](/reference/monitors/push) | Push/heartbeat monitoring |
+| [Steam](/reference/monitors/steam) | Steam game servers |
+| `keyword` | HTTP body keyword matching |
+| `jsonQuery` | JSONPath-based validation |
+| `xmlQuery` | XPath-based validation |
+| `htmlQuery` | CSS selector validation |
+| `docker` | Reserved placeholder |
 
 ## Why Yuptime?
 
-**Traditional monitoring tools** require managing databases, complex configurations, and often break GitOps workflows by storing state outside of Git.
+- Configuration is stored in Kubernetes resources, not a separate database.
+- The controller only writes to status subresources.
+- Each check runs in an isolated Job pod.
+- Metrics, health, and readiness endpoints are exposed on port `3000`.
 
-**Yuptime is different**:
-
-- **Everything is a CRD** — version-controlled, auditable, and reproducible
-- **No database to manage** — the Kubernetes API is your storage
-- **Each check runs in isolation** — no shared state, no cascading failures
-- **Works with your existing tools** — Prometheus, Alertmanager, Grafana
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Yuptime Pod                              │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Metrics   │  │ Controller  │  │      Job Manager        │  │
-│  │   Server    │  │  (Watches   │  │  (Creates K8s Jobs for  │  │
-│  │ (Port 3000) │  │    CRDs)    │  │     each check)         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Checker Job Pods (Isolated)                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Job 1: HTTP Check    →  Updates Monitor CRD status (no DB)     │
-│  Job 2: TCP Check     →  Updates Monitor CRD status (no DB)     │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-[Learn more about the architecture →](/guide/architecture)
+[Read the getting started guide →](/guide/getting-started)

@@ -2,6 +2,8 @@
 
 A [timoni.sh](https://timoni.sh) module for deploying Yuptime, a Kubernetes-native monitoring solution.
 
+This directory is the authoritative packaging source for the repository. Checked-in Helm, static manifests, and CRD YAML mirrors should be kept aligned from this CUE module.
+
 ## Architecture
 
 Yuptime uses a **pure CRD-based architecture** where all configuration and state is stored in Kubernetes Custom Resources. No external database is required - monitor results are written directly to the CRD status subresource.
@@ -27,6 +29,7 @@ Yuptime uses a **pure CRD-based architecture** where all configuration and state
 
 ```bash
 # Step 1: Install CRDs (once per cluster)
+# `k8s/crds.yaml` mirrors `templates/crds.cue`
 kubectl apply -f k8s/crds.yaml
 
 # Step 2: Deploy with Timoni
@@ -87,6 +90,8 @@ Yuptime defines 5 Custom Resources:
 3. **MaintenanceWindow** - Planned maintenance (RRULE support)
 4. **Silence** - Ad-hoc alert muting
 5. **YuptimeSettings** - Cluster-scoped global configuration
+
+If you change CRDs, update `templates/crds.cue` first and then sync the checked-in mirrors.
 
 ## Uninstall
 

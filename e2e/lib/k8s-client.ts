@@ -39,8 +39,14 @@ export interface Monitor {
     };
     target: Record<string, unknown>;
     successCriteria?: Record<string, unknown>;
+    alertmanagerUrl?: string;
     alerting?: {
-      alertmanagerUrl?: string;
+      notifyOn?: {
+        down?: boolean;
+        up?: boolean;
+        flapping?: boolean;
+        certExpiring?: boolean;
+      };
     };
   };
   status?: MonitorStatus;
@@ -55,10 +61,10 @@ export interface MonitorStatus {
     checkedAt: string;
   };
   uptime?: {
-    percent1h: number;
-    percent24h: number;
-    percent7d: number;
-    percent30d: number;
+    last1h?: number;
+    last24h?: number;
+    last7d?: number;
+    last30d?: number;
   };
 }
 
@@ -70,12 +76,22 @@ export interface MaintenanceWindow {
     namespace: string;
   };
   spec: {
-    schedule: string; // RRULE format
-    durationMinutes: number;
-    description?: string;
-    selector?: {
+    enabled?: boolean;
+    schedule: {
+      start: string;
+      end: string;
+      recurrence?: {
+        rrule?: string;
+      };
+    };
+    match?: {
       matchNamespaces?: string[];
-      matchLabels?: Record<string, string>;
+      matchLabels?: {
+        matchLabels?: Record<string, string>;
+      };
+    };
+    behavior?: {
+      suppressNotifications?: boolean;
     };
   };
 }
@@ -88,12 +104,11 @@ export interface Silence {
     namespace: string;
   };
   spec: {
-    startsAt: string;
-    endsAt: string;
+    expiresAt: string;
     reason?: string;
-    selector?: {
-      matchNamespaces?: string[];
-      matchLabels?: Record<string, string>;
+    match: {
+      namespaces?: string[];
+      labels?: Record<string, string>;
     };
   };
 }
@@ -345,8 +360,9 @@ export async function getMetrics(namespace: string = E2E_NAMESPACE): Promise<str
     const response = await fetch(serviceUrl);
     return await response.text();
   } catch {
-    // Fallback to localhost (for port-forward scenarios)
-    const response = await fetch("http://localhost:3000/metrics");
+    // Fallback to IPv4 loopback for kubectl port-forward scenarios.
+    // On some hosts, localhost resolves to an unrelated IPv6 listener.
+    const response = await fetch("http://127.0.0.1:3000/metrics");
     return await response.text();
   }
 }

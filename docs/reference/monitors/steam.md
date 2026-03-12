@@ -54,10 +54,11 @@ spec:
     steam:
       host: "cs2.example.com"
       port: 27015
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
   alerting:
-    alertmanagerUrl: "http://alertmanager:9093"
-    labels:
-      severity: warning
+    notifyOn:
+      down: true
+      up: false
 ```
 
 ### With Player Validation
