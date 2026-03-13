@@ -132,7 +132,7 @@ spec:
       host: "redis.production.svc.cluster.local"
       credentialsSecretRef:
         name: redis-credentials
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   alerting:
     notifyOn:
       down: true

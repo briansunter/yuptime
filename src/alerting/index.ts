@@ -4,7 +4,7 @@
  * Direct integration with Prometheus Alertmanager:
  * - No notification providers
  * - No policy matching
- * - POST alerts directly to Alertmanager's /api/v1/alerts
+ * - POST alerts directly to Alertmanager's /api/v2/alerts
  * - Users configure Alertmanager routing (receivers, routes, etc.)
  */
 

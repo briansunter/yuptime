@@ -135,7 +135,7 @@ spec:
     schedule:
       intervalSeconds: 30
       timeoutSeconds: 10
-    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   items:
     - name: users-service
       spec:
@@ -215,7 +215,7 @@ spec:
     http:
       acceptedStatusCodes: [200]
       latencyMsUnder: 500
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   alerting:
     notifyOn:
       down: true

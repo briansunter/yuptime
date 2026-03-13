@@ -221,7 +221,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   // Mock Alertmanager endpoints
-  if (path === "/alertmanager/api/v1/alerts" && req.method === "POST") {
+  if (path === "/alertmanager/api/v2/alerts" && req.method === "POST") {
     const alerts = await req.json();
     receivedAlerts.push(...(Array.isArray(alerts) ? alerts : [alerts]));
     return json({ status: "success" });

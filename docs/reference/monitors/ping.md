@@ -49,7 +49,7 @@ spec:
     ping:
       host: "10.0.0.1"
       packetCount: 5
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   alerting:
     notifyOn:
       down: true

@@ -4,7 +4,7 @@
  * Simplified architecture:
  * - No notification providers
  * - No policy matching
- * - Direct POST to Alertmanager's /api/v1/alerts endpoint
+ * - Direct POST to Alertmanager's /api/v2/alerts endpoint
  * - Users configure Alertmanager routing
  */
 
@@ -14,10 +14,9 @@ import type { Monitor } from "../types/crd/monitor";
 /**
  * Send alert to Alertmanager when monitor state changes
  *
- * @param monitor - The Monitor CRD
- * @param toState - The new state ("up" or "down")
- * @param fromState - The previous state
- * @param message - Human-readable message
+ * Uses Alertmanager v2 API: POST array of alerts to /api/v2/alerts
+ * Each alert has: labels (indexed), annotations (metadata), startsAt/endsAt, generatorURL
+ * State is conveyed via endsAt: omitted = firing, set = resolved
  */
 export async function sendAlertToAlertmanager(
   monitor: Monitor,
@@ -42,45 +41,37 @@ export async function sendAlertToAlertmanager(
   const reason = monitor.status?.lastResult?.reason || "Unknown";
   const latencyMs = monitor.status?.lastResult?.latencyMs;
   const monitorUrl = getMonitorUrl(monitor);
+  const now = new Date().toISOString();
 
-  // Build Alertmanager alert payload
-  const alert = {
-    receiver: "yuptime",
-    alerts: [
-      {
-        alertname: `${namespace}_${monitorName}`,
-        state: toState === "down" ? "firing" : "resolved",
-        monitor: monitorName,
-        namespace,
-        monitorId,
-        monitorType: monitor.spec.type,
-        monitorUrl,
-        fromState: fromState || "unknown",
-        toState,
-        reason,
-        message:
-          message ||
-          `Monitor ${monitorName} is ${toState}${
-            latencyMs !== undefined ? ` (${latencyMs}ms)` : ""
-          }`,
-        labels: {
-          monitor: monitorName,
-          namespace,
-          state: toState,
-          ...(monitor.spec.tags && { tags: monitor.spec.tags.join(",") }),
-        },
-        annotations: {
-          summary: `${monitorName} is ${toState}`,
-          description:
-            message ||
-            `Monitor ${monitorName} changed from ${fromState || "unknown"} to ${toState}`,
-          ...(monitorUrl && { runbook_url: monitorUrl }),
-        },
-        generatorURL: `https://github.com/bsunt/yuptime`,
-        startsAt: new Date().toISOString(),
-      },
-    ],
+  const descriptionText =
+    message || `Monitor ${monitorName} changed from ${fromState || "unknown"} to ${toState}`;
+
+  // Build Alertmanager v2 alert payload (array of alerts)
+  const alert: Record<string, unknown> = {
+    labels: {
+      alertname: `yuptime_${namespace}_${monitorName}`,
+      severity: toState === "down" ? "critical" : "info",
+      monitor: monitorName,
+      namespace,
+      monitor_type: monitor.spec.type,
+      source: "yuptime",
+      ...(monitor.spec.tags && { tags: monitor.spec.tags.join(",") }),
+    },
+    annotations: {
+      summary: `${monitorName} is ${toState}`,
+      description: descriptionText,
+      reason,
+      ...(monitorUrl && { monitor_url: monitorUrl }),
+      ...(latencyMs !== undefined && { latency_ms: String(latencyMs) }),
+    },
+    startsAt: now,
+    generatorURL: "https://github.com/briansunter/yuptime",
   };
+
+  // Alertmanager v2: resolved alerts must set endsAt
+  if (toState === "up") {
+    alert.endsAt = now;
+  }
 
   try {
     const response = await fetch(alertmanagerUrl, {
@@ -88,7 +79,7 @@ export async function sendAlertToAlertmanager(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(alert),
+      body: JSON.stringify([alert]),
     });
 
     if (!response.ok) {

@@ -18,7 +18,7 @@ spec:
     successCriteria:
       http:
         acceptedStatusCodes: [200]
-    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+    alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   items:
     - name: users-api
       spec:
@@ -49,7 +49,7 @@ defaults:
   successCriteria:
     http:
       acceptedStatusCodes: [200]
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   alerting:
     notifyOn:
       down: true

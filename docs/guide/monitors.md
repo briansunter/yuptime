@@ -27,7 +27,7 @@ spec:
   successCriteria:
     http:
       acceptedStatusCodes: [200]
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
 ```
 
 ## Monitor Types

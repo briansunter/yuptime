@@ -60,5 +60,5 @@ spec:
       name: web-frontend
       kind: Deployment
       minReadyReplicas: 3
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
 ```

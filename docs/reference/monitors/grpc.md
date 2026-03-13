@@ -113,7 +113,7 @@ spec:
       host: "payment.production.svc.cluster.local"
       port: 50051
       service: "payments.v1.PaymentService"
-  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v1/alerts"
+  alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
   alerting:
     notifyOn:
       down: true
