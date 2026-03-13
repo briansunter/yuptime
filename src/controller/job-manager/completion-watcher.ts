@@ -13,10 +13,13 @@ import { logger } from "../../lib/logger";
 import { recordCheckResult } from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd/monitor";
 import { startK8sWatch, type WatchHandle } from "../k8s-client";
+import { calculateJitter } from "./jitter";
+import type { JobManager } from "./types";
 
 export interface JobCompletionWatcherConfig {
   kubeConfig: KubeConfig;
   namespace: string;
+  jobManager?: JobManager;
 }
 
 /**
@@ -150,6 +153,33 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
 
       if (previousState && previousState !== currentState) {
         await handleStateChange(monitor, previousState, currentState);
+      }
+
+      // Reschedule the next check
+      if (monitor.spec.enabled !== false && config.jobManager) {
+        const intervalSeconds = monitor.spec.schedule?.intervalSeconds || 60;
+        const jitterPercent = monitor.spec.schedule?.jitterPercent || 5;
+        const jitterMs = calculateJitter(
+          namespace ?? "default",
+          name ?? "unknown",
+          jitterPercent,
+          intervalSeconds,
+        );
+        const delayMs = intervalSeconds * 1000 + jitterMs;
+
+        setTimeout(async () => {
+          try {
+            await config.jobManager?.scheduleCheck(monitor);
+            logger.info(
+              { monitorId, intervalSeconds },
+              "Rescheduled monitor check after completion",
+            );
+          } catch (scheduleError) {
+            logger.error({ monitorId, error: scheduleError }, "Failed to reschedule monitor check");
+          }
+        }, delayMs);
+
+        logger.debug({ monitorId, nextCheckInMs: delayMs }, "Next check scheduled");
       }
     } catch (error) {
       logger.error({ monitorId, error }, "Failed to process Job completion");

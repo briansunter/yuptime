@@ -48,6 +48,7 @@ export async function startController() {
     jobCompletionWatcher = createJobCompletionWatcher({
       kubeConfig,
       namespace: "yuptime",
+      jobManager,
     });
     await jobCompletionWatcher.start();
     logger.info("Job Completion Watcher started");
