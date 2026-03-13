@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.23](https://github.com/briansunter/yuptime/compare/v0.0.22...v0.0.23) (2026-03-13)
+
+
+### Bug Fixes
+
+* **scheduling:** use pendingReschedules Set instead of schedule-tracker for completion-watcher dedup ([7028d83](https://github.com/briansunter/yuptime/commit/7028d836d84aba7566bb04a2eff5faf830b6f86c))
+
 ## [0.0.22](https://github.com/briansunter/yuptime/compare/v0.0.21...v0.0.22) (2026-03-13)
 
 
