@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.0.24](https://github.com/briansunter/yuptime/compare/v0.0.23...v0.0.24) (2026-03-13)
+
+
+### Features
+
+* add comprehensive test coverage infrastructure ([890225e](https://github.com/briansunter/yuptime/commit/890225e782d1f3ca832e4d6e6b8966e9608448f8))
+* add database, gRPC checkers and auto-discovery controller ([#40](https://github.com/briansunter/yuptime/issues/40)) ([1ab3fa0](https://github.com/briansunter/yuptime/commit/1ab3fa0ede2c04c0788b2bf0d820c748f4d745ce))
+* add GitHub Actions CI/CD with Release Please ([9dc70f3](https://github.com/briansunter/yuptime/commit/9dc70f346bf1b3d9ae7e555c95f938b3e0524b73))
+* add job to make packages public after publish ([2823de5](https://github.com/briansunter/yuptime/commit/2823de5933bcfb55fb1589fae331c847d1bcc481))
+* publish all artifacts to GHCR with auto-generated Helm chart ([85560b5](https://github.com/briansunter/yuptime/commit/85560b5b604bd6aefe2132c5814735b105673023))
+* publish all artifacts to GHCR with auto-generated Helm chart ([ab43a85](https://github.com/briansunter/yuptime/commit/ab43a85e04291ef7a472aa02c8bf006d62ea832c))
+* remove database dependency from checker executor ([#20](https://github.com/briansunter/yuptime/issues/20)) ([18eadb4](https://github.com/briansunter/yuptime/commit/18eadb44a26ce5ceeccfe981cd1a08d3d72d7ac4))
+
+
+### Bug Fixes
+
+* add checkout to publish-helm job ([b45e2c1](https://github.com/briansunter/yuptime/commit/b45e2c1663f9e952d061ec3d6190867bb0e7d72d))
+* add release-please to publish-helm job needs ([3127090](https://github.com/briansunter/yuptime/commit/31270909c40e4a567586b999d3616ca2fb137807))
+* add Timoni setup to generate-artifacts job ([c594c40](https://github.com/briansunter/yuptime/commit/c594c40cab80d46f2d970f66263cd1e0d932a154))
+* **alerting:** upgrade to Alertmanager v2 API ([4157015](https://github.com/briansunter/yuptime/commit/4157015eb2df293c0408c6c7efbadfe9c9198b13))
+* **ci:** lower coverage thresholds for K8s-dependent components ([f177b1b](https://github.com/briansunter/yuptime/commit/f177b1b0c606a213ecfe04223637ea5db959729c))
+* **docs:** enable GitHub Pages in workflow ([f1dcb04](https://github.com/briansunter/yuptime/commit/f1dcb04885213c03ad03389d08cc2e9a2ee44eee))
+* **e2e:** rewrite mock database servers for real client library compatibility ([8ef2dcf](https://github.com/briansunter/yuptime/commit/8ef2dcf54b1a3bebc58ef04ecc50706fbb1c487e))
+* enforce strict linting with no warnings ([d3772ad](https://github.com/briansunter/yuptime/commit/d3772ad3bfe0fc86287b690ad248cc048992fc33))
+* fetch BWS secrets directly in each build job ([987760b](https://github.com/briansunter/yuptime/commit/987760b6e182a4a5c321bce89c3a15b8e78d8174))
+* fetch tags before creating GitHub release ([0a6c51d](https://github.com/briansunter/yuptime/commit/0a6c51d61ba9e7ab1988bf9a6e17f2789b5d2802))
+* integrate release builds into release-please workflow ([1e11bd2](https://github.com/briansunter/yuptime/commit/1e11bd29a9932b220ef96714df6b3f11c69cdcb9))
+* remove coverage warnings for untested components ([ca7b771](https://github.com/briansunter/yuptime/commit/ca7b771654346030cabeaef07c7aae98a0266c2e))
+* remove GitHub release step (use GHCR OCI only) ([785581a](https://github.com/briansunter/yuptime/commit/785581a2ba319424fe612aeaff608c173df979ee))
+* require E2E tests before release and fix deployment names ([b6814af](https://github.com/briansunter/yuptime/commit/b6814af9b65cc71bdb57f988d3ae0ca4ad9aa36e))
+* resolve E2E test issues for all 36 tests passing ([#39](https://github.com/briansunter/yuptime/issues/39)) ([d73c34c](https://github.com/briansunter/yuptime/commit/d73c34c3e68444fe71816d75040343cef6d5d027))
+* resolve lint errors and disable type-check in CI ([84b4610](https://github.com/briansunter/yuptime/commit/84b4610f9251883d698b03235d9e9ee13b1550e5))
+* resolve TypeScript type errors for mixed database backends ([e418d20](https://github.com/briansunter/yuptime/commit/e418d20b2120057f70938293801d29feb2d5cd33))
+* restore SQLite/PostgreSQL database support ([da2242f](https://github.com/briansunter/yuptime/commit/da2242f71d0f07df4244e6baa4a25083bf07aca2))
+* **scheduling:** prevent duplicate job cascade in completion-watcher ([9ffdf81](https://github.com/briansunter/yuptime/commit/9ffdf81c83ba160a4b35ee9816fcbb7b14346444))
+* **scheduling:** prevent monitors from stopping after first check ([df6c262](https://github.com/briansunter/yuptime/commit/df6c2621630b4d4c97818d91d709e4db16bf79ec))
+* **scheduling:** use pendingReschedules Set instead of schedule-tracker for completion-watcher dedup ([7028d83](https://github.com/briansunter/yuptime/commit/7028d836d84aba7566bb04a2eff5faf830b6f86c))
+* scope default test root to src/ to exclude e2e tests ([c552a77](https://github.com/briansunter/yuptime/commit/c552a777e9f4a6ec0c8a223cdc364015aa77d2fb))
+* set KUBECONFIG=/dev/null for kubectl validation ([a556590](https://github.com/briansunter/yuptime/commit/a556590b53bec32c302b4befbb15890a0adeebb2))
+* simplify release-please workflow ([a773de5](https://github.com/briansunter/yuptime/commit/a773de5e231904911a5787ec42ff0a322129b3c1))
+* skip kubectl validation (covered by Helm/Timoni/E2E) ([1ed77f0](https://github.com/briansunter/yuptime/commit/1ed77f0cca0c355f8f5cf12f4ebf505af6b48ea7))
+* skip kubectl validation when cluster unavailable in CI ([38cd599](https://github.com/briansunter/yuptime/commit/38cd5995c8bf93a1a28505cfbc84094cc26d5a9e))
+* template CHECKER_IMAGE env, add job rescheduling, conditional namespace ([cd88916](https://github.com/briansunter/yuptime/commit/cd8891603744c630d4b4cafaa08f2310aea21ced))
+* update E2E test monitor to match Timoni CRD schema ([8da8a80](https://github.com/briansunter/yuptime/commit/8da8a80dd616054b03a909b84b2ee783554f7a24))
+* use --validate=false for kubectl syntax-only validation ([2f7af26](https://github.com/briansunter/yuptime/commit/2f7af26247a659ea1ff155fbe11720d79807b746))
+* use briansunter namespace for Docker Hub images ([ce8be60](https://github.com/briansunter/yuptime/commit/ce8be60c97010805e26e79d04fc3f1f7dceb9d89))
+
 ## [0.0.23](https://github.com/briansunter/yuptime/compare/v0.0.22...v0.0.23) (2026-03-13)
 
 
