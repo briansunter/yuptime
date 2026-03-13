@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.20](https://github.com/briansunter/yuptime/compare/v0.0.19...v0.0.20) (2026-03-13)
+
+
+### Bug Fixes
+
+* **alerting:** upgrade to Alertmanager v2 API ([4157015](https://github.com/briansunter/yuptime/commit/4157015eb2df293c0408c6c7efbadfe9c9198b13))
+* **e2e:** rewrite mock database servers for real client library compatibility ([8ef2dcf](https://github.com/briansunter/yuptime/commit/8ef2dcf54b1a3bebc58ef04ecc50706fbb1c487e))
+* scope default test root to src/ to exclude e2e tests ([c552a77](https://github.com/briansunter/yuptime/commit/c552a777e9f4a6ec0c8a223cdc364015aa77d2fb))
+* template CHECKER_IMAGE env, add job rescheduling, conditional namespace ([cd88916](https://github.com/briansunter/yuptime/commit/cd8891603744c630d4b4cafaa08f2310aea21ced))
+
 ## [0.0.19](https://github.com/briansunter/yuptime/compare/v0.0.18...v0.0.19) (2026-03-12)
 
 
