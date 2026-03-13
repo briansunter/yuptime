@@ -3,8 +3,8 @@ root = "src"
 outdir = "dist"
 
 [test]
-# Tests are colocated with source files, plus e2e tests
-root = "."
+# Unit tests colocated with source; e2e tests run separately via `bun run test:e2e:tests`
+root = "src"
 coverage = true
 coverageDir = "./coverage"
 coverage_threshold = 80
