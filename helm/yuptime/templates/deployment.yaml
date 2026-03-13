@@ -9,7 +9,7 @@ metadata:
   name: {{ include "yuptime.fullname" . }}-api
   namespace: {{ .Release.Namespace }}
 spec:
-  replicas: {{ .Values.replicas }}
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/component: api-server
@@ -23,15 +23,15 @@ spec:
       containers:
       - env:
         - name: NODE_ENV
-          value: {{ .Values.mode | default "development" | quote }}
+          value: development
         - name: LOG_LEVEL
-          value: {{ .Values.logging.level | default "info" | quote }}
+          value: info
         - name: PORT
           value: "3000"
         - name: CHECKER_IMAGE
-          value: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"
+          value: ghcr.io/yuptime/yuptime-checker:latest
         - name: CHECKER_IMAGE_PULL_POLICY
-          value: "{{ .Values.checkerImage.pullPolicy }}"
+          value: IfNotPresent
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:
@@ -62,7 +62,12 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
         resources:
-          {{- toYaml .Values.resources | nindent 10 }}
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
