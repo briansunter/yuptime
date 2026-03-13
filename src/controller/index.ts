@@ -17,6 +17,7 @@ import {
   createTypeSafeDeleteHandler,
   createTypeSafeReconciliationHandler,
 } from "./reconcilers/handler";
+import { stopSafetyNet } from "./reconcilers/monitor-reconciler";
 import type { TypeSafeReconciler } from "./reconcilers/types";
 
 // Global instances
@@ -73,9 +74,12 @@ export async function stopController() {
   try {
     logger.info("Stopping Kubernetes controller...");
 
+    // Stop safety-net timer and clear schedule tracker
+    stopSafetyNet();
+
     // Stop Job Completion Watcher
     if (jobCompletionWatcher) {
-      await jobCompletionWatcher.stop();
+      jobCompletionWatcher.stop();
       jobCompletionWatcher = null;
     }
 

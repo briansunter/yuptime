@@ -4,6 +4,44 @@
  */
 
 /**
+ * Creates an HTTP monitor for testing
+ */
+export function createHttpMonitor(overrides?: {
+  name?: string;
+  namespace?: string;
+  url?: string;
+  intervalSeconds?: number;
+  timeoutSeconds?: number;
+  enabled?: boolean;
+  jitterPercent?: number;
+}) {
+  return {
+    apiVersion: "monitoring.yuptime.io/v1" as const,
+    kind: "Monitor" as const,
+    metadata: {
+      name: overrides?.name ?? "test-http",
+      namespace: overrides?.namespace ?? "default",
+    },
+    spec: {
+      enabled: overrides?.enabled ?? true,
+      type: "http" as const,
+      schedule: {
+        intervalSeconds: overrides?.intervalSeconds ?? 60,
+        timeoutSeconds: overrides?.timeoutSeconds ?? 10,
+        ...(overrides?.jitterPercent !== undefined && {
+          jitterPercent: overrides.jitterPercent,
+        }),
+      },
+      target: {
+        http: {
+          url: overrides?.url ?? "https://example.com",
+        },
+      },
+    },
+  };
+}
+
+/**
  * Creates a TCP monitor for testing
  */
 export function createTcpMonitor(overrides?: {

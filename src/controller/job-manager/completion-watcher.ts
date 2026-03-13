@@ -14,7 +14,36 @@ import { recordCheckResult } from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd/monitor";
 import { startK8sWatch, type WatchHandle } from "../k8s-client";
 import { calculateJitter } from "./jitter";
+import { recordSchedule } from "./schedule-tracker";
 import type { JobManager } from "./types";
+
+/**
+ * Reschedule a monitor check with retry logic and exponential backoff.
+ * Exported for testability.
+ */
+export async function rescheduleWithRetry(
+  jobManager: JobManager,
+  monitor: Monitor,
+  monitorId: string,
+  maxRetries = 3,
+): Promise<void> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await jobManager.scheduleCheck(monitor);
+      recordSchedule(monitorId);
+      logger.info({ monitorId }, "Rescheduled monitor check");
+      return;
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const backoffMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
+        logger.warn({ monitorId, attempt: attempt + 1, backoffMs, error }, "Retry scheduling");
+        await new Promise((r) => setTimeout(r, backoffMs));
+      } else {
+        logger.error({ monitorId, error }, "All retries exhausted, safety-net will recover");
+      }
+    }
+  }
+}
 
 export interface JobCompletionWatcherConfig {
   kubeConfig: KubeConfig;
@@ -166,17 +195,12 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
           intervalSeconds,
         );
         const delayMs = intervalSeconds * 1000 + jitterMs;
+        const jm = config.jobManager;
 
-        setTimeout(async () => {
-          try {
-            await config.jobManager?.scheduleCheck(monitor);
-            logger.info(
-              { monitorId, intervalSeconds },
-              "Rescheduled monitor check after completion",
-            );
-          } catch (scheduleError) {
-            logger.error({ monitorId, error: scheduleError }, "Failed to reschedule monitor check");
-          }
+        setTimeout(() => {
+          rescheduleWithRetry(jm, monitor, monitorId).catch((err) => {
+            logger.error({ monitorId, error: err }, "Unexpected failure in rescheduleWithRetry");
+          });
         }, delayMs);
 
         logger.debug({ monitorId, nextCheckInMs: delayMs }, "Next check scheduled");
