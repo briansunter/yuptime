@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.22](https://github.com/briansunter/yuptime/compare/v0.0.21...v0.0.22) (2026-03-13)
+
+
+### Bug Fixes
+
+* **scheduling:** prevent duplicate job cascade in completion-watcher ([9ffdf81](https://github.com/briansunter/yuptime/commit/9ffdf81c83ba160a4b35ee9816fcbb7b14346444))
+
 ## [0.0.21](https://github.com/briansunter/yuptime/compare/v0.0.20...v0.0.21) (2026-03-13)
 
 
