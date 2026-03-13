@@ -14,7 +14,7 @@ import { recordCheckResult } from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd/monitor";
 import { startK8sWatch, type WatchHandle } from "../k8s-client";
 import { calculateJitter } from "./jitter";
-import { recordSchedule } from "./schedule-tracker";
+import { getLastScheduleTime, isOverdue, recordSchedule } from "./schedule-tracker";
 import type { JobManager } from "./types";
 
 /**
@@ -184,26 +184,36 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
         await handleStateChange(monitor, previousState, currentState);
       }
 
-      // Reschedule the next check
+      // Reschedule the next check (with dedup to prevent cascade from multiple completions)
       if (monitor.spec.enabled !== false && config.jobManager) {
         const intervalSeconds = monitor.spec.schedule?.intervalSeconds || 60;
-        const jitterPercent = monitor.spec.schedule?.jitterPercent || 5;
-        const jitterMs = calculateJitter(
-          namespace ?? "default",
-          name ?? "unknown",
-          jitterPercent,
-          intervalSeconds,
-        );
-        const delayMs = intervalSeconds * 1000 + jitterMs;
-        const jm = config.jobManager;
+        const intervalMs = intervalSeconds * 1000;
 
-        setTimeout(() => {
-          rescheduleWithRetry(jm, monitor, monitorId).catch((err) => {
-            logger.error({ monitorId, error: err }, "Unexpected failure in rescheduleWithRetry");
-          });
-        }, delayMs);
+        // Dedup: skip if another completion handler already scheduled this monitor
+        if (getLastScheduleTime(monitorId) > 0 && !isOverdue(monitorId, intervalMs)) {
+          logger.debug({ monitorId }, "Monitor already scheduled by another handler, skipping");
+        } else {
+          const jitterPercent = monitor.spec.schedule?.jitterPercent || 5;
+          const jitterMs = calculateJitter(
+            namespace ?? "default",
+            name ?? "unknown",
+            jitterPercent,
+            intervalSeconds,
+          );
+          const delayMs = intervalSeconds * 1000 + jitterMs;
+          const jm = config.jobManager;
 
-        logger.debug({ monitorId, nextCheckInMs: delayMs }, "Next check scheduled");
+          // Optimistic record prevents other handlers from also scheduling
+          recordSchedule(monitorId);
+
+          setTimeout(() => {
+            rescheduleWithRetry(jm, monitor, monitorId).catch((err) => {
+              logger.error({ monitorId, error: err }, "Unexpected failure in rescheduleWithRetry");
+            });
+          }, delayMs);
+
+          logger.debug({ monitorId, nextCheckInMs: delayMs }, "Next check scheduled");
+        }
       }
     } catch (error) {
       logger.error({ monitorId, error }, "Failed to process Job completion");
