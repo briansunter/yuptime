@@ -1,15 +1,14 @@
 /**
  * Deduplication tests for the scheduling system.
  *
- * These tests verify that the schedule-tracker prevents duplicate scheduling
- * across all three scheduling paths:
- *   1. Reconciler (initial schedule on CRD reconciliation)
- *   2. Completion-watcher (reschedule after job completion)
- *   3. Safety-net (recovery for overdue monitors)
+ * Two dedup mechanisms work together:
+ *   1. Schedule-tracker (shared): reconciler + safety-net use timestamps to
+ *      prevent re-scheduling a monitor that was recently scheduled.
+ *   2. pendingReschedules Set (completion-watcher local): prevents N simultaneous
+ *      job completions from each queuing a new setTimeout. Cleared when the
+ *      setTimeout fires, so the NEXT cycle's completion handler is NOT blocked.
  *
  * The key invariant: at most ONE scheduling chain should be active per monitor.
- * Multiple completions, reconciliations, or safety-net checks for the same
- * monitor must result in exactly one new job, not N.
  */
 
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
@@ -60,10 +59,10 @@ describe("scheduling dedup: only one scheduling chain per monitor", () => {
     clearAll();
   });
 
-  // ── Completion-watcher dedup ──────────────────────────────────────────
+  // ── Schedule-tracker guard (used by reconciler + safety-net) ──────────
 
-  describe("completion-watcher dedup", () => {
-    test("concurrent rescheduleWithRetry calls for same monitor: only first records", async () => {
+  describe("schedule-tracker guard (reconciler + safety-net)", () => {
+    test("concurrent rescheduleWithRetry calls for same monitor: all succeed", async () => {
       let scheduleCallCount = 0;
       const jm = createMockJobManager({
         scheduleCheck: mock(() => {

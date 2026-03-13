@@ -14,7 +14,7 @@ import { recordCheckResult } from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd/monitor";
 import { startK8sWatch, type WatchHandle } from "../k8s-client";
 import { calculateJitter } from "./jitter";
-import { getLastScheduleTime, isOverdue, recordSchedule } from "./schedule-tracker";
+import { recordSchedule } from "./schedule-tracker";
 import type { JobManager } from "./types";
 
 /**
@@ -65,6 +65,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
   let rotationTimer: ReturnType<typeof setTimeout> | null = null;
   let watchGeneration = 0;
   const processedJobs = new Set<string>();
+  const pendingReschedules = new Set<string>();
 
   function clearRestartTimer() {
     if (restartTimer) {
@@ -186,13 +187,14 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
 
       // Reschedule the next check (with dedup to prevent cascade from multiple completions)
       if (monitor.spec.enabled !== false && config.jobManager) {
-        const intervalSeconds = monitor.spec.schedule?.intervalSeconds || 60;
-        const intervalMs = intervalSeconds * 1000;
-
-        // Dedup: skip if another completion handler already scheduled this monitor
-        if (getLastScheduleTime(monitorId) > 0 && !isOverdue(monitorId, intervalMs)) {
-          logger.debug({ monitorId }, "Monitor already scheduled by another handler, skipping");
+        // Dedup: skip if a reschedule setTimeout is already pending for this monitor
+        // This prevents N simultaneous completions from creating N new jobs (cascade).
+        // Unlike the schedule-tracker guard, this does NOT block the next cycle's
+        // completion handler, because the Set entry is cleared when setTimeout fires.
+        if (pendingReschedules.has(monitorId)) {
+          logger.debug({ monitorId }, "Reschedule already pending, skipping duplicate");
         } else {
+          const intervalSeconds = monitor.spec.schedule?.intervalSeconds || 60;
           const jitterPercent = monitor.spec.schedule?.jitterPercent || 5;
           const jitterMs = calculateJitter(
             namespace ?? "default",
@@ -203,10 +205,10 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
           const delayMs = intervalSeconds * 1000 + jitterMs;
           const jm = config.jobManager;
 
-          // Optimistic record prevents other handlers from also scheduling
-          recordSchedule(monitorId);
+          pendingReschedules.add(monitorId);
 
           setTimeout(() => {
+            pendingReschedules.delete(monitorId);
             rescheduleWithRetry(jm, monitor, monitorId).catch((err) => {
               logger.error({ monitorId, error: err }, "Unexpected failure in rescheduleWithRetry");
             });
