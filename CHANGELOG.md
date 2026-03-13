@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.21](https://github.com/briansunter/yuptime/compare/v0.0.20...v0.0.21) (2026-03-13)
+
+
+### Bug Fixes
+
+* **ci:** lower coverage thresholds for K8s-dependent components ([f177b1b](https://github.com/briansunter/yuptime/commit/f177b1b0c606a213ecfe04223637ea5db959729c))
+* **scheduling:** prevent monitors from stopping after first check ([df6c262](https://github.com/briansunter/yuptime/commit/df6c2621630b4d4c97818d91d709e4db16bf79ec))
+
 ## [0.0.20](https://github.com/briansunter/yuptime/compare/v0.0.19...v0.0.20) (2026-03-13)
 
 
