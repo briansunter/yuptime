@@ -103,7 +103,7 @@ async function checkPingWithExecutor(
             message: "Failed to parse ping output",
           };
         }
-        const pingLatency = parseFloat(latencyStr);
+        const pingLatency = Number.parseFloat(latencyStr);
         return {
           state: "up",
           latencyMs: Math.round(pingLatency),

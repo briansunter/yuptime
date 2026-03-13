@@ -147,7 +147,7 @@ export async function startK8sWatch<T>(
       const stream = toNodeReadableStream(response.body);
       const lines = createInterface({
         input: stream,
-        crlfDelay: Infinity,
+        crlfDelay: Number.POSITIVE_INFINITY,
       });
 
       try {

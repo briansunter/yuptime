@@ -3,7 +3,7 @@ import { logger } from "./logger";
 // Load environment variables
 export const config = {
   // Server
-  port: parseInt(process.env.PORT || "3000", 10),
+  port: Number.parseInt(process.env.PORT || "3000", 10),
   env: process.env.NODE_ENV || "development",
   isDev: process.env.NODE_ENV !== "production",
 

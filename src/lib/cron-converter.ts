@@ -108,7 +108,7 @@ export function describeSchedule(schedule: string): string {
 
   if (minute?.startsWith("*/") && hour === "*") {
     const minStr = minute.slice(2);
-    const min = parseInt(minStr, 10);
+    const min = Number.parseInt(minStr, 10);
     if (!Number.isNaN(min)) {
       return `Every ${min} minute${min > 1 ? "s" : ""}`;
     }
@@ -116,7 +116,7 @@ export function describeSchedule(schedule: string): string {
 
   if (minute === "0" && hour?.startsWith("*/")) {
     const hrStr = hour.slice(2);
-    const hr = parseInt(hrStr, 10);
+    const hr = Number.parseInt(hrStr, 10);
     if (!Number.isNaN(hr)) {
       return `Every ${hr} hour${hr > 1 ? "s" : ""}`;
     }
@@ -124,7 +124,7 @@ export function describeSchedule(schedule: string): string {
 
   if (minute === "0" && hour === "0" && day?.startsWith("*/")) {
     const dStr = day.slice(2);
-    const d = parseInt(dStr, 10);
+    const d = Number.parseInt(dStr, 10);
     if (!Number.isNaN(d)) {
       return `Every ${d} day${d > 1 ? "s" : ""}`;
     }

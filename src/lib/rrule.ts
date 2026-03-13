@@ -36,22 +36,22 @@ export function parseRRule(rruleString: string): RRuleConfig | null {
           config.freq = value as RRuleConfig["freq"];
           break;
         case "INTERVAL":
-          config.interval = parseInt(value, 10);
+          config.interval = Number.parseInt(value, 10);
           break;
         case "BYDAY":
           config.byDay = value.split(",");
           break;
         case "BYHOUR":
-          config.byHour = value.split(",").map((h) => parseInt(h, 10));
+          config.byHour = value.split(",").map((h) => Number.parseInt(h, 10));
           break;
         case "BYMINUTE":
-          config.byMinute = value.split(",").map((m) => parseInt(m, 10));
+          config.byMinute = value.split(",").map((m) => Number.parseInt(m, 10));
           break;
         case "BYMONTHDAY":
-          config.byMonthDay = value.split(",").map((d) => parseInt(d, 10));
+          config.byMonthDay = value.split(",").map((d) => Number.parseInt(d, 10));
           break;
         case "COUNT":
-          config.count = parseInt(value, 10);
+          config.count = Number.parseInt(value, 10);
           break;
         case "UNTIL":
           config.until = new Date(value);

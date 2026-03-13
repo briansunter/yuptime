@@ -21,18 +21,31 @@
         "useLiteralKeys": "error",
         "noUselessThisAlias": "error",
         "useArrowFunction": "error",
-        "useRegexLiterals": "error"
+        "useRegexLiterals": "error",
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 25
+          }
+        },
+        "useDateNow": "error",
+        "noUselessTypeConstraint": "error"
       },
       "correctness": {
         "recommended": true,
-        "noUnusedVariables": "error"
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "noUndeclaredVariables": "error"
       },
       "performance": {
         "recommended": true,
-        "noAccumulatingSpread": "error"
+        "noAccumulatingSpread": "error",
+        "noBarrelFile": "off",
+        "noReExportAll": "off"
       },
       "security": {
-        "recommended": true
+        "recommended": true,
+        "noDangerouslySetInnerHtml": "error"
       },
       "style": {
         "recommended": true,
@@ -47,7 +60,21 @@
         "useEnumInitializers": "error",
         "noUselessElse": "error",
         "useShorthandAssign": "error",
-        "useCollapsedElseIf": "error"
+        "useCollapsedElseIf": "error",
+        "noInferrableTypes": "error",
+        "useExponentiationOperator": "error",
+        "useNumberNamespace": "error",
+        "useThrowNewError": "error",
+        "useThrowOnlyError": "error",
+        "noNamespace": "error",
+        "useImportType": "error",
+        "useFilenamingConvention": {
+          "level": "error",
+          "options": {
+            "requireAscii": true,
+            "filenameCases": ["kebab-case"]
+          }
+        }
       },
       "suspicious": {
         "recommended": true,
@@ -73,7 +100,14 @@
         "useIsArray": "error",
         "noRedeclare": "error",
         "noSelfCompare": "error",
-        "noConsole": "error"
+        "noConsole": "error",
+        "noImplicitAnyLet": "error",
+        "noEvolvingTypes": "error",
+        "noMisrefactoredShorthandAssign": "error",
+        "noUnsafeNegation": "error",
+        "useAwait": "warn",
+        "noEmptyInterface": "error",
+        "noApproximativeNumericConstant": "error"
       }
     }
   },
@@ -85,6 +119,7 @@
     "lineWidth": 100
   },
   "javascript": {
+    "globals": ["Bun"],
     "formatter": {
       "quoteStyle": "double",
       "semicolons": "always",

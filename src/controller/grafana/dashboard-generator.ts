@@ -16,7 +16,7 @@ import type { Monitor } from "../../types/crd/monitor";
  */
 export function generateDashboardConfigMap(
   monitors: Monitor[],
-  grafanaNamespace: string = "monitoring",
+  grafanaNamespace = "monitoring",
 ): V1ConfigMap {
   // Generate overview dashboard (all monitors)
   const overviewDashboard = generateOverviewDashboard(monitors);

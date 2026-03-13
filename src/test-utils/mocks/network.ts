@@ -186,7 +186,7 @@ export function createMockPingExecutor(
 /**
  * Create a successful HTTP response mock
  */
-export function successResponse(body: string, status: number = 200): MockFetchResponse {
+export function successResponse(body: string, status = 200): MockFetchResponse {
   return {
     status,
     statusText: "OK",
@@ -198,7 +198,7 @@ export function successResponse(body: string, status: number = 200): MockFetchRe
 /**
  * Create a failed HTTP response mock
  */
-export function errorResponse(status: number, statusText: string = "Error"): MockFetchResponse {
+export function errorResponse(status: number, statusText = "Error"): MockFetchResponse {
   return {
     status,
     statusText,
