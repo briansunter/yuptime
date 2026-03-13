@@ -137,7 +137,7 @@ check_port_available() {
 check_ports() {
     print_section "Checking Port Availability"
 
-    local ports=(3000 8080 8081 8082 8083 8084 8085)
+    local ports=(3000 8080 8081 8082 8083 8084 8085 13306 15432 16379 16380 50151)
     local blocked_ports=()
 
     for port in "${ports[@]}"; do
@@ -241,6 +241,15 @@ build_images() {
 
     log_info "Available images:"
     docker images | grep yuptime || true
+}
+
+# Apply database secrets for E2E testing
+apply_database_secrets() {
+    print_section "Applying Database Secrets"
+
+    log_info "Creating database credential secrets..."
+    kubectl apply -f e2e/k8s/database-secrets.yaml
+    log_success "Database secrets applied"
 }
 
 # Deploy Yuptime with Timoni
@@ -553,6 +562,7 @@ run_tests() {
     start_mock_server
     build_images
     deploy_yuptime
+    apply_database_secrets
     wait_for_deployment
     verify_crds
     health_check

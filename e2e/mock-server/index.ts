@@ -5,6 +5,7 @@
  * Runs on host machine and is accessible from Kubernetes pods.
  */
 
+import { startDatabaseServers } from "./database";
 import { createMockGrpcServer } from "./grpc";
 import { startHttpServer } from "./http";
 import { startTcpServers } from "./tcp";
@@ -13,6 +14,10 @@ import { startWebSocketServer } from "./websocket";
 const HTTP_PORT = 8080;
 const WS_PORT = 8082;
 const GRPC_PORT = 50151; // Match e2e/lib/config.ts
+const MYSQL_PORT = 13306;
+const POSTGRESQL_PORT = 15432;
+const REDIS_PORT = 16379;
+const REDIS_AUTH_PORT = 16380;
 
 async function main() {
   // Start HTTP server (includes mock Alertmanager endpoints)
@@ -26,6 +31,14 @@ async function main() {
 
   // Start gRPC mock server
   createMockGrpcServer(GRPC_PORT);
+
+  // Start mock database servers
+  startDatabaseServers({
+    mysql: MYSQL_PORT,
+    postgresql: POSTGRESQL_PORT,
+    redis: REDIS_PORT,
+    redisAuth: REDIS_AUTH_PORT,
+  });
 }
 
 main().catch((_error) => {
