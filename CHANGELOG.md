@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.25](https://github.com/briansunter/yuptime/compare/v0.0.24...v0.0.25) (2026-03-16)
+
+
+### Bug Fixes
+
+* wire checkerImage values to Helm deployment template ([c823d49](https://github.com/briansunter/yuptime/commit/c823d492617c6b4fa8bbde2d91778a7277fbbcf0))
+
 ## [0.0.24](https://github.com/briansunter/yuptime/compare/v0.0.23...v0.0.24) (2026-03-13)
 
 
