@@ -44,7 +44,7 @@ services:
     image: redis:7
     container_name: yuptime-e2e-redis
     ports:
-      - "16379:6379"
+      - "36379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -58,7 +58,7 @@ services:
     container_name: yuptime-e2e-redis-auth
     command: redis-server --requirepass testpass
     ports:
-      - "16380:6379"
+      - "36380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "testpass", "ping"]
       interval: 5s

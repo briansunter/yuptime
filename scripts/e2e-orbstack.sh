@@ -137,7 +137,7 @@ check_port_available() {
 check_ports() {
     print_section "Checking Port Availability"
 
-    local ports=(3000 8080 8081 8082 8083 8084 8085 13306 15432 16379 16380 50151)
+    local ports=(3000 8080 8081 8082 8083 8084 8085 13306 15432 36379 36380 50151)
     local blocked_ports=()
 
     for port in "${ports[@]}"; do

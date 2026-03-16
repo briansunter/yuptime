@@ -2,7 +2,7 @@
  * Redis Monitor E2E Tests
  *
  * Requires:
- * - Redis running via docker-compose.e2e.yml (ports 16379, 16380)
+ * - Redis running via docker-compose.e2e.yml (ports 36379, 36380)
  * - Kubernetes secrets (e2e/k8s/database-secrets.yaml)
  */
 

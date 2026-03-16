@@ -5,6 +5,7 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -32,6 +33,7 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        timeout-minutes: 2
         run: bun install
 
       - name: Setup Timoni
@@ -40,6 +42,7 @@ jobs:
           version: latest
 
       - name: Start Mock Server
+        timeout-minutes: 1
         run: |
           echo "Starting mock server..."
           bun run e2e/mock-server/index.ts &
@@ -53,6 +56,7 @@ jobs:
           nc -z localhost 50151 && echo "✓ gRPC mock server started on port 50151" || echo "✗ gRPC mock server not accessible"
 
       - name: Start Database Services
+        timeout-minutes: 3
         run: |
           echo "Starting database services with Docker Compose..."
           docker compose -f docker-compose.e2e.yml up -d
@@ -82,14 +86,15 @@ jobs:
           echo "Verifying host ports..."
           nc -z localhost 13306 && echo "✓ MySQL port 13306 accessible" || echo "✗ MySQL port 13306 not accessible"
           nc -z localhost 15432 && echo "✓ PostgreSQL port 15432 accessible" || echo "✗ PostgreSQL port 15432 not accessible"
-          nc -z localhost 16379 && echo "✓ Redis port 16379 accessible" || echo "✗ Redis port 16379 not accessible"
-          nc -z localhost 16380 && echo "✓ Redis (auth) port 16380 accessible" || echo "✗ Redis (auth) port 16380 not accessible"
+          nc -z localhost 36379 && echo "✓ Redis port 36379 accessible" || echo "✗ Redis port 36379 not accessible"
+          nc -z localhost 36380 && echo "✓ Redis (auth) port 36380 accessible" || echo "✗ Redis (auth) port 36380 not accessible"
 
           echo "All database services started"
           docker compose -f docker-compose.e2e.yml ps
 
       - name: Get Host IP for Minikube
         id: hostip
+        timeout-minutes: 1
         run: |
           # Get the host IP that Minikube can use to reach the mock server
           # For Docker driver, use host.minikube.internal or the docker bridge gateway
@@ -106,6 +111,7 @@ jobs:
           minikube ssh "curl -sf http://${MOCK_HOST}:8080/health" || echo "Warning: Could not reach mock server from minikube"
 
       - name: Build Docker images
+        timeout-minutes: 5
         run: |
           # Build images in minikube's docker
           eval $(minikube docker-env)
@@ -120,6 +126,7 @@ jobs:
           docker images | grep yuptime
 
       - name: Create values file for CI
+        timeout-minutes: 1
         run: |
           cat > values-ci.cue << 'EOF'
           values: {
@@ -163,6 +170,7 @@ jobs:
           EOF
 
       - name: Deploy with Timoni
+        timeout-minutes: 5
         run: |
           echo "Validating Timoni module..."
           timoni mod vet ./timoni/yuptime
@@ -171,6 +179,7 @@ jobs:
           timoni apply yuptime ./timoni/yuptime -n yuptime -f values-ci.cue --timeout=5m
 
       - name: Apply Database Secrets
+        timeout-minutes: 1
         run: |
           echo "Applying database secrets for E2E tests..."
           kubectl apply -f e2e/k8s/database-secrets.yaml
@@ -202,6 +211,7 @@ jobs:
           kubectl get events -n yuptime --sort-by='.lastTimestamp'
 
       - name: Verify CRDs installed
+        timeout-minutes: 1
         run: |
           echo "Checking CRDs..."
           kubectl get crds | grep yuptime
@@ -250,6 +260,7 @@ jobs:
           fi
 
       - name: Create test monitor
+        timeout-minutes: 1
         run: |
           cat > test-monitor.yaml << 'EOF'
           apiVersion: monitoring.yuptime.io/v1
@@ -315,20 +326,22 @@ jobs:
           fi
 
       - name: Verify API endpoints
+        timeout-minutes: 1
         run: |
           echo "Testing API endpoints..."
 
           # Test monitors endpoint
-          monitors=$(curl -s http://localhost:3000/api/monitors)
+          monitors=$(curl -sf --max-time 10 http://localhost:3000/api/monitors)
           echo "Monitors: $monitors"
 
           # Test status pages endpoint
-          status=$(curl -s http://localhost:3000/api/status-pages)
+          status=$(curl -sf --max-time 10 http://localhost:3000/api/status-pages)
           echo "Status pages: $status"
 
           echo "✓ API endpoints responding"
 
       - name: Run E2E Tests
+        timeout-minutes: 5
         env:
           MOCK_SERVER_HOST: ${{ steps.hostip.outputs.mock_host }}
           E2E_NAMESPACE: yuptime

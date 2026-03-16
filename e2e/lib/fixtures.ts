@@ -716,7 +716,7 @@ export const postgresqlFixtures = {
 };
 
 export const redisFixtures = {
-  // Redis without auth (port 16379)
+  // Redis without auth (port 36379)
   success: () =>
     createRedisMonitor({
       name: "redis-success",
@@ -728,7 +728,7 @@ export const redisFixtures = {
       port: 26379, // Unused port
     }),
 
-  // Redis with auth (port 16380)
+  // Redis with auth (port 36380)
   withAuth: () =>
     createRedisMonitor({
       name: "redis-with-auth",
