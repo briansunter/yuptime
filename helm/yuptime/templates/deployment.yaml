@@ -29,9 +29,9 @@ spec:
         - name: PORT
           value: "3000"
         - name: CHECKER_IMAGE
-          value: ghcr.io/yuptime/yuptime-checker:latest
+          value: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"
         - name: CHECKER_IMAGE_PULL_POLICY
-          value: IfNotPresent
+          value: "{{ .Values.checkerImage.pullPolicy }}"
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:

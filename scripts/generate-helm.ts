@@ -174,7 +174,7 @@ function renderWithTimoni(valuesOverride: string): string {
 /**
  * Convert YAML to Helm Go template
  */
-function convertToHelmTemplate(yaml: string, resourceName: string): string {
+function convertToHelmTemplate(yaml: string, _resourceName: string): string {
   // Basic conversions from static YAML to Helm templates
   let template = yaml;
 
@@ -198,6 +198,18 @@ function convertToHelmTemplate(yaml: string, resourceName: string): string {
     processed = processed.replace(
       /image: ghcr\.io\/yuptime\/yuptime-checker:latest/g,
       'image: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"'
+    );
+
+    // Replace CHECKER_IMAGE env var value (rendered as string in env block)
+    processed = processed.replace(
+      /value: ghcr\.io\/yuptime\/yuptime-checker:latest/g,
+      'value: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"'
+    );
+
+    // Replace CHECKER_IMAGE_PULL_POLICY env var value
+    processed = processed.replace(
+      /(-\s*name: CHECKER_IMAGE_PULL_POLICY\n\s*value:) IfNotPresent/g,
+      '$1 "{{ .Values.checkerImage.pullPolicy }}"'
     );
 
     // Replace imagePullPolicy
@@ -327,7 +339,7 @@ For more information, visit: https://briansunter.github.io/yuptime
 /**
  * Generate Helm templates by rendering with timoni and converting
  */
-function generateHelmTemplates(version: string): void {
+function generateHelmTemplates(_version: string): void {
   console.log("  📝 Generating Helm templates...");
 
   mkdirSync(TEMPLATES_DIR, { recursive: true });
@@ -362,7 +374,7 @@ values: {
     const kindMatch = doc.match(/kind:\s*(\S+)/);
     if (!kindMatch) continue;
 
-    const kind = kindMatch[1];
+    const kind = kindMatch[1]!;
     let filename = kind
       .replace(/([a-z])([A-Z])/g, "$1-$2")
       .toLowerCase() + ".yaml";
