@@ -32,13 +32,15 @@ async function main() {
   // Start gRPC mock server
   createMockGrpcServer(GRPC_PORT);
 
-  // Start mock database servers
-  startDatabaseServers({
-    mysql: MYSQL_PORT,
-    postgresql: POSTGRESQL_PORT,
-    redis: REDIS_PORT,
-    redisAuth: REDIS_AUTH_PORT,
-  });
+  // Start mock database servers (skip when real databases are provided via docker-compose)
+  if (!process.env.SKIP_MOCK_DATABASES) {
+    startDatabaseServers({
+      mysql: MYSQL_PORT,
+      postgresql: POSTGRESQL_PORT,
+      redis: REDIS_PORT,
+      redisAuth: REDIS_AUTH_PORT,
+    });
+  }
 }
 
 main().catch((_error) => {

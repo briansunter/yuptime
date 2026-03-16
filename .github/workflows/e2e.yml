@@ -77,9 +77,11 @@ jobs:
 
       - name: Start Mock Server
         timeout-minutes: 1
+        env:
+          SKIP_MOCK_DATABASES: "true"  # Real databases provided by docker-compose
         run: |
           echo "Starting mock server..."
-          bun run e2e/mock-server/index.ts &
+          SKIP_MOCK_DATABASES=true bun run e2e/mock-server/index.ts &
           sleep 3
 
           echo "Verifying mock server..."
