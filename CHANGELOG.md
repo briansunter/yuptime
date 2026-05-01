@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.27](https://github.com/briansunter/yuptime/compare/v0.0.26...v0.0.27) (2026-05-01)
+
+
+### Features
+
+* **monitor:** HTTP checker rewrite, previousResult tracking, and TLS hardening ([604d96c](https://github.com/briansunter/yuptime/commit/604d96c6fcba7146faf89b1a6f8aa650183d4386))
+
+
+### Bug Fixes
+
+* make API endpoint verification non-fatal in E2E workflow ([df63582](https://github.com/briansunter/yuptime/commit/df63582c003cef68cd6ab0e0cb8e78b9200eb5a4))
+* override bunfig test root for E2E tests ([1bb33ac](https://github.com/briansunter/yuptime/commit/1bb33acda7ef65f57be339a12065616fea49833f))
+* resolve E2E port conflict and consolidate workflows ([c7a6f8d](https://github.com/briansunter/yuptime/commit/c7a6f8d88e6e71dedde9b28b544f511da83c953c))
+* skip mock database servers when real databases are running ([d7e6cc2](https://github.com/briansunter/yuptime/commit/d7e6cc23402eca658c334de3e7681cdd593c1cd4))
+* start database services before Minikube to avoid port conflicts ([64979a7](https://github.com/briansunter/yuptime/commit/64979a7e9c8853602e349b2d8665f619f66417d0))
+
 ## [0.0.26](https://github.com/briansunter/yuptime/compare/v0.0.25...v0.0.26) (2026-03-16)
 
 
