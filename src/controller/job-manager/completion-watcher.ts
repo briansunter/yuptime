@@ -7,14 +7,19 @@
  * Database-free - all state in Kubernetes CRDs and Prometheus metrics.
  */
 
-import { CustomObjectsApi, type KubeConfig, type V1Job } from "@kubernetes/client-node";
+import type { KubeConfig, V1Job } from "@kubernetes/client-node";
 import { sendAlertToAlertmanager } from "../../alerting";
 import { logger } from "../../lib/logger";
-import { recordCheckResult } from "../../lib/prometheus";
+import {
+  decrementActiveIncidents,
+  incrementActiveIncidents,
+  recordCheckResult,
+  recordStateChange,
+} from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd/monitor";
-import { startK8sWatch, type WatchHandle } from "../k8s-client";
+import { createCRDWatcher, startK8sWatch, type WatchHandle } from "../k8s-client";
 import { calculateJitter } from "./jitter";
-import { recordSchedule } from "./schedule-tracker";
+import { recordSchedule, removeMonitor } from "./schedule-tracker";
 import type { JobManager } from "./types";
 
 /**
@@ -27,6 +32,12 @@ export async function rescheduleWithRetry(
   monitorId: string,
   maxRetries = 3,
 ): Promise<void> {
+  if (monitor.spec.enabled === false) {
+    removeMonitor(monitorId);
+    logger.info({ monitorId }, "Skipped reschedule because monitor is disabled");
+    return;
+  }
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       await jobManager.scheduleCheck(monitor);
@@ -55,7 +66,7 @@ export interface JobCompletionWatcherConfig {
  * Create job completion watcher
  */
 export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
-  const customObjectsApi = config.kubeConfig.makeApiClient(CustomObjectsApi);
+  const monitorWatcher = createCRDWatcher("monitoring.yuptime.io", "v1", "monitors");
   const WATCH_RESTART_DELAY_MS = 1000;
   const WATCH_ROTATION_INTERVAL_MS = 4 * 60 * 1000;
 
@@ -66,6 +77,16 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
   let watchGeneration = 0;
   const processedJobs = new Set<string>();
   const pendingReschedules = new Set<string>();
+  const activeIncidentKeys = new Set<string>();
+
+  function parseMonitorId(monitorId: string): { namespace: string; name: string } | null {
+    const [namespace, name] = monitorId.split("/");
+    if (!namespace || !name) {
+      return null;
+    }
+
+    return { namespace, name };
+  }
 
   function clearRestartTimer() {
     if (restartTimer) {
@@ -130,17 +151,17 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
       return;
     }
 
-    const [namespace, name] = monitorId.split("/");
+    const parsedMonitorId = parseMonitorId(monitorId);
+    if (!parsedMonitorId) {
+      logger.warn({ jobName: job.metadata?.name, monitorId }, "Job has invalid monitor annotation");
+      return;
+    }
+
+    const { namespace, name } = parsedMonitorId;
 
     try {
       // Get Monitor CRD to see the check result (written by checker executor)
-      const monitorResponse = await customObjectsApi.getNamespacedCustomObject({
-        group: "monitoring.yuptime.io",
-        version: "v1",
-        namespace: namespace ?? "default",
-        plural: "monitors",
-        name: name ?? "unknown",
-      });
+      const monitorResponse = await monitorWatcher.get(name, namespace);
 
       const monitor = monitorResponse as Monitor;
       const checkResult = monitor.status?.lastResult;
@@ -150,39 +171,34 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
         return;
       }
 
-      // Export check result to Prometheus metrics
-      const metricsData: {
-        state: "down" | "up" | "flapping" | "pending" | "paused";
-        latencyMs?: number;
-        durationMs?: number;
-      } = {
+      // Export check result to Prometheus metrics. durationMs is intentionally
+      // omitted: the checker executor does not record wall-clock duration
+      // separately from latencyMs, and dual-publishing the same value under
+      // two metrics would mislead dashboards.
+      recordCheckResult(name, namespace, monitor.spec.type, getMonitorUrl(monitor), {
         state: checkResult.state,
-      };
-      if (checkResult.latencyMs !== undefined) {
-        metricsData.latencyMs = checkResult.latencyMs;
-      }
-      if (!checkResult.attempts) {
-        metricsData.durationMs = 0;
-      }
-      recordCheckResult(
-        name ?? "unknown",
-        namespace ?? "default",
-        monitor.spec.type,
-        getMonitorUrl(monitor),
-        metricsData,
-      );
+        latencyMs: checkResult.latencyMs,
+      });
 
       logger.info(
         { monitorId, state: checkResult.state, latency: checkResult.latencyMs },
         "Exported Prometheus metrics after Job completion",
       );
 
-      // Detect state changes for alerting
+      // Detect state changes for alerting. previousResult is set by the
+      // checker executor before each patch, so it is the state from the
+      // previous check. On the very first check there is no previousResult:
+      // treat that as a transition only when the initial state is unhealthy,
+      // so a clean pending→up bring-up does not page anyone.
       const currentState = checkResult.state;
-      const previousState = monitor.status?.lastResult?.state;
+      const previousState = monitor.status?.previousResult?.state;
 
-      if (previousState && previousState !== currentState) {
-        await handleStateChange(monitor, previousState, currentState);
+      if (previousState) {
+        if (previousState !== currentState) {
+          await handleStateChange(monitor, previousState, currentState);
+        }
+      } else if (currentState !== "up") {
+        await handleStateChange(monitor, "pending", currentState);
       }
 
       // Reschedule the next check (with dedup to prevent cascade from multiple completions)
@@ -196,12 +212,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
         } else {
           const intervalSeconds = monitor.spec.schedule?.intervalSeconds || 60;
           const jitterPercent = monitor.spec.schedule?.jitterPercent || 5;
-          const jitterMs = calculateJitter(
-            namespace ?? "default",
-            name ?? "unknown",
-            jitterPercent,
-            intervalSeconds,
-          );
+          const jitterMs = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
           const delayMs = intervalSeconds * 1000 + jitterMs;
           const jm = config.jobManager;
 
@@ -209,9 +220,18 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
 
           setTimeout(() => {
             pendingReschedules.delete(monitorId);
-            rescheduleWithRetry(jm, monitor, monitorId).catch((err) => {
-              logger.error({ monitorId, error: err }, "Unexpected failure in rescheduleWithRetry");
-            });
+
+            getLatestEnabledMonitor(namespace, name, monitorId)
+              .then((latestMonitor) => {
+                if (!latestMonitor) {
+                  return;
+                }
+
+                return rescheduleWithRetry(jm, latestMonitor, monitorId);
+              })
+              .catch((err) => {
+                logger.error({ monitorId, error: err }, "Unexpected failure in pending reschedule");
+              });
           }, delayMs);
 
           logger.debug({ monitorId, nextCheckInMs: delayMs }, "Next check scheduled");
@@ -227,18 +247,121 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
    */
   async function handleStateChange(monitor: Monitor, fromState: string, toState: string) {
     const monitorName = monitor.metadata.name;
+    const namespace = monitor.metadata.namespace;
     const reason =
       monitor.status?.lastResult?.reason || `State changed from ${fromState} to ${toState}`;
 
-    // Send alert to Alertmanager if configured
-    await sendAlertToAlertmanager(
-      monitor,
-      toState as "up" | "down" | "pending" | "flapping" | "paused",
-      fromState,
-      `Monitor ${monitorName} is ${toState}`,
-    );
+    recordStateChange(monitorName, namespace, fromState, toState);
+
+    const incidentKey = `${namespace}/${monitorName}`;
+    if (toState === "down") {
+      if (!activeIncidentKeys.has(incidentKey)) {
+        activeIncidentKeys.add(incidentKey);
+        incrementActiveIncidents(monitorName, namespace, "critical");
+      }
+    } else if (fromState === "down") {
+      if (activeIncidentKeys.delete(incidentKey)) {
+        decrementActiveIncidents(monitorName, namespace, "critical");
+      }
+    }
+
+    if (shouldNotifyStateChange(monitor, toState)) {
+      await sendAlertToAlertmanager(
+        monitor,
+        toState as "up" | "down" | "pending" | "flapping" | "paused",
+        fromState,
+        `Monitor ${monitorName} is ${toState}`,
+      );
+    }
 
     logger.info({ monitorName, fromState, toState, reason }, "Monitor state changed");
+  }
+
+  function shouldNotifyStateChange(monitor: Monitor, toState: string): boolean {
+    const notifyOn = monitor.spec.alerting?.notifyOn;
+
+    if (toState === "down") {
+      return notifyOn?.down ?? true;
+    }
+    if (toState === "up") {
+      return notifyOn?.up ?? true;
+    }
+    if (toState === "flapping") {
+      return notifyOn?.flapping ?? true;
+    }
+
+    return true;
+  }
+
+  async function getLatestEnabledMonitor(
+    namespace: string,
+    name: string,
+    monitorId: string,
+  ): Promise<Monitor | null> {
+    try {
+      const latestMonitor = (await monitorWatcher.get(name, namespace)) as Monitor;
+      if (latestMonitor.spec.enabled === false) {
+        removeMonitor(monitorId);
+        logger.info({ monitorId }, "Skipped pending reschedule because monitor is disabled");
+        return null;
+      }
+
+      return latestMonitor;
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        removeMonitor(monitorId);
+        logger.info({ monitorId }, "Skipped pending reschedule because monitor no longer exists");
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  function isNotFoundError(error: unknown): boolean {
+    return (
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      error.statusCode === 404
+    );
+  }
+
+  function processJobEvent(phase: string, job: V1Job) {
+    if (phase !== "MODIFIED" || !isCompletedCheckerJob(job)) {
+      return;
+    }
+
+    const completedCount = job.status?.succeeded || job.status?.failed || 0;
+    const processedKey = `${job.metadata?.uid || job.metadata?.name}-${completedCount}`;
+
+    if (processedJobs.has(processedKey)) {
+      return;
+    }
+
+    processedJobs.add(processedKey);
+    trimProcessedJobs();
+
+    handleJobCompletion(job).catch((error) => {
+      logger.error({ error }, "Unexpected failure while handling Job completion");
+    });
+  }
+
+  function isCompletedCheckerJob(job: V1Job): boolean {
+    const monitorId = job.metadata?.annotations?.["monitoring.yuptime.io/monitor"];
+    return Boolean(monitorId && (job.status?.succeeded || job.status?.failed));
+  }
+
+  function trimProcessedJobs() {
+    if (processedJobs.size <= 100) {
+      return;
+    }
+
+    const entries = Array.from(processedJobs);
+    processedJobs.clear();
+    for (const key of entries.slice(-100)) {
+      processedJobs.add(key);
+    }
   }
 
   async function startWatch(generation = watchGeneration + 1) {
@@ -251,37 +374,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
     watchHandle = await startK8sWatch<V1Job>(
       path,
       { labelSelector: "app.kubernetes.io/component=checker" },
-      (phase: string, apiObj: V1Job) => {
-        // Only process when job is completed (succeeded or failed)
-        if (phase === "MODIFIED") {
-          const job = apiObj;
-          const status = job.status;
-          const annotations = job.metadata?.annotations || {};
-          const monitorId = annotations["monitoring.yuptime.io/monitor"];
-
-          // Only process jobs that have actually completed
-          if (monitorId && (status?.succeeded || status?.failed)) {
-            // Check if we've already processed this job
-            const processedKey = `${job.metadata?.name}-${status?.succeeded || status?.failed}`;
-
-            if (!processedJobs.has(processedKey)) {
-              processedJobs.add(processedKey);
-              handleJobCompletion(apiObj).catch((error) => {
-                logger.error({ error }, "Unexpected failure while handling Job completion");
-              });
-
-              // Clean up old processed job keys (keep last 100)
-              if (processedJobs.size > 100) {
-                const entries = Array.from(processedJobs);
-                processedJobs.clear();
-                for (const key of entries.slice(-100)) {
-                  processedJobs.add(key);
-                }
-              }
-            }
-          }
-        }
-      },
+      processJobEvent,
       (err: unknown) => {
         if (!watching || generation !== watchGeneration) {
           return;

@@ -243,8 +243,8 @@ export function buildJobForMonitor(
                   value: process.env.NODE_ENV || "production",
                 },
                 {
-                  name: "NODE_TLS_REJECT_UNAUTHORIZED",
-                  value: "0",
+                  name: "NODE_EXTRA_CA_CERTS",
+                  value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 },
                 // Inject secret-backed credentials from Monitor spec
                 ...extractSecretEnvVars(monitor),

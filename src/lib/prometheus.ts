@@ -52,7 +52,7 @@ export const monitorChecksTotal = new Counter({
  * Monitor state changes
  * Counter tracking when monitors go up/down
  */
-export const monitorStateChanges = new Gauge({
+export const monitorStateChanges = new Counter({
   name: "yuptime_monitor_state_changes_total",
   help: "Number of monitor state changes (up to down, down to up)",
   labelNames: ["monitor", "namespace", "from_state", "to_state"] as const,

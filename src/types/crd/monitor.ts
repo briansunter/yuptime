@@ -496,6 +496,7 @@ export type UptimeStats = z.infer<typeof UptimeStatsSchema>;
 // Monitor status
 export const MonitorStatusSchema = StatusBaseSchema.extend({
   lastResult: LastResultSchema.optional(),
+  previousResult: LastResultSchema.optional(),
   uptime: UptimeStatsSchema.optional(),
   cert: CertificateInfoSchema.optional(),
   nextRunAt: z.string().optional(),

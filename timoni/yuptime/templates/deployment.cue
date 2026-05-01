@@ -49,15 +49,12 @@ import (
 						{name: "NODE_ENV", value: #config.mode},
 						{name: "LOG_LEVEL", value: #config.logging.level},
 						{name: "PORT", value: "\(#config.service.port)"},
+						{name: "NODE_EXTRA_CA_CERTS", value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"},
 						{name: "CHECKER_IMAGE", value: #config.checkerImage.reference},
 						{name: "CHECKER_IMAGE_PULL_POLICY", value: #config.checkerImage.pullPolicy},
 						{
 							name: "KUBE_NAMESPACE"
 							valueFrom: fieldRef: fieldPath: "metadata.namespace"
-						},
-						// TLS settings for development
-						if #config.mode == "development" {
-							{name: "NODE_TLS_REJECT_UNAUTHORIZED", value: "0"}
 						},
 					]
 					securityContext: #config.securityContext

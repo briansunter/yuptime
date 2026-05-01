@@ -326,6 +326,34 @@ describe("buildJobForMonitor", () => {
     expect(job.spec?.template?.spec?.serviceAccountName).toBe("yuptime-checker");
   });
 
+  test("does not globally disable TLS verification in checker jobs", () => {
+    const monitor = createTestMonitor({
+      http: { url: "https://example.com" },
+    });
+
+    const job = buildJobForMonitor(monitor, 0);
+    const env = job.spec?.template?.spec?.containers?.[0]?.env ?? [];
+
+    expect(env).not.toContainEqual({
+      name: "NODE_TLS_REJECT_UNAUTHORIZED",
+      value: "0",
+    });
+  });
+
+  test("trusts the mounted Kubernetes service account CA in checker jobs", () => {
+    const monitor = createTestMonitor({
+      http: { url: "https://example.com" },
+    });
+
+    const job = buildJobForMonitor(monitor, 0);
+    const env = job.spec?.template?.spec?.containers?.[0]?.env ?? [];
+
+    expect(env).toContainEqual({
+      name: "NODE_EXTRA_CA_CERTS",
+      value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+    });
+  });
+
   test("uses configured checker image pull policy from environment", () => {
     process.env.CHECKER_IMAGE_PULL_POLICY = "Never";
 

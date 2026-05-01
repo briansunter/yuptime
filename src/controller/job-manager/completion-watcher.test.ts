@@ -107,4 +107,17 @@ describe("rescheduleWithRetry", () => {
     expect(callCount).toBe(2);
     expect(getLastScheduleTime(monitorId)).toBeGreaterThan(0);
   });
+
+  test("disabled monitor is not rescheduled", async () => {
+    const jm = createMockJobManager();
+    const monitor = createHttpMonitor({
+      enabled: false,
+    }) as unknown as Monitor;
+    const monitorId = "default/test-http";
+
+    await rescheduleWithRetry(jm, monitor, monitorId);
+
+    expect(jm.scheduleCheck).not.toHaveBeenCalled();
+    expect(getLastScheduleTime(monitorId)).toBe(0);
+  });
 });

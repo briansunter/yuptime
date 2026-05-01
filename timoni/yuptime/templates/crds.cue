@@ -248,6 +248,20 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 									message:   type: "string"
 								}
 							}
+							previousResult: {
+								type: "object"
+								properties: {
+									state: {
+										type: "string"
+										enum: ["up", "down", "pending", "flapping", "paused"]
+									}
+									checkedAt: type: "string"
+									latencyMs: type: "number"
+									attempts:  type: "integer"
+									reason:    type: "string"
+									message:   type: "string"
+								}
+							}
 							uptime: {
 								type: "object"
 								properties: {

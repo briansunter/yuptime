@@ -276,28 +276,6 @@ values: {
   mode: "development"
   logging: level: "debug"
 
-  database: {
-    type: "sqlite"
-    sqlite: path: "/data/yuptime.db"
-  }
-
-  storage: {
-    enabled:      true
-    size:         "1Gi"
-    storageClass: "local-path"
-    accessMode:   "ReadWriteOnce"
-  }
-
-  auth: {
-    mode: "local"
-    session: secret: "orbstack-test-secret"
-    adminUser: {
-      enabled:  true
-      username: "admin"
-      passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
-    }
-  }
-
   probes: {
     liveness: {
       enabled: true

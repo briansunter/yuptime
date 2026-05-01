@@ -253,12 +253,16 @@ spec:
           value: info
         - name: PORT
           value: "3000"
+        - name: NODE_EXTRA_CA_CERTS
+          value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        - name: CHECKER_IMAGE
+          value: ghcr.io/yuptime/yuptime-checker:latest
+        - name: CHECKER_IMAGE_PULL_POLICY
+          value: IfNotPresent
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-        - name: NODE_TLS_REJECT_UNAUTHORIZED
-          value: "0"
         image: ghcr.io/yuptime/yuptime-api:latest
         imagePullPolicy: IfNotPresent
         livenessProbe:

@@ -7,21 +7,24 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { CheckResult } from "../checkers";
 import { executeCheck as runCheck } from "../checkers";
-import { type Monitor, MonitorSchema } from "../types/crd";
+import { type LastResult, type Monitor, MonitorSchema } from "../types/crd";
 
 const logger = console;
 
-// Accept self-signed certificates for local development
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 // Read service account token for in-cluster auth (required)
 const tokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token";
+const caPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt";
 
 if (!existsSync(tokenPath)) {
   throw new Error("Not running in-cluster - checker executor requires in-cluster authentication");
 }
 
+if (!existsSync(caPath)) {
+  throw new Error("In-cluster CA certificate missing - cannot verify Kubernetes API TLS");
+}
+
 const saToken = readFileSync(tokenPath, "utf-8").trim();
+const caBundle = readFileSync(caPath, "utf-8");
 const apiServerUrl = `https://${process.env.KUBERNETES_SERVICE_HOST}:${process.env.KUBERNETES_SERVICE_PORT}`;
 
 logger.info(`Loaded in-cluster config, API server: ${apiServerUrl}`);
@@ -49,6 +52,10 @@ function k8sRequest(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    tls: {
+      ca: caBundle,
+      serverName: process.env.KUBERNETES_SERVICE_HOST,
+    },
   });
 }
 
@@ -124,17 +131,28 @@ export async function updateMonitorStatus(
   const path = `/apis/monitoring.yuptime.io/v1/namespaces/${namespace}/monitors/${name}/status`;
 
   try {
+    const currentMonitor = await loadMonitorCRD(namespace, name);
+    const previousResult = currentMonitor.status?.lastResult;
+
     // Use merge patch format - simple object merge
+    const status: { lastResult: LastResult; previousResult?: LastResult } = {
+      lastResult: {
+        state: result.state,
+        latencyMs: result.latencyMs,
+        reason: result.reason || undefined,
+        message: result.message || undefined,
+        checkedAt: new Date().toISOString(),
+        attempts: 1,
+      },
+    };
+
+    if (previousResult) {
+      status.previousResult = previousResult;
+    }
+
     const statusPatch = {
       status: {
-        lastResult: {
-          state: result.state,
-          latencyMs: result.latencyMs,
-          reason: result.reason || null,
-          message: result.message || null,
-          checkedAt: new Date().toISOString(),
-          attempts: 1,
-        },
+        ...status,
       },
     };
 

@@ -145,7 +145,7 @@ describe("scheduling regression: monitors must check more than once", () => {
       expect(recoveredScheduleTime).toBeGreaterThan(0);
     });
 
-    test("overdue detection works after enough time passes", async () => {
+    test("overdue detection works after enough time passes", () => {
       // This simulates the scenario where the chain just stops running
       // and enough time passes that the monitor becomes overdue
       const monitorId = "default/api";
@@ -249,7 +249,7 @@ describe("scheduling regression: monitors must check more than once", () => {
   // ── Bug #3: no recovery path after chain death ──────────────────────────
 
   describe("bug #3: failure clears tracker so safety-net/reconciler can recover", () => {
-    test("scheduleCheck failure in reconciler clears tracker (removeMonitor)", async () => {
+    test("scheduleCheck failure in reconciler clears tracker (removeMonitor)", () => {
       const monitorId = "default/api";
 
       // Simulate: reconciler's scheduleMonitorCheck calls recordSchedule
@@ -265,7 +265,7 @@ describe("scheduling regression: monitors must check more than once", () => {
       expect(isOverdue(monitorId, 60000)).toBe(true);
     });
 
-    test("safety-net detects overdue monitor and enables rescheduling", async () => {
+    test("safety-net detects overdue monitor and enables rescheduling", () => {
       const monitorId = "default/api";
       const intervalMs = 60_000;
 
@@ -397,6 +397,38 @@ describe("scheduling regression: monitors must check more than once", () => {
       // Re-enable — should schedule again (lastScheduleTime=0 → overdue → schedule)
       await handler(enabledMonitor);
       expect(getLastScheduleTime(monitorId)).toBeGreaterThan(0);
+    });
+
+    test("disabled monitor cancels a pending zero-jitter schedule before it fires", async () => {
+      const jm = createMockJobManager();
+      const reconciler = createMonitorReconciler();
+      const handler = createTypeSafeReconciliationHandler(
+        reconciler as unknown as Parameters<typeof createTypeSafeReconciliationHandler>[0],
+        { jobManager: jm },
+        noopStatusUpdater,
+      );
+
+      const enabledMonitor = createHttpMonitor({
+        name: "cancel-pending",
+        namespace: "default",
+        enabled: true,
+        intervalSeconds: 20,
+        jitterPercent: 0,
+      });
+      const disabledMonitor = createHttpMonitor({
+        name: "cancel-pending",
+        namespace: "default",
+        enabled: false,
+        intervalSeconds: 20,
+        jitterPercent: 0,
+      });
+
+      await handler(enabledMonitor);
+      await handler(disabledMonitor);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(jm.scheduleCheck).not.toHaveBeenCalled();
+      expect(getLastScheduleTime("default/cancel-pending")).toBe(0);
     });
   });
 });

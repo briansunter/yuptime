@@ -2,6 +2,12 @@ import { logger } from "../../lib/logger";
 import type { Condition } from "../../types/crd";
 import { createCRDWatcher } from "../k8s-client";
 
+type ResourceWithStatus = {
+  status?: Record<string, unknown> & {
+    conditions?: Condition[];
+  };
+};
+
 /**
  * Update status with new conditions
  */
@@ -96,7 +102,7 @@ export async function markValid(
   const watcher = createCRDWatcher("monitoring.yuptime.io", "v1", plural);
 
   try {
-    const resource = await watcher.get(name, namespace);
+    const resource = (await watcher.get(name, namespace)) as ResourceWithStatus;
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition
@@ -144,7 +150,7 @@ export async function markInvalid(
   const watcher = createCRDWatcher("monitoring.yuptime.io", "v1", plural);
 
   try {
-    const resource = await watcher.get(name, namespace);
+    const resource = (await watcher.get(name, namespace)) as ResourceWithStatus;
     let conditions: Condition[] = resource.status?.conditions || [];
 
     // Set Valid condition to False

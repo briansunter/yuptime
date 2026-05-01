@@ -111,6 +111,11 @@ status:
     checkedAt: "2026-03-15T10:00:00Z"
     latencyMs: 125
     attempts: 1
+  previousResult:
+    state: down
+    checkedAt: "2026-03-15T09:59:00Z"
+    latencyMs: 0
+    attempts: 1
   uptime:
     last24h: 99.95
   cert:

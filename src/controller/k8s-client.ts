@@ -1,17 +1,40 @@
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 import {
   AppsV1Api,
-  BatchV1Api,
   CoordinationV1Api,
   CoreV1Api,
-  CustomObjectsApi,
   KubeConfig,
+  type V1Job,
 } from "@kubernetes/client-node";
 import { logger } from "../lib/logger";
 import { isRecoverableAsyncError } from "../lib/recoverable-error";
 
 let kubeConfig: KubeConfig;
+
+type KubernetesJsonBody = Record<string, unknown> | Array<Record<string, unknown>>;
+
+interface KubernetesRequestOptions {
+  body?: KubernetesJsonBody;
+  headers?: Record<string, string>;
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+}
+
+interface KubernetesList<T> {
+  items: T[];
+}
+
+class KubernetesApiError extends Error {
+  statusCode: number;
+
+  constructor(method: string, path: string, statusCode: number, statusText: string, body: string) {
+    const suffix = body ? `: ${body}` : "";
+    super(`${method} ${path} failed with HTTP ${statusCode} ${statusText}${suffix}`);
+    this.name = "KubernetesApiError";
+    this.statusCode = statusCode;
+  }
+}
 
 /**
  * Initialize Kubernetes client from environment
@@ -38,11 +61,6 @@ export function initializeK8sClient(): KubeConfig {
       );
     }
   }
-
-  // Accept self-signed certificates (for local development clusters like OrbStack, minikube)
-  // Note: skipTLSVerify is read-only in newer versions, must be set via environment
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  logger.info("Kubernetes client: accepting self-signed certificates");
 
   return kubeConfig;
 }
@@ -81,6 +99,133 @@ export interface WatchHandle {
   abort: () => void;
 }
 
+function getClusterTlsOptions(
+  cluster: NonNullable<ReturnType<KubeConfig["getCurrentCluster"]>>,
+): Bun.TLSOptions | undefined {
+  if (cluster.skipTLSVerify) {
+    return { rejectUnauthorized: false };
+  }
+
+  const tls: Bun.TLSOptions = {};
+
+  if (cluster.tlsServerName) {
+    tls.serverName = cluster.tlsServerName;
+  }
+
+  if (cluster.caData) {
+    tls.ca = Buffer.from(cluster.caData, "base64").toString("utf-8");
+  } else if (cluster.caFile) {
+    tls.ca = readFileSync(cluster.caFile, "utf-8");
+  }
+
+  return Object.keys(tls).length > 0 ? tls : undefined;
+}
+
+function headersToRecord(headers: unknown): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  if (!headers || typeof headers !== "object") {
+    return result;
+  }
+
+  if ("forEach" in headers && typeof headers.forEach === "function") {
+    const iterableHeaders = headers as {
+      forEach: (callback: (value: string, key: string) => void) => void;
+    };
+
+    iterableHeaders.forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
+  }
+
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      result[key] = value.join(", ");
+    } else if (typeof value === "number" || typeof value === "string") {
+      result[key] = value.toString();
+    }
+  }
+
+  return result;
+}
+
+function appendQuery(path: string, params: Record<string, string | undefined>): string {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      searchParams.set(key, value);
+    }
+  }
+
+  const query = searchParams.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+async function k8sApiRequest<T>(
+  path: string,
+  { body, headers = {}, method = "GET" }: KubernetesRequestOptions = {},
+): Promise<T> {
+  const kc = getK8sClient();
+  const cluster = kc.getCurrentCluster();
+  if (!cluster) {
+    throw new Error("No current cluster configured");
+  }
+
+  const fetchOptions = await kc.applyToFetchOptions({});
+  const tls = getClusterTlsOptions(cluster);
+  const requestHeaders: Record<string, string> = {
+    Accept: "application/json",
+    ...headersToRecord(fetchOptions.headers),
+    ...headers,
+  };
+
+  if (body !== undefined && !requestHeaders["Content-Type"]) {
+    requestHeaders["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(`${cluster.server}${path}`, {
+    method,
+    headers: requestHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(tls ? { tls } : {}),
+  });
+
+  if (!response.ok) {
+    const responseBody = await response.text().catch(() => "");
+    throw new KubernetesApiError(method, path, response.status, response.statusText, responseBody);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+function customObjectPath(
+  group: string,
+  version: string,
+  plural: string,
+  name?: string,
+  namespace?: string,
+  subresource?: string,
+): string {
+  const parts = namespace
+    ? ["apis", group, version, "namespaces", namespace, plural]
+    : ["apis", group, version, plural];
+
+  if (name) {
+    parts.push(name);
+  }
+  if (subresource) {
+    parts.push(subresource);
+  }
+
+  return `/${parts.map(encodeURIComponent).join("/")}`;
+}
+
 /**
  * Start a Kubernetes watch using Bun-compatible fetch/stream handling.
  * This absorbs expected aborts during proactive watch rotation instead of
@@ -108,6 +253,7 @@ export async function startK8sWatch<T>(
 
   const requestInit: Record<string, unknown> = {};
   await kc.applyToFetchOptions(requestInit);
+  const tls = getClusterTlsOptions(cluster);
 
   const controller = new AbortController();
   let doneCalled = false;
@@ -120,6 +266,40 @@ export async function startK8sWatch<T>(
     onDone(error);
   };
 
+  async function consumeWatchStream(body: ReadableStream<Uint8Array>) {
+    const stream = toNodeReadableStream(body);
+    const lines = createInterface({
+      input: stream,
+      crlfDelay: Number.POSITIVE_INFINITY,
+    });
+
+    try {
+      for await (const line of lines) {
+        if (!line) {
+          continue;
+        }
+        try {
+          const data = JSON.parse(line) as { type?: string; object?: T };
+          if (data.type && data.object) {
+            onEvent(data.type, data.object);
+          }
+        } catch {
+          // Ignore malformed watch events and continue streaming.
+        }
+      }
+      doneOnce();
+    } catch (error) {
+      if (controller.signal.aborted && isRecoverableAsyncError(error)) {
+        doneOnce();
+        return;
+      }
+      doneOnce(error);
+    } finally {
+      lines.close();
+      (stream as { destroy?: () => void }).destroy?.();
+    }
+  }
+
   const watchLoop = (async () => {
     try {
       const response = await fetch(url, {
@@ -128,11 +308,9 @@ export async function startK8sWatch<T>(
         signal: controller.signal,
         headers: {
           Accept: "application/json",
-          ...((requestInit.headers as Record<string, string> | undefined) ?? {}),
+          ...headersToRecord(requestInit.headers),
         },
-        tls: {
-          rejectUnauthorized: false,
-        },
+        ...(tls ? { tls } : {}),
       });
 
       if (!response.ok) {
@@ -144,40 +322,7 @@ export async function startK8sWatch<T>(
         return;
       }
 
-      const stream = toNodeReadableStream(response.body);
-      const lines = createInterface({
-        input: stream,
-        crlfDelay: Number.POSITIVE_INFINITY,
-      });
-
-      try {
-        for await (const line of lines) {
-          if (!line) {
-            continue;
-          }
-
-          try {
-            const data = JSON.parse(line) as { type?: string; object?: T };
-            if (data.type && data.object) {
-              onEvent(data.type, data.object);
-            }
-          } catch {
-            // Ignore malformed watch events and continue streaming.
-          }
-        }
-
-        doneOnce();
-      } catch (error) {
-        if (controller.signal.aborted && isRecoverableAsyncError(error)) {
-          doneOnce();
-          return;
-        }
-
-        doneOnce(error);
-      } finally {
-        lines.close();
-        (stream as { destroy?: () => void }).destroy?.();
-      }
+      await consumeWatchStream(response.body);
     } catch (error) {
       if (controller.signal.aborted && isRecoverableAsyncError(error)) {
         doneOnce();
@@ -213,7 +358,6 @@ export function createCRDWatcher(
   plural: string,
   options: { namespace?: string; namespaced?: boolean } = {},
 ) {
-  const kc = getK8sClient();
   const { namespace = "", namespaced: _namespaced = true } = options;
 
   return {
@@ -222,38 +366,11 @@ export function createCRDWatcher(
      */
     async list(): Promise<unknown[]> {
       try {
-        // Construct the API path
         const path = namespace
-          ? `/apis/${group}/${version}/namespaces/${namespace}/${plural}`
-          : `/apis/${group}/${version}/${plural}`;
+          ? customObjectPath(group, version, plural, undefined, namespace)
+          : customObjectPath(group, version, plural);
 
-        // Make a direct request using the KubeConfig
-        const opts: Record<string, unknown> = {};
-        await kc.applyToHTTPSOptions(opts);
-
-        const cluster = kc.getCurrentCluster();
-        if (!cluster) {
-          throw new Error("No current cluster configured");
-        }
-
-        const url = `${cluster.server}${path}`;
-
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            ...(opts.headers || {}),
-          },
-          tls: {
-            rejectUnauthorized: false, // For self-signed certs in dev
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = (await response.json()) as { items?: unknown[] };
+        const data = await k8sApiRequest<{ items?: unknown[] }>(path);
         return data.items || [];
       } catch (error) {
         logger.error({ group, version, plural, namespace, error }, "Failed to list CRDs");
@@ -265,23 +382,10 @@ export function createCRDWatcher(
      * Get a single CRD
      */
     async get(name: string, ns?: string) {
-      const client = kc.makeApiClient(CustomObjectsApi);
-
       try {
-        return ns
-          ? await client.getNamespacedCustomObject({
-              group,
-              version,
-              namespace: ns,
-              plural,
-              name,
-            })
-          : await client.getClusterCustomObject({
-              group,
-              version,
-              plural,
-              name,
-            });
+        return await k8sApiRequest<Record<string, unknown>>(
+          customObjectPath(group, version, plural, name, ns),
+        );
       } catch (error) {
         logger.error({ group, version, plural, name, namespace: ns, error }, "Failed to get CRD");
         throw error;
@@ -292,23 +396,14 @@ export function createCRDWatcher(
      * Create a CRD
      */
     async create(body: Record<string, unknown>, ns?: string) {
-      const client = kc.makeApiClient(CustomObjectsApi);
-
       try {
-        return ns
-          ? await client.createNamespacedCustomObject({
-              group,
-              version,
-              namespace: ns,
-              plural,
-              body,
-            })
-          : await client.createClusterCustomObject({
-              group,
-              version,
-              plural,
-              body,
-            });
+        return await k8sApiRequest<Record<string, unknown>>(
+          customObjectPath(group, version, plural, undefined, ns),
+          {
+            method: "POST",
+            body,
+          },
+        );
       } catch (error) {
         logger.error({ group, version, plural, namespace: ns, error }, "Failed to create CRD");
         throw error;
@@ -318,26 +413,20 @@ export function createCRDWatcher(
     /**
      * Update a CRD
      */
-    async patch(name: string, body: Record<string, unknown>, ns?: string) {
-      const client = kc.makeApiClient(CustomObjectsApi);
-
+    async patch(name: string, body: KubernetesJsonBody, ns?: string) {
       try {
-        return ns
-          ? await client.patchNamespacedCustomObject({
-              group,
-              version,
-              namespace: ns,
-              plural,
-              name,
-              body,
-            })
-          : await client.patchClusterCustomObject({
-              group,
-              version,
-              plural,
-              name,
-              body,
-            });
+        return await k8sApiRequest<Record<string, unknown>>(
+          customObjectPath(group, version, plural, name, ns),
+          {
+            method: "PATCH",
+            body,
+            headers: {
+              "Content-Type": Array.isArray(body)
+                ? "application/json-patch+json"
+                : "application/merge-patch+json",
+            },
+          },
+        );
       } catch (error) {
         logger.error({ group, version, plural, name, namespace: ns, error }, "Failed to patch CRD");
         throw error;
@@ -347,26 +436,20 @@ export function createCRDWatcher(
     /**
      * Update status subresource
      */
-    async patchStatus(name: string, body: Record<string, unknown>, ns?: string) {
-      const client = kc.makeApiClient(CustomObjectsApi);
-
+    async patchStatus(name: string, body: KubernetesJsonBody, ns?: string) {
       try {
-        return ns
-          ? await client.patchNamespacedCustomObjectStatus({
-              group,
-              version,
-              namespace: ns,
-              plural,
-              name,
-              body,
-            })
-          : await client.patchClusterCustomObjectStatus({
-              group,
-              version,
-              plural,
-              name,
-              body,
-            });
+        return await k8sApiRequest<Record<string, unknown>>(
+          customObjectPath(group, version, plural, name, ns, "status"),
+          {
+            method: "PATCH",
+            body,
+            headers: {
+              "Content-Type": Array.isArray(body)
+                ? "application/json-patch+json"
+                : "application/merge-patch+json",
+            },
+          },
+        );
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
@@ -380,23 +463,13 @@ export function createCRDWatcher(
      * Delete a CRD
      */
     async delete(name: string, ns?: string) {
-      const client = kc.makeApiClient(CustomObjectsApi);
-
       try {
-        return ns
-          ? await client.deleteNamespacedCustomObject({
-              group,
-              version,
-              namespace: ns,
-              plural,
-              name,
-            })
-          : await client.deleteClusterCustomObject({
-              group,
-              version,
-              plural,
-              name,
-            });
+        return await k8sApiRequest<Record<string, unknown>>(
+          customObjectPath(group, version, plural, name, ns),
+          {
+            method: "DELETE",
+          },
+        );
       } catch (error) {
         logger.error(
           { group, version, plural, name, namespace: ns, error },
@@ -414,9 +487,7 @@ export function createCRDWatcher(
       onError?: (error?: unknown) => void,
       ns?: string,
     ) {
-      const path = ns
-        ? `/apis/${group}/${version}/namespaces/${ns}/${plural}`
-        : `/apis/${group}/${version}/${plural}`;
+      const path = customObjectPath(group, version, plural, undefined, ns);
 
       return startK8sWatch(
         path,
@@ -458,8 +529,60 @@ export function getCoordinationApiClient() {
  * Get Batch API client for Jobs, CronJobs
  */
 export function getBatchApiClient() {
-  const kc = getK8sClient();
-  return kc.makeApiClient(BatchV1Api);
+  return {
+    createNamespacedJob({ body, namespace }: { body: V1Job; namespace: string }): Promise<V1Job> {
+      return k8sApiRequest<V1Job>(
+        `/apis/batch/v1/namespaces/${encodeURIComponent(namespace)}/jobs`,
+        {
+          method: "POST",
+          body: body as Record<string, unknown>,
+        },
+      );
+    },
+
+    deleteNamespacedJob({
+      name,
+      namespace,
+    }: {
+      name: string;
+      namespace: string;
+    }): Promise<Record<string, unknown>> {
+      return k8sApiRequest<Record<string, unknown>>(
+        `/apis/batch/v1/namespaces/${encodeURIComponent(namespace)}/jobs/${encodeURIComponent(name)}`,
+        { method: "DELETE" },
+      );
+    },
+
+    listJobForAllNamespaces({
+      labelSelector,
+    }: {
+      labelSelector?: string;
+    } = {}): Promise<KubernetesList<V1Job>> {
+      return k8sApiRequest<KubernetesList<V1Job>>(
+        appendQuery("/apis/batch/v1/jobs", { labelSelector }),
+      );
+    },
+
+    listNamespacedJob({
+      labelSelector,
+      namespace,
+    }: {
+      labelSelector?: string;
+      namespace: string;
+    }): Promise<KubernetesList<V1Job>> {
+      return k8sApiRequest<KubernetesList<V1Job>>(
+        appendQuery(`/apis/batch/v1/namespaces/${encodeURIComponent(namespace)}/jobs`, {
+          labelSelector,
+        }),
+      );
+    },
+
+    readNamespacedJob({ name, namespace }: { name: string; namespace: string }): Promise<V1Job> {
+      return k8sApiRequest<V1Job>(
+        `/apis/batch/v1/namespaces/${encodeURIComponent(namespace)}/jobs/${encodeURIComponent(name)}`,
+      );
+    },
+  };
 }
 
 /**

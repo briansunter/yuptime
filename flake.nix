@@ -1,5 +1,5 @@
 {
-  description = "KubeKuma development environment with Timoni and CUE";
+  description = "Yuptime development environment with Timoni and CUE";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -39,7 +39,7 @@
           ];
 
           shellHook = ''
-            echo "KubeKuma development environment"
+            echo "Yuptime development environment"
             echo ""
             echo "Available tools:"
             echo "  timoni   - Kubernetes package manager ($(timoni version --short 2>/dev/null || echo 'not available'))"
@@ -51,8 +51,8 @@
             echo "Quick start:"
             echo "  minikube start --cpus=4 --memory=8192"
             echo "  eval \$(minikube docker-env)"
-            echo "  docker build -t kubekuma-api:latest ."
-            echo "  cd timoni/kubekuma && timoni apply kubekuma . -n kubekuma"
+            echo "  docker build -t yuptime-api:latest ."
+            echo "  timoni apply yuptime ./timoni/yuptime -n yuptime"
           '';
         };
 
@@ -74,7 +74,6 @@
             echo "  timoni build test .  - Build and preview resources"
             echo "  timoni apply ...     - Apply to cluster"
             echo ""
-            cd timoni/kubekuma 2>/dev/null || true
           '';
         };
       });

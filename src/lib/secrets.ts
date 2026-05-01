@@ -46,10 +46,32 @@ function getToken(): string | undefined {
   return user?.token;
 }
 
+function getClusterTlsOptions(
+  cluster: NonNullable<ReturnType<KubeConfig["getCurrentCluster"]>>,
+): Bun.TLSOptions | undefined {
+  if (cluster.skipTLSVerify) {
+    return { rejectUnauthorized: false };
+  }
+
+  const tls: Bun.TLSOptions = {};
+
+  if (cluster.tlsServerName) {
+    tls.serverName = cluster.tlsServerName;
+  }
+
+  if (cluster.caData) {
+    tls.ca = Buffer.from(cluster.caData, "base64").toString("utf-8");
+  } else if (cluster.caFile) {
+    tls.ca = fs.readFileSync(cluster.caFile, "utf-8");
+  }
+
+  return Object.keys(tls).length > 0 ? tls : undefined;
+}
+
 /**
  * Resolve a secret reference from Kubernetes
  * Returns the value of the specified key from the secret
- * Uses direct fetch with TLS workaround for self-signed certs
+ * Uses direct fetch with TLS settings from the active Kubernetes cluster.
  */
 export async function resolveSecret(
   namespace: string,
@@ -76,19 +98,17 @@ export async function resolveSecret(
     );
 
     const url = `${cluster.server}/api/v1/namespaces/${namespace}/secrets/${secretName}`;
+    const tls = getClusterTlsOptions(cluster);
 
     logger.debug({ namespace, secretName, key, url }, "Resolving secret from K8s");
 
-    // Use fetch with TLS workaround for self-signed certs (like controller does)
     const response = await fetch(url, {
       method: "GET",
       headers: {
         Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      tls: {
-        rejectUnauthorized: false,
-      },
+      ...(tls ? { tls } : {}),
     });
 
     if (!response.ok) {

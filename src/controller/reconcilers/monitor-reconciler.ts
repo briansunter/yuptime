@@ -26,6 +26,9 @@ let safetyNetJobManager: JobManager | null = null;
 // Store monitors for safety-net access
 const activeMonitors = new Map<string, Monitor>();
 
+// Pending one-shot schedules keyed by namespace/name.
+const pendingScheduleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 const SAFETY_NET_INTERVAL_MS = 90_000; // Check every 90s
 
 /**
@@ -48,95 +51,77 @@ const validateMonitorSchedule = (resource: Monitor): string[] => {
   return errors;
 };
 
+type Target = NonNullable<Monitor["spec"]["target"]>;
+
+const TARGET_REQUIREMENTS: Partial<Record<Monitor["spec"]["type"], (target: Target) => boolean>> = {
+  http: (t) => Boolean(t.http),
+  keyword: (t) => Boolean(t.http),
+  jsonQuery: (t) => Boolean(t.http),
+  xmlQuery: (t) => Boolean(t.http),
+  htmlQuery: (t) => Boolean(t.http),
+  tcp: (t) => Boolean(t.tcp),
+  dns: (t) => Boolean(t.dns),
+  ping: (t) => Boolean(t.ping),
+  websocket: (t) => Boolean(t.websocket),
+  push: (t) => Boolean(t.push),
+  steam: (t) => Boolean(t.steam),
+  k8s: (t) => Boolean(t.k8s || t.kubernetes),
+  mysql: (t) => Boolean(t.mysql),
+  postgresql: (t) => Boolean(t.postgresql),
+  redis: (t) => Boolean(t.redis),
+  grpc: (t) => Boolean(t.grpc),
+};
+
+const TARGET_REQUIREMENT_MESSAGE: Partial<Record<Monitor["spec"]["type"], string>> = {
+  http: "Monitor type http requires http target",
+  keyword: "Monitor type keyword requires http target",
+  jsonQuery: "Monitor type jsonQuery requires http target",
+  xmlQuery: "Monitor type xmlQuery requires http target",
+  htmlQuery: "Monitor type htmlQuery requires http target",
+  tcp: "Monitor type tcp requires tcp target",
+  dns: "Monitor type dns requires dns target",
+  ping: "Monitor type ping requires ping target",
+  websocket: "Monitor type websocket requires websocket target",
+  push: "Monitor type push requires push target",
+  steam: "Monitor type steam requires steam target",
+  k8s: "Monitor type k8s requires k8s or kubernetes target",
+  mysql: "Monitor type mysql requires mysql target",
+  postgresql: "Monitor type postgresql requires postgresql target",
+  redis: "Monitor type redis requires redis target",
+  grpc: "Monitor type grpc requires grpc target",
+};
+
+function hasAnyTarget(target: Target | undefined): boolean {
+  if (!target) return false;
+  return Boolean(
+    target.http ||
+      target.tcp ||
+      target.dns ||
+      target.ping ||
+      target.websocket ||
+      target.push ||
+      target.steam ||
+      target.k8s ||
+      target.kubernetes ||
+      target.mysql ||
+      target.postgresql ||
+      target.redis ||
+      target.grpc,
+  );
+}
+
 const validateMonitorTarget = (resource: Monitor): string[] => {
   const errors: string[] = [];
   const spec = resource.spec;
 
-  const hasTarget =
-    spec.target?.http ||
-    spec.target?.tcp ||
-    spec.target?.dns ||
-    spec.target?.ping ||
-    spec.target?.websocket ||
-    spec.target?.push ||
-    spec.target?.steam ||
-    spec.target?.k8s ||
-    spec.target?.kubernetes ||
-    spec.target?.mysql ||
-    spec.target?.postgresql ||
-    spec.target?.redis ||
-    spec.target?.grpc;
-
-  if (!hasTarget) {
+  if (!hasAnyTarget(spec.target)) {
     errors.push("At least one target must be configured");
   }
 
-  // Validate target type matches monitor type
-  switch (spec.type) {
-    case "http":
-    case "keyword":
-    case "jsonQuery":
-    case "xmlQuery":
-    case "htmlQuery":
-      if (!spec.target?.http) {
-        errors.push(`Monitor type ${spec.type} requires http target`);
-      }
-      break;
-    case "tcp":
-      if (!spec.target?.tcp) {
-        errors.push("Monitor type tcp requires tcp target");
-      }
-      break;
-    case "dns":
-      if (!spec.target?.dns) {
-        errors.push("Monitor type dns requires dns target");
-      }
-      break;
-    case "ping":
-      if (!spec.target?.ping) {
-        errors.push("Monitor type ping requires ping target");
-      }
-      break;
-    case "websocket":
-      if (!spec.target?.websocket) {
-        errors.push("Monitor type websocket requires websocket target");
-      }
-      break;
-    case "push":
-      if (!spec.target?.push) {
-        errors.push("Monitor type push requires push target");
-      }
-      break;
-    case "steam":
-      if (!spec.target?.steam) {
-        errors.push("Monitor type steam requires steam target");
-      }
-      break;
-    case "k8s":
-      if (!spec.target?.k8s && !spec.target?.kubernetes) {
-        errors.push("Monitor type k8s requires k8s or kubernetes target");
-      }
-      break;
-    case "mysql":
-      if (!spec.target?.mysql) {
-        errors.push("Monitor type mysql requires mysql target");
-      }
-      break;
-    case "postgresql":
-      if (!spec.target?.postgresql) {
-        errors.push("Monitor type postgresql requires postgresql target");
-      }
-      break;
-    case "redis":
-      if (!spec.target?.redis) {
-        errors.push("Monitor type redis requires redis target");
-      }
-      break;
-    case "grpc":
-      if (!spec.target?.grpc) {
-        errors.push("Monitor type grpc requires grpc target");
-      }
-      break;
+  const requirement = TARGET_REQUIREMENTS[spec.type];
+  if (requirement && spec.target && !requirement(spec.target)) {
+    const message = TARGET_REQUIREMENT_MESSAGE[spec.type];
+    if (message) errors.push(message);
   }
 
   return errors;
@@ -195,7 +180,7 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
       const jitterMs = calculateJitter(namespace, name, jitterPercent, intervalSeconds);
 
       // Schedule check with jitter
-      scheduleMonitorCheck(jobManager, resource, monitorId, jitterMs);
+      scheduleMonitorCheck(jobManager, monitorId, jitterMs);
 
       logger.debug({ namespace, name, jitterMs }, "Monitor scheduled with jitter");
     }
@@ -206,6 +191,7 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
 
       // Remove from tracking
       const monitorId = `${namespace}/${name}`;
+      clearPendingSchedule(monitorId);
       removeMonitor(monitorId);
       activeMonitors.delete(monitorId);
 
@@ -221,25 +207,31 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
 /**
  * Schedule a monitor check and record the time
  */
-function scheduleMonitorCheck(
-  jobManager: JobManager,
-  monitor: Monitor,
-  monitorId: string,
-  delayMs: number,
-) {
+function scheduleMonitorCheck(jobManager: JobManager, monitorId: string, delayMs: number) {
+  clearPendingSchedule(monitorId);
+
   // Optimistic record prevents rapid-fire duplicates during the delay window
   recordSchedule(monitorId);
 
-  setTimeout(async () => {
+  const timer = setTimeout(async () => {
+    pendingScheduleTimers.delete(monitorId);
+
+    const latestMonitor = activeMonitors.get(monitorId);
+    if (!latestMonitor || latestMonitor.spec.enabled === false) {
+      removeMonitor(monitorId);
+      logger.info({ monitorId }, "Skipped pending monitor schedule because monitor is inactive");
+      return;
+    }
+
     try {
-      await jobManager.scheduleCheck(monitor);
+      await jobManager.scheduleCheck(latestMonitor);
       // Update to actual execution time for accurate overdue detection
       recordSchedule(monitorId);
       logger.info(
         {
           monitorId,
-          type: monitor.spec.type,
-          interval: monitor.spec.schedule?.intervalSeconds || 60,
+          type: latestMonitor.spec.type,
+          interval: latestMonitor.spec.schedule?.intervalSeconds || 60,
         },
         "Monitor check scheduled",
       );
@@ -249,6 +241,18 @@ function scheduleMonitorCheck(
       removeMonitor(monitorId);
     }
   }, delayMs);
+
+  pendingScheduleTimers.set(monitorId, timer);
+}
+
+function clearPendingSchedule(monitorId: string) {
+  const pendingTimer = pendingScheduleTimers.get(monitorId);
+  if (!pendingTimer) {
+    return;
+  }
+
+  clearTimeout(pendingTimer);
+  pendingScheduleTimers.delete(monitorId);
 }
 
 /**
@@ -281,7 +285,7 @@ function startSafetyNet() {
         );
 
         // Already overdue, schedule immediately (delayMs = 0)
-        scheduleMonitorCheck(jobManager, monitor, monitorId, 0);
+        scheduleMonitorCheck(jobManager, monitorId, 0);
       }
     }
   }, SAFETY_NET_INTERVAL_MS);
@@ -290,14 +294,16 @@ function startSafetyNet() {
 /**
  * Handle monitor deletion
  */
-export const handleMonitorDeletion = async (namespace: string, name: string) => {
+export const handleMonitorDeletion = (namespace: string, name: string): Promise<void> => {
   const monitorId = `${namespace}/${name}`;
 
   // Remove from all tracking
+  clearPendingSchedule(monitorId);
   removeMonitor(monitorId);
   activeMonitors.delete(monitorId);
 
   logger.debug({ namespace, name }, "Monitor deleted, removed from tracker");
+  return Promise.resolve();
 };
 
 /**
@@ -311,6 +317,10 @@ export function stopSafetyNet() {
   }
   safetyNetJobManager = null;
   activeMonitors.clear();
+  for (const timer of pendingScheduleTimers.values()) {
+    clearTimeout(timer);
+  }
+  pendingScheduleTimers.clear();
   clearAll();
 }
 

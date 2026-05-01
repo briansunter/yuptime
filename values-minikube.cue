@@ -20,32 +20,8 @@ values: {
 	// Development mode
 	mode: "development"
 
-	// SQLite database
-	database: {
-		type: "sqlite"
-		sqlite: path: "/data/yuptime.db"
-	}
+	crds: install: true
 
-	// Storage with minikube's default StorageClass
-	storage: {
-		enabled:      true
-		size:         "1Gi"
-		storageClass: "standard"
-		accessMode:   "ReadWriteOnce"
-	}
-
-	// Local auth with test admin user
-	auth: {
-		mode: "local"
-		session: secret: "minikube-dev-secret-change-me"
-		adminUser: {
-			enabled:  true
-			username: "admin"
-			// Password: test1234
-			passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Ha7NhMrOOSle+AMHOp5XNw$jhFoCy75xBnmZJY+FKPujTeFg26xnR1wfDwFJJVrBhU"
-		}
-	}
-
-	// Enable testing
+	// Enable Timoni health test job
 	test: enabled: true
 }
