@@ -24,6 +24,73 @@ interface A2SServerInfo {
   vac: boolean;
 }
 
+function parseA2SResponse(msg: Buffer): A2SServerInfo | { error: string } {
+  if (msg.length < 6) {
+    return { error: "Invalid A2S response (too short)" };
+  }
+
+  let offset = 4; // skip 4-byte header
+
+  if (msg[offset] !== 0x49) {
+    return { error: `Invalid A2S response type: ${msg[offset]}` };
+  }
+
+  offset++; // skip command byte
+  msg.readUInt8(offset); // protocol version (unused)
+  offset++;
+
+  const readString = (): string => {
+    let str = "";
+    while (offset < msg.length && msg[offset] !== 0) {
+      const charCode = msg[offset];
+      if (charCode !== undefined) {
+        str += String.fromCharCode(charCode);
+      }
+      offset++;
+    }
+    offset++; // skip null terminator
+    return str;
+  };
+
+  const readByte = (): number => {
+    const value = offset < msg.length ? msg.readUInt8(offset) : 0;
+    offset++;
+    return value;
+  };
+
+  const readChar = (): string => {
+    const byte = offset < msg.length ? msg[offset] : undefined;
+    offset++;
+    return byte !== undefined ? String.fromCharCode(byte) : "?";
+  };
+
+  const name = readString();
+  const map = readString();
+  const folder = readString();
+  const game = readString();
+  const players = readByte();
+  const maxPlayers = readByte();
+  const bots = readByte();
+  const serverType = readChar();
+  const environment = readChar();
+  const visibility = readChar();
+  const vac = offset < msg.length ? msg.readUInt8(offset) === 1 : false;
+
+  return {
+    name,
+    map,
+    folder,
+    game,
+    players,
+    maxPlayers,
+    bots,
+    serverType,
+    environment,
+    visibility,
+    vac,
+  };
+}
+
 /**
  * Query Steam game server using A2S protocol
  */
@@ -91,94 +158,12 @@ function queryA2SServer(
       const latencyMs = Date.now() - startTime;
 
       try {
-        // Check response header
-        if (msg.length < 6) {
-          respond({
-            success: false,
-            error: "Invalid A2S response (too short)",
-            latencyMs,
-          });
+        const parsed = parseA2SResponse(msg);
+        if ("error" in parsed) {
+          respond({ success: false, error: parsed.error, latencyMs });
           return;
         }
-
-        // Parse A2S_INFO response
-        let offset = 4; // Skip 4-byte header
-
-        if (msg[offset] !== 0x49) {
-          // 'I' character
-          respond({
-            success: false,
-            error: `Invalid A2S response type: ${msg[offset]}`,
-            latencyMs,
-          });
-          return;
-        }
-
-        offset++; // Skip command byte
-
-        // Read protocol version
-        msg.readUInt8(offset); // Protocol version (not currently used)
-        offset++;
-
-        // Read strings until null terminator
-        const readString = (): string => {
-          let str = "";
-          while (offset < msg.length && msg[offset] !== 0) {
-            const charCode = msg[offset];
-            if (charCode !== undefined) {
-              str += String.fromCharCode(charCode);
-            }
-            offset++;
-          }
-          offset++; // Skip null terminator
-          return str;
-        };
-
-        const serverName = readString();
-        const mapName = readString();
-        const folder = readString();
-        const game = readString();
-
-        // Read player counts with bounds checking
-        const players = offset < msg.length ? msg.readUInt8(offset) : 0;
-        offset++;
-        const maxPlayers = offset < msg.length ? msg.readUInt8(offset) : 0;
-        offset++;
-        const bots = offset < msg.length ? msg.readUInt8(offset) : 0;
-        offset++;
-
-        // Read server type and environment
-        const serverTypeByte = offset < msg.length ? msg[offset] : undefined;
-        const serverType = serverTypeByte !== undefined ? String.fromCharCode(serverTypeByte) : "?";
-        offset++;
-        const environmentByte = offset < msg.length ? msg[offset] : undefined;
-        const environment =
-          environmentByte !== undefined ? String.fromCharCode(environmentByte) : "?";
-        offset++;
-
-        // Read visibility and VAC
-        const visibilityByte = offset < msg.length ? msg[offset] : undefined;
-        const visibility = visibilityByte !== undefined ? String.fromCharCode(visibilityByte) : "?";
-        offset++;
-        const vac = offset < msg.length ? msg.readUInt8(offset) === 1 : false;
-
-        respond({
-          success: true,
-          info: {
-            name: serverName,
-            map: mapName,
-            folder,
-            game,
-            players,
-            maxPlayers,
-            bots,
-            serverType,
-            environment,
-            visibility,
-            vac,
-          },
-          latencyMs,
-        });
+        respond({ success: true, info: parsed, latencyMs });
       } catch (error) {
         respond({
           success: false,

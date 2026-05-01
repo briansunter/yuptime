@@ -23,26 +23,16 @@ export interface MockMySqlResult {
 export function createMockMySqlClientFactory(
   result: MockMySqlResult = {},
 ): (config: MySqlClientConfig) => Promise<MySqlClient> {
-  return async (_config: MySqlClientConfig) => {
-    return {
-      connect: async () => {
-        if (result.connectError) {
-          throw result.connectError;
-        }
-      },
-      query: async (_sql: string) => {
-        if (result.queryError) {
-          throw result.queryError;
-        }
-        return result.queryResult ?? [{ result: 1 }];
-      },
-      end: async () => {
-        if (result.endError) {
-          throw result.endError;
-        }
-      },
-    };
-  };
+  return (_config: MySqlClientConfig) =>
+    Promise.resolve({
+      connect: () =>
+        result.connectError ? Promise.reject(result.connectError) : Promise.resolve(),
+      query: (_sql: string) =>
+        result.queryError
+          ? Promise.reject(result.queryError)
+          : Promise.resolve(result.queryResult ?? [{ result: 1 }]),
+      end: () => (result.endError ? Promise.reject(result.endError) : Promise.resolve()),
+    });
 }
 
 /**
@@ -61,26 +51,16 @@ export interface MockPostgreSqlResult {
 export function createMockPostgreSqlClientFactory(
   result: MockPostgreSqlResult = {},
 ): (config: PostgreSqlClientConfig) => Promise<PostgreSqlClient> {
-  return async (_config: PostgreSqlClientConfig) => {
-    return {
-      connect: async () => {
-        if (result.connectError) {
-          throw result.connectError;
-        }
-      },
-      query: async (_sql: string) => {
-        if (result.queryError) {
-          throw result.queryError;
-        }
-        return result.queryResult ?? [{ result: 1 }];
-      },
-      end: async () => {
-        if (result.endError) {
-          throw result.endError;
-        }
-      },
-    };
-  };
+  return (_config: PostgreSqlClientConfig) =>
+    Promise.resolve({
+      connect: () =>
+        result.connectError ? Promise.reject(result.connectError) : Promise.resolve(),
+      query: (_sql: string) =>
+        result.queryError
+          ? Promise.reject(result.queryError)
+          : Promise.resolve(result.queryResult ?? [{ result: 1 }]),
+      end: () => (result.endError ? Promise.reject(result.endError) : Promise.resolve()),
+    });
 }
 
 /**
@@ -99,26 +79,16 @@ export interface MockRedisResult {
 export function createMockRedisClientFactory(
   result: MockRedisResult = {},
 ): (config: RedisClientConfig) => Promise<RedisClient> {
-  return async (_config: RedisClientConfig) => {
-    return {
-      connect: async () => {
-        if (result.connectError) {
-          throw result.connectError;
-        }
-      },
-      ping: async () => {
-        if (result.pingError) {
-          throw result.pingError;
-        }
-        return result.pingResult ?? "PONG";
-      },
-      quit: async () => {
-        if (result.quitError) {
-          throw result.quitError;
-        }
-      },
-    };
-  };
+  return (_config: RedisClientConfig) =>
+    Promise.resolve({
+      connect: () =>
+        result.connectError ? Promise.reject(result.connectError) : Promise.resolve(),
+      ping: () =>
+        result.pingError
+          ? Promise.reject(result.pingError)
+          : Promise.resolve(result.pingResult ?? "PONG"),
+      quit: () => (result.quitError ? Promise.reject(result.quitError) : Promise.resolve()),
+    });
 }
 
 /**
@@ -135,19 +105,16 @@ export interface MockGrpcResult {
 export function createMockGrpcClientFactory(
   result: MockGrpcResult = {},
 ): (config: GrpcClientConfig) => Promise<GrpcHealthClient> {
-  return async (_config: GrpcClientConfig) => {
-    return {
-      check: async (_request: { service: string }) => {
-        if (result.checkError) {
-          throw result.checkError;
-        }
-        return { status: result.checkStatus ?? 1 }; // Default to SERVING
-      },
+  return (_config: GrpcClientConfig) =>
+    Promise.resolve({
+      check: (_request: { service: string }) =>
+        result.checkError
+          ? Promise.reject(result.checkError)
+          : Promise.resolve({ status: result.checkStatus ?? 1 }),
       close: () => {
         // No-op
       },
-    };
-  };
+    });
 }
 
 /**

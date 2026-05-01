@@ -230,7 +230,7 @@ async function checkPostgreSqlWithFactory(
 /**
  * PostgreSQL health checker
  */
-export async function checkPostgreSql(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export function checkPostgreSql(monitor: Monitor, timeout: number): Promise<CheckResult> {
   return checkPostgreSqlWithFactory(monitor, timeout, createDefaultPostgreSqlClient);
 }
 

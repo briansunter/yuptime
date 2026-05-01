@@ -159,64 +159,72 @@ async function checkRedisWithFactory(
       "Redis check failed",
     );
 
-    // Categorize common Redis errors (check both message and code)
-    if (errorMessage.includes("ECONNREFUSED") || errorCode === "ECONNREFUSED") {
-      return {
-        state: "down",
-        latencyMs,
-        reason: "CONNECTION_REFUSED",
-        message: "Redis connection refused",
-      };
-    }
+    return classifyRedisError(errorMessage, errorCode, latencyMs, timeout);
+  }
+}
 
-    if (
-      errorMessage.includes("ETIMEDOUT") ||
-      errorMessage.includes("timeout") ||
-      errorCode === "ETIMEDOUT"
-    ) {
-      return {
-        state: "down",
-        latencyMs,
-        reason: "TIMEOUT",
-        message: `Redis connection timeout after ${timeout}s`,
-      };
-    }
-
-    if (
-      errorMessage.includes("NOAUTH") ||
-      errorMessage.includes("WRONGPASS") ||
-      errorMessage.includes("ERR invalid password")
-    ) {
-      return {
-        state: "down",
-        latencyMs,
-        reason: "AUTH_FAILED",
-        message: "Redis authentication failed",
-      };
-    }
-
-    if (errorMessage.includes("ENOTFOUND") || errorCode === "ENOTFOUND") {
-      return {
-        state: "down",
-        latencyMs,
-        reason: "DNS_NXDOMAIN",
-        message: "Redis host not found",
-      };
-    }
-
+function classifyRedisError(
+  errorMessage: string,
+  errorCode: string,
+  latencyMs: number,
+  timeout: number,
+): CheckResult {
+  if (errorMessage.includes("ECONNREFUSED") || errorCode === "ECONNREFUSED") {
     return {
       state: "down",
       latencyMs,
-      reason: "CONNECTION_ERROR",
-      message: errorMessage || errorCode || "Unknown connection error",
+      reason: "CONNECTION_REFUSED",
+      message: "Redis connection refused",
     };
   }
+
+  if (
+    errorMessage.includes("ETIMEDOUT") ||
+    errorMessage.includes("timeout") ||
+    errorCode === "ETIMEDOUT"
+  ) {
+    return {
+      state: "down",
+      latencyMs,
+      reason: "TIMEOUT",
+      message: `Redis connection timeout after ${timeout}s`,
+    };
+  }
+
+  if (
+    errorMessage.includes("NOAUTH") ||
+    errorMessage.includes("WRONGPASS") ||
+    errorMessage.includes("ERR invalid password")
+  ) {
+    return {
+      state: "down",
+      latencyMs,
+      reason: "AUTH_FAILED",
+      message: "Redis authentication failed",
+    };
+  }
+
+  if (errorMessage.includes("ENOTFOUND") || errorCode === "ENOTFOUND") {
+    return {
+      state: "down",
+      latencyMs,
+      reason: "DNS_NXDOMAIN",
+      message: "Redis host not found",
+    };
+  }
+
+  return {
+    state: "down",
+    latencyMs,
+    reason: "CONNECTION_ERROR",
+    message: errorMessage || errorCode || "Unknown connection error",
+  };
 }
 
 /**
  * Redis health checker
  */
-export async function checkRedis(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export function checkRedis(monitor: Monitor, timeout: number): Promise<CheckResult> {
   return checkRedisWithFactory(monitor, timeout, createDefaultRedisClient);
 }
 

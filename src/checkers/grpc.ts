@@ -289,7 +289,7 @@ async function checkGrpcWithFactory(
 /**
  * gRPC health checker
  */
-export async function checkGrpc(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export function checkGrpc(monitor: Monitor, timeout: number): Promise<CheckResult> {
   return checkGrpcWithFactory(monitor, timeout, createDefaultGrpcClient);
 }
 

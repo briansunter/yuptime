@@ -48,79 +48,85 @@ export function queryJsonPath(data: unknown, path: string): JsonPathResult {
   }
 }
 
+type Validation = { valid: boolean; message: string };
+
+function validateExists(values: unknown[], expected: boolean | undefined): Validation | null {
+  if (expected === undefined) return null;
+  const exists = values.length > 0 && values[0] !== undefined;
+  if (expected && !exists) {
+    return { valid: false, message: "JSONPath did not match any value" };
+  }
+  if (!expected && exists) {
+    return { valid: false, message: "JSONPath unexpectedly matched a value" };
+  }
+  return null;
+}
+
+function validateCount(values: unknown[], expected: number | undefined): Validation | null {
+  if (expected === undefined || values.length === expected) return null;
+  return { valid: false, message: `Expected ${expected} matches, got ${values.length}` };
+}
+
+function validateEquals(values: unknown[], expected: unknown): Validation | null {
+  if (expected === undefined) return null;
+  const firstValue = values[0];
+  if (JSON.stringify(firstValue) === JSON.stringify(expected)) return null;
+  return {
+    valid: false,
+    message: `Value "${JSON.stringify(firstValue)}" does not equal "${JSON.stringify(expected)}"`,
+  };
+}
+
+function validateContains(values: unknown[], expected: string | undefined): Validation | null {
+  if (expected === undefined) return null;
+  const firstValue = String(values[0] ?? "");
+  if (firstValue.includes(expected)) return null;
+  return { valid: false, message: `Value does not contain "${expected}"` };
+}
+
+function validateGreaterThan(values: unknown[], threshold: number | undefined): Validation | null {
+  if (threshold === undefined) return null;
+  const numValue = Number(values[0]);
+  if (!Number.isNaN(numValue) && numValue > threshold) return null;
+  return {
+    valid: false,
+    message: `Value ${values[0]} is not greater than ${threshold}`,
+  };
+}
+
+function validateLessThan(values: unknown[], threshold: number | undefined): Validation | null {
+  if (threshold === undefined) return null;
+  const numValue = Number(values[0]);
+  if (!Number.isNaN(numValue) && numValue < threshold) return null;
+  return {
+    valid: false,
+    message: `Value ${values[0]} is not less than ${threshold}`,
+  };
+}
+
 /**
  * Check if JSONPath result matches criteria
  */
 export function validateJsonPathResult(
   result: JsonPathResult,
   criteria: JsonPathCriteria,
-): { valid: boolean; message: string } {
+): Validation {
   if (!result.success) {
     return { valid: false, message: result.error || "JSONPath query failed" };
   }
 
   const values = result.values;
+  const checks = [
+    validateExists(values, criteria.exists),
+    validateCount(values, criteria.count),
+    validateEquals(values, criteria.equals),
+    validateContains(values, criteria.contains),
+    validateGreaterThan(values, criteria.greaterThan),
+    validateLessThan(values, criteria.lessThan),
+  ];
 
-  // Check exists
-  if (criteria.exists !== undefined) {
-    const exists = values.length > 0 && values[0] !== undefined;
-    if (criteria.exists && !exists) {
-      return { valid: false, message: "JSONPath did not match any value" };
-    }
-    if (!criteria.exists && exists) {
-      return { valid: false, message: "JSONPath unexpectedly matched a value" };
-    }
-  }
-
-  // Check count
-  if (criteria.count !== undefined && values.length !== criteria.count) {
-    return {
-      valid: false,
-      message: `Expected ${criteria.count} matches, got ${values.length}`,
-    };
-  }
-
-  // Check equals (first value)
-  if (criteria.equals !== undefined) {
-    const firstValue = values[0];
-    if (JSON.stringify(firstValue) !== JSON.stringify(criteria.equals)) {
-      return {
-        valid: false,
-        message: `Value "${JSON.stringify(firstValue)}" does not equal "${JSON.stringify(criteria.equals)}"`,
-      };
-    }
-  }
-
-  // Check contains (string in first value)
-  if (criteria.contains !== undefined) {
-    const firstValue = String(values[0] ?? "");
-    if (!firstValue.includes(criteria.contains)) {
-      return {
-        valid: false,
-        message: `Value does not contain "${criteria.contains}"`,
-      };
-    }
-  }
-
-  // Check numeric comparisons
-  if (criteria.greaterThan !== undefined) {
-    const numValue = Number(values[0]);
-    if (Number.isNaN(numValue) || numValue <= criteria.greaterThan) {
-      return {
-        valid: false,
-        message: `Value ${values[0]} is not greater than ${criteria.greaterThan}`,
-      };
-    }
-  }
-
-  if (criteria.lessThan !== undefined) {
-    const numValue = Number(values[0]);
-    if (Number.isNaN(numValue) || numValue >= criteria.lessThan) {
-      return {
-        valid: false,
-        message: `Value ${values[0]} is not less than ${criteria.lessThan}`,
-      };
-    }
+  for (const failure of checks) {
+    if (failure) return failure;
   }
 
   return { valid: true, message: "JSONPath criteria satisfied" };

@@ -79,77 +79,71 @@ const dayAbbr = {
   SU: 0,
 };
 
+function advanceCandidate(candidate: Date, config: RRuleConfig): void {
+  const interval = config.interval || 1;
+  switch (config.freq) {
+    case "DAILY":
+      candidate.setDate(candidate.getDate() + interval);
+      break;
+    case "WEEKLY":
+      candidate.setDate(candidate.getDate() + 7 * interval);
+      break;
+    case "MONTHLY":
+      candidate.setMonth(candidate.getMonth() + interval);
+      break;
+    case "YEARLY":
+      candidate.setFullYear(candidate.getFullYear() + interval);
+      break;
+  }
+}
+
+function matchesByDay(candidate: Date, config: RRuleConfig): boolean {
+  if (!config.byDay) return true;
+  if (config.freq !== "WEEKLY") return false;
+
+  const dayOfWeek = candidate.getDay();
+  return Object.entries(dayAbbr).some(
+    ([abbr, day]) => day === dayOfWeek && config.byDay?.includes(abbr),
+  );
+}
+
+function applyTimeConstraints(candidate: Date, config: RRuleConfig): void {
+  if (config.byHour && config.byHour[0] !== undefined) {
+    candidate.setHours(config.byHour[0], 0, 0, 0);
+  }
+  if (config.byMinute) {
+    candidate.setMinutes(config.byMinute[0] ?? 0, 0, 0);
+  }
+}
+
 /**
  * Calculate next occurrence of an RRULE after a given date
  */
 export function getNextOccurrence(rruleConfig: RRuleConfig, after: Date = new Date()): Date | null {
   const now = new Date(after);
   const candidate = new Date(now);
-
-  // Limit iterations to prevent infinite loops
-  let iterations = 0;
   const maxIterations = 10000;
 
-  while (iterations++ < maxIterations) {
-    // Increment candidate based on frequency
-    switch (rruleConfig.freq) {
-      case "DAILY":
-        candidate.setDate(candidate.getDate() + (rruleConfig.interval || 1));
-        break;
-      case "WEEKLY":
-        candidate.setDate(candidate.getDate() + 7 * (rruleConfig.interval || 1));
-        break;
-      case "MONTHLY":
-        candidate.setMonth(candidate.getMonth() + (rruleConfig.interval || 1));
-        break;
-      case "YEARLY":
-        candidate.setFullYear(candidate.getFullYear() + (rruleConfig.interval || 1));
-        break;
-    }
+  for (let iterations = 1; iterations <= maxIterations; iterations++) {
+    advanceCandidate(candidate, rruleConfig);
 
-    // Check UNTIL
     if (rruleConfig.until && candidate > rruleConfig.until) {
       return null;
     }
-
-    // Check COUNT
     if (rruleConfig.count && iterations > rruleConfig.count) {
       return null;
     }
 
-    // Check BYDAY for weekly
-    if (rruleConfig.byDay && rruleConfig.freq !== "WEEKLY") {
-      continue; // BYDAY only applies to WEEKLY in simple parser
+    if (!matchesByDay(candidate, rruleConfig)) {
+      continue;
     }
 
-    if (rruleConfig.byDay) {
-      const dayOfWeek = candidate.getDay();
-      const dayMatch = Object.entries(dayAbbr).find(
-        ([abbr, day]) => day === dayOfWeek && rruleConfig.byDay?.includes(abbr),
-      );
-      if (!dayMatch) {
-        continue;
-      }
+    if (rruleConfig.byMonthDay && !rruleConfig.byMonthDay.includes(candidate.getDate())) {
+      continue;
     }
 
-    // Check BYMONTHDAY
-    if (rruleConfig.byMonthDay) {
-      if (!rruleConfig.byMonthDay.includes(candidate.getDate())) {
-        continue;
-      }
-    }
+    applyTimeConstraints(candidate, rruleConfig);
 
-    // Set time constraints
-    if (rruleConfig.byHour && rruleConfig.byHour[0] !== undefined) {
-      candidate.setHours(rruleConfig.byHour[0], 0, 0, 0);
-    }
-
-    if (rruleConfig.byMinute) {
-      const minutes = rruleConfig.byMinute[0] ?? 0;
-      candidate.setMinutes(minutes, 0, 0);
-    }
-
-    // Must be in the future
     if (candidate > now) {
       return candidate;
     }

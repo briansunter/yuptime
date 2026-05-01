@@ -71,13 +71,62 @@ export function queryXPath(xml: string, path: string, options: XmlParserOptions 
   }
 }
 
+function extractTextValue(current: unknown, results: unknown[]): void {
+  if (typeof current === "string" || typeof current === "number") {
+    results.push(String(current));
+    return;
+  }
+  if (typeof current === "object" && current !== null) {
+    const textValue = (current as Record<string, unknown>)["#text"];
+    if (textValue !== undefined) {
+      results.push(String(textValue));
+    }
+  }
+}
+
+function extractAttributeFrom(item: unknown, attrName: string, results: unknown[]): void {
+  if (typeof item === "object" && item !== null) {
+    const attrValue = (item as Record<string, unknown>)[`@_${attrName}`];
+    if (attrValue !== undefined) {
+      results.push(String(attrValue));
+    }
+  }
+}
+
+function extractAttribute(current: unknown, attrName: string, results: unknown[]): void {
+  if (Array.isArray(current)) {
+    for (const item of current) {
+      extractAttributeFrom(item, attrName, results);
+    }
+    return;
+  }
+  extractAttributeFrom(current, attrName, results);
+}
+
+function applyPredicate(current: unknown, part: string): unknown | "no-match" {
+  const predicateMatch = part.match(/^(\w+)\[@(\w+)=['"]([^'"]+)['"]\]$/);
+  if (!predicateMatch) return "no-match";
+
+  const [, elementName, attrName, attrValue] = predicateMatch;
+  if (!elementName || !attrName || !attrValue) {
+    return undefined;
+  }
+
+  const elements = getElements(current, elementName);
+  return elements.find((el) => {
+    if (typeof el === "object" && el !== null) {
+      return (el as Record<string, unknown>)[`@_${attrName}`] === attrValue;
+    }
+    return false;
+  });
+}
+
 /**
  * Simplified XPath execution
  */
 function executeSimplifiedXPath(obj: unknown, path: string): unknown[] {
   const results: unknown[] = [];
 
-  // Handle //element (recursive descent)
   if (path.startsWith("//")) {
     const firstPart = path.slice(2).split("/")[0] ?? "";
     const elementName = firstPart.split("[")[0]?.split("@")[0] ?? "";
@@ -85,79 +134,33 @@ function executeSimplifiedXPath(obj: unknown, path: string): unknown[] {
     return results;
   }
 
-  // Handle /path/to/element
   const parts = path.split("/").filter((p) => p !== "");
   let current: unknown = obj;
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    if (part === undefined) {
-      continue;
-    }
+  for (const part of parts) {
+    if (part === undefined) continue;
+    if (current === null || current === undefined) return [];
 
-    if (current === null || current === undefined) {
-      return [];
-    }
-
-    // Handle text() function
     if (part === "text()") {
-      // fast-xml-parser stores text directly when element has no children
-      if (typeof current === "string" || typeof current === "number") {
-        results.push(String(current));
-      } else if (typeof current === "object" && current !== null) {
-        const textValue = (current as Record<string, unknown>)["#text"];
-        if (textValue !== undefined) {
-          results.push(String(textValue));
-        }
-      }
+      extractTextValue(current, results);
       return results;
     }
 
-    // Handle @attribute
     if (part.startsWith("@")) {
-      const attrName = part.slice(1);
-      // Handle array of elements (get attribute from each)
-      if (Array.isArray(current)) {
-        for (const item of current) {
-          if (typeof item === "object" && item !== null) {
-            const attrValue = (item as Record<string, unknown>)[`@_${attrName}`];
-            if (attrValue !== undefined) {
-              results.push(String(attrValue));
-            }
-          }
-        }
-      } else if (typeof current === "object" && current !== null) {
-        const attrValue = (current as Record<string, unknown>)[`@_${attrName}`];
-        if (attrValue !== undefined) {
-          results.push(String(attrValue));
-        }
-      }
+      extractAttribute(current, part.slice(1), results);
       return results;
     }
 
-    // Handle element[@attr='value'] predicate
-    const predicateMatch = part.match(/^(\w+)\[@(\w+)=['"]([^'"]+)['"]\]$/);
-    if (predicateMatch) {
-      const [, elementName, attrName, attrValue] = predicateMatch;
-      if (!elementName || !attrName || !attrValue) {
-        return [];
-      }
-      const elements = getElements(current, elementName);
-      current = elements.find((el) => {
-        if (typeof el === "object" && el !== null) {
-          return (el as Record<string, unknown>)[`@_${attrName}`] === attrValue;
-        }
-        return false;
-      });
+    const predicateResult = applyPredicate(current, part);
+    if (predicateResult !== "no-match") {
+      current = predicateResult;
       continue;
     }
 
-    // Handle simple element name
     current = getElement(current, part);
   }
 
   if (current !== undefined) {
-    // Extract text content if it's an object with #text
     if (typeof current === "object" && current !== null && "#text" in (current as object)) {
       results.push(String((current as Record<string, unknown>)["#text"]));
     } else {

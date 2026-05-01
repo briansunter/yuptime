@@ -47,7 +47,7 @@ const validateMonitorSet = typedComposeValidators(
 /**
  * MonitorSet reconciliation
  */
-const reconcileMonitorSet = async (resource: MonitorSet, _ctx: ReconcileContext) => {
+const reconcileMonitorSet = (resource: MonitorSet, _ctx: ReconcileContext): Promise<void> => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const itemCount = resource.spec.items?.length;
@@ -57,6 +57,7 @@ const reconcileMonitorSet = async (resource: MonitorSet, _ctx: ReconcileContext)
   // TODO: Register each monitor item with scheduler (inline mode)
 
   logger.debug({ namespace, name, itemCount }, "MonitorSet reconciliation complete");
+  return Promise.resolve();
 };
 
 export const createMonitorSetReconciler = () =>

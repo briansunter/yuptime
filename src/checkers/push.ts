@@ -10,9 +10,12 @@ import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
 import type { CheckResult } from "./index";
 
-export async function checkPush(monitor: Monitor, _timeout: number): Promise<CheckResult> {
-  const spec = monitor.spec;
-  const target = spec.target.push;
+export function checkPush(monitor: Monitor, _timeout: number): Promise<CheckResult> {
+  return Promise.resolve(checkPushSync(monitor));
+}
+
+function checkPushSync(monitor: Monitor): CheckResult {
+  const target = monitor.spec.target.push;
 
   if (!target) {
     return {
@@ -24,11 +27,9 @@ export async function checkPush(monitor: Monitor, _timeout: number): Promise<Che
   }
 
   try {
-    // Check Monitor CRD status for last result
     const lastResult = monitor.status?.lastResult;
 
     if (!lastResult) {
-      // No push ever received - report as down until first push
       return {
         state: "down",
         latencyMs: 0,
@@ -37,16 +38,13 @@ export async function checkPush(monitor: Monitor, _timeout: number): Promise<Che
       };
     }
 
-    // Parse the last check time
     const lastPush = new Date(lastResult.checkedAt || Date.now());
     const now = new Date();
-    const timeSinceLastPush = (now.getTime() - lastPush.getTime()) / 1000; // seconds
+    const timeSinceLastPush = (now.getTime() - lastPush.getTime()) / 1000;
 
-    // Check if push is within the grace period (default 5 minutes)
     const gracePeriodSeconds = target.gracePeriodSeconds || 300;
 
     if (timeSinceLastPush <= gracePeriodSeconds) {
-      // Recent push received
       return {
         state: lastResult.state as "up" | "down",
         latencyMs: 0,
@@ -54,7 +52,7 @@ export async function checkPush(monitor: Monitor, _timeout: number): Promise<Che
         message: `Push received ${timeSinceLastPush}s ago: ${lastResult.message}`,
       };
     }
-    // No recent push
+
     const minutesSincePush = Math.floor(timeSinceLastPush / 60);
     return {
       state: "down",
@@ -79,7 +77,7 @@ export async function checkPush(monitor: Monitor, _timeout: number): Promise<Che
  * Called by the push endpoint before recording a push
  * Database-free version - would need to read Monitor CRD directly
  */
-export async function validatePushToken(
+export function validatePushToken(
   token: string,
   _monitorNamespace: string,
   _monitorName: string,
@@ -90,14 +88,14 @@ export async function validatePushToken(
     // In production, would validate token against push.token field
     // and check expiry if pushTokenExpiry is set
 
-    return { valid: true };
+    return Promise.resolve({ valid: true });
   } catch (error) {
     logger.error({ token: `${token.substring(0, 10)}...`, error }, "Push token validation failed");
 
-    return {
+    return Promise.resolve({
       valid: false,
       reason: error instanceof Error ? error.message : "Validation error",
-    };
+    });
   }
 }
 
@@ -107,7 +105,7 @@ export async function validatePushToken(
  * Database-free version - would update Monitor CRD status directly
  * Note: This is now handled by the checker executor which updates Monitor CRD status
  */
-export async function recordPush(
+export function recordPush(
   _monitorNamespace: string,
   _monitorName: string,
   _state: "up" | "down" | "pending",
@@ -124,5 +122,5 @@ export async function recordPush(
 
   logger.debug("Push event recording delegated to checker executor");
 
-  return { recorded: true };
+  return Promise.resolve({ recorded: true });
 }

@@ -40,7 +40,7 @@ const silenceCache = new Map<
   }
 >();
 
-const reconcileSilence = async (resource: Silence, _ctx: ReconcileContext) => {
+const reconcileSilence = (resource: Silence, _ctx: ReconcileContext): Promise<void> => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -83,75 +83,54 @@ const reconcileSilence = async (resource: Silence, _ctx: ReconcileContext) => {
     }
 
     logger.debug({ namespace, name }, "Silence reconciliation complete");
+    return Promise.resolve();
   } catch (error) {
     logger.error({ namespace, name, error }, "Silence reconciliation failed");
-    throw error;
+    return Promise.reject(error);
   }
 };
+
+type SilenceMatch = {
+  names?: Array<{ namespace: string; name: string }>;
+  namespaces?: string[];
+  labels?: Record<string, string>;
+  tags?: string[];
+};
+
+type SilenceEntry = {
+  namespace: string;
+  name: string;
+  expiresAt: Date;
+  match: SilenceMatch;
+  reason?: string;
+};
+
+function silenceMatchesLabels(match: SilenceMatch, labels: Record<string, string>): boolean {
+  if (match?.names && match.names.length > 0) return false;
+  if (match?.namespaces && match.namespaces.length > 0) return false;
+
+  if (match?.labels) {
+    for (const [key, expectedValue] of Object.entries(match.labels)) {
+      if (labels[key] !== expectedValue) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 
 /**
  * Get all active silences that match given labels
  */
-export const getActiveSilences = (
-  labels: Record<string, string> = {},
-): Array<{
-  namespace: string;
-  name: string;
-  expiresAt: Date;
-  match: {
-    names?: Array<{ namespace: string; name: string }>;
-    namespaces?: string[];
-    labels?: Record<string, string>;
-    tags?: string[];
-  };
-  reason?: string;
-}> => {
+export const getActiveSilences = (labels: Record<string, string> = {}): SilenceEntry[] => {
   const now = new Date();
-  const matchingSilences: Array<{
-    namespace: string;
-    name: string;
-    expiresAt: Date;
-    match: {
-      names?: Array<{ namespace: string; name: string }>;
-      namespaces?: string[];
-      labels?: Record<string, string>;
-      tags?: string[];
-    };
-    reason?: string;
-  }> = [];
+  const matchingSilences: SilenceEntry[] = [];
 
   for (const silence of silenceCache.values()) {
-    // Check if silence is currently active (before expiry time)
-    if (now <= silence.expiresAt) {
-      // Check if match matches the labels
-      const match = silence.match;
-      let matches = true;
-
-      if (match?.names && match.names.length > 0) {
-        // Check name-based matching
-        // This would require namespace/name context
-        // For now, continue if names are specified
-        continue;
-      }
-
-      if (match?.namespaces && match.namespaces.length > 0) {
-        // Would need namespace context
-        continue;
-      }
-
-      if (match?.labels) {
-        // Check label matching
-        for (const [key, expectedValue] of Object.entries(match.labels)) {
-          if (labels[key] !== expectedValue) {
-            matches = false;
-            break;
-          }
-        }
-      }
-
-      if (matches) {
-        matchingSilences.push(silence);
-      }
+    if (now > silence.expiresAt) continue;
+    if (silenceMatchesLabels(silence.match, labels)) {
+      matchingSilences.push(silence);
     }
   }
 
@@ -212,7 +191,7 @@ type GlobalSettings = {
 
 let globalSettings: GlobalSettings | null = null;
 
-const reconcileSettings = async (resource: YuptimeSettings, _ctx: ReconcileContext) => {
+const reconcileSettings = (resource: YuptimeSettings, _ctx: ReconcileContext): Promise<void> => {
   const name = resource.metadata.name;
 
   logger.info({ name }, "Reconciling YuptimeSettings");
@@ -227,6 +206,7 @@ const reconcileSettings = async (resource: YuptimeSettings, _ctx: ReconcileConte
     },
     "YuptimeSettings updated",
   );
+  return Promise.resolve();
 };
 
 /**

@@ -199,7 +199,7 @@ async function checkMySqlWithFactory(
 /**
  * MySQL health checker
  */
-export async function checkMySql(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export function checkMySql(monitor: Monitor, timeout: number): Promise<CheckResult> {
   return checkMySqlWithFactory(monitor, timeout, createDefaultMySqlClient);
 }
 

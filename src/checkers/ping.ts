@@ -187,7 +187,7 @@ async function checkPingWithExecutor(
 /**
  * Ping checker - ICMP echo requests
  */
-export async function checkPing(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export function checkPing(monitor: Monitor, timeout: number): Promise<CheckResult> {
   return checkPingWithExecutor(monitor, timeout, defaultExecutor);
 }
 

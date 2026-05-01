@@ -214,7 +214,7 @@ async function checkTcpWithSocketFactory(
 /**
  * TCP connection checker
  */
-export async function checkTcp(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export function checkTcp(monitor: Monitor, timeout: number): Promise<CheckResult> {
   return checkTcpWithSocketFactory(monitor, timeout, createDefaultSocket);
 }
 

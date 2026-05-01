@@ -92,7 +92,10 @@ type MaintenanceWindowData = {
 
 const maintenanceWindowCache = new Map<string, MaintenanceWindowData>();
 
-const reconcileMaintenanceWindow = async (resource: MaintenanceWindow, _ctx: ReconcileContext) => {
+const reconcileMaintenanceWindow = (
+  resource: MaintenanceWindow,
+  _ctx: ReconcileContext,
+): Promise<void> => {
   const namespace = resource.metadata.namespace || "";
   const name = resource.metadata.name;
   const spec = resource.spec;
@@ -157,11 +160,43 @@ const reconcileMaintenanceWindow = async (resource: MaintenanceWindow, _ctx: Rec
     );
 
     logger.debug({ namespace, name }, "MaintenanceWindow reconciliation complete");
+    return Promise.resolve();
   } catch (error) {
     logger.error({ namespace, name, error }, "MaintenanceWindow reconciliation failed");
-    throw error;
+    return Promise.reject(error);
   }
 };
+
+type WindowMatch = MaintenanceWindowData["match"];
+
+function windowIsActive(
+  window: MaintenanceWindowData,
+  now: Date,
+): { active: false } | { active: true; endsAt: Date } {
+  if (window.enabled === false) return { active: false };
+  const windowStart = window.nextOccurrenceAt;
+  const windowEnd = new Date(windowStart);
+  windowEnd.setMinutes(windowEnd.getMinutes() + window.durationMinutes);
+  if (windowStart <= now && now < windowEnd) {
+    return { active: true, endsAt: windowEnd };
+  }
+  return { active: false };
+}
+
+function windowMatchesLabels(match: WindowMatch, labels: Record<string, string>): boolean {
+  if (match?.matchNames && match.matchNames.length > 0) return false;
+  if (match?.matchNamespaces && match.matchNamespaces.length > 0) return false;
+
+  if (match?.matchLabels?.matchLabels) {
+    for (const [key, expectedValue] of Object.entries(match.matchLabels.matchLabels)) {
+      if (labels[key] !== expectedValue) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
 
 /**
  * Check if a monitor is currently in a maintenance window
@@ -170,45 +205,10 @@ export const isInMaintenanceWindow = (labels: Record<string, string> = {}): bool
   const now = new Date();
 
   for (const window of maintenanceWindowCache.values()) {
-    // Check if enabled
-    if (window.enabled === false) {
-      continue;
-    }
-
-    // Check if current time is within window
-    const windowStart = window.nextOccurrenceAt;
-    const windowEnd = new Date(windowStart);
-    windowEnd.setMinutes(windowEnd.getMinutes() + window.durationMinutes);
-
-    // Simple check: is now within [windowStart, windowEnd]?
-    // For more accuracy, would need to recalculate each check
-    if (windowStart <= now && now < windowEnd) {
-      // Check if match matches the labels
-      const match = window.match;
-      let matches = true;
-
-      if (match?.matchNames && match.matchNames.length > 0) {
-        // Would need name context to check
-        continue;
-      }
-
-      if (match?.matchNamespaces && match.matchNamespaces.length > 0) {
-        // Would need namespace context to check
-        continue;
-      }
-
-      if (match?.matchLabels?.matchLabels) {
-        for (const [key, expectedValue] of Object.entries(match.matchLabels.matchLabels)) {
-          if (labels[key] !== expectedValue) {
-            matches = false;
-            break;
-          }
-        }
-      }
-
-      if (matches) {
-        return true;
-      }
+    const status = windowIsActive(window, now);
+    if (!status.active) continue;
+    if (windowMatchesLabels(window.match, labels)) {
+      return true;
     }
   }
 
@@ -257,48 +257,17 @@ export const getActiveMaintenanceWindows = (
   const now = new Date();
 
   for (const window of maintenanceWindowCache.values()) {
-    // Check if enabled
-    if (window.enabled === false) {
-      continue;
-    }
+    const status = windowIsActive(window, now);
+    if (!status.active) continue;
+    if (!windowMatchesLabels(window.match, labels)) continue;
 
-    // Check if current time is within window
-    const windowStart = window.nextOccurrenceAt;
-    const windowEnd = new Date(windowStart);
-    windowEnd.setMinutes(windowEnd.getMinutes() + window.durationMinutes);
-
-    if (windowStart <= now && now < windowEnd) {
-      // Check if match matches the labels
-      const match = window.match;
-      let matches = true;
-
-      if (match?.matchNames && match.matchNames.length > 0) {
-        continue;
-      }
-
-      if (match?.matchNamespaces && match.matchNamespaces.length > 0) {
-        continue;
-      }
-
-      if (match?.matchLabels?.matchLabels) {
-        for (const [key, expectedValue] of Object.entries(match.matchLabels.matchLabels)) {
-          if (labels[key] !== expectedValue) {
-            matches = false;
-            break;
-          }
-        }
-      }
-
-      if (matches) {
-        activeWindows.push({
-          name: window.name,
-          schedule: window.schedule,
-          behavior: window.behavior,
-          endsAt: windowEnd,
-          durationMinutes: window.durationMinutes,
-        });
-      }
-    }
+    activeWindows.push({
+      name: window.name,
+      schedule: window.schedule,
+      behavior: window.behavior,
+      endsAt: status.endsAt,
+      durationMinutes: window.durationMinutes,
+    });
   }
 
   return activeWindows;

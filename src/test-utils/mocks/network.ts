@@ -22,22 +22,22 @@ export function mockFetch(response: MockFetchResponse | MockFetchResponse[]): vo
   let callCount = 0;
 
   beforeEach(() => {
-    const mockFetchFn = async () => {
+    const mockFetchFn = () => {
       const mockResponse = responses[Math.min(callCount, responses.length - 1)];
       callCount++;
 
       if (!mockResponse) {
-        throw new Error("No mock response configured");
+        return Promise.reject(new Error("No mock response configured"));
       }
 
-      return {
+      return Promise.resolve({
         ok: mockResponse.status >= 200 && mockResponse.status < 300,
         status: mockResponse.status,
         statusText: mockResponse.statusText,
         headers: new Headers(mockResponse.headers),
-        text: async () => mockResponse.body,
-        json: async () => JSON.parse(mockResponse.body),
-      } as Response;
+        text: () => Promise.resolve(mockResponse.body),
+        json: () => Promise.resolve(JSON.parse(mockResponse.body)),
+      } as Response);
     };
 
     global.fetch = mockFetchFn as unknown as typeof fetch;
@@ -175,12 +175,7 @@ export type PingExecutor = (
 export function createMockPingExecutor(
   result: PingExecResult | { error: PingExecError },
 ): PingExecutor {
-  return async () => {
-    if ("error" in result) {
-      throw result.error;
-    }
-    return result;
-  };
+  return () => ("error" in result ? Promise.reject(result.error) : Promise.resolve(result));
 }
 
 /**

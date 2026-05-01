@@ -209,10 +209,10 @@ export function createJobManager(config: JobManagerConfig): JobManager {
   /**
    * Start the job manager
    */
-  async function start(): Promise<void> {
+  function start(): Promise<void> {
     if (running) {
       logger.warn("Job Manager is already running");
-      return;
+      return Promise.resolve();
     }
 
     running = true;
@@ -220,20 +220,22 @@ export function createJobManager(config: JobManagerConfig): JobManager {
 
     // TODO: Start background cleanup task
     // setInterval(() => cleanupOldJobs(config.jobTTL), 3600000); // Every hour
+    return Promise.resolve();
   }
 
   /**
    * Stop the job manager
    */
-  async function stop(): Promise<void> {
+  function stop(): Promise<void> {
     if (!running) {
-      return;
+      return Promise.resolve();
     }
 
     running = false;
     logger.info("Job Manager stopped");
 
     // TODO: Stop background cleanup task
+    return Promise.resolve();
   }
 
   return {

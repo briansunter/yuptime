@@ -1,78 +1,94 @@
 import type { Selector } from "../types/crd";
 
-/**
- * Check if a monitor matches a selector
- */
-export function matchesSelector(
-  selector: Selector | undefined,
-  monitor: {
-    namespace: string;
-    name: string;
-    labels?: Record<string, string>;
-    tags?: string[];
-  },
+type MonitorRef = {
+  namespace: string;
+  name: string;
+  labels?: Record<string, string>;
+  tags?: string[];
+};
+
+function matchesNamespace(selector: Selector, monitor: MonitorRef): boolean {
+  if (!selector.matchNamespaces || selector.matchNamespaces.length === 0) {
+    return true;
+  }
+  return selector.matchNamespaces.includes(monitor.namespace);
+}
+
+function matchesLabelExpression(
+  expr: { key: string; operator: string; values?: string[] },
+  labels: Record<string, string>,
 ): boolean {
-  if (!selector) return true;
+  const labelValue = labels[expr.key];
 
-  // Check namespace match
-  if (selector.matchNamespaces && selector.matchNamespaces.length > 0) {
-    if (!selector.matchNamespaces.includes(monitor.namespace)) {
-      return false;
-    }
+  switch (expr.operator) {
+    case "In":
+      return Boolean(expr.values && labelValue && expr.values.includes(labelValue));
+    case "NotIn":
+      return !(expr.values && labelValue && expr.values.includes(labelValue));
+    case "Exists":
+      return labelValue !== undefined;
+    case "DoesNotExist":
+      return labelValue === undefined;
+    default:
+      return true;
+  }
+}
+
+function matchesLabels(selector: Selector, monitor: MonitorRef): boolean {
+  if (!selector.matchLabels) {
+    return true;
   }
 
-  // Check label match
-  if (selector.matchLabels) {
-    const labels = monitor.labels || {};
-    const selectors = selector.matchLabels;
+  const labels = monitor.labels || {};
+  const selectors = selector.matchLabels;
 
-    if (selectors.matchLabels) {
-      for (const [key, value] of Object.entries(selectors.matchLabels)) {
-        if (labels[key] !== value) {
-          return false;
-        }
-      }
-    }
-
-    // Handle label expressions
-    if (selectors.matchExpressions) {
-      for (const expr of selectors.matchExpressions) {
-        const labelValue = labels[expr.key];
-
-        switch (expr.operator) {
-          case "In":
-            if (!expr.values || !labelValue || !expr.values.includes(labelValue)) return false;
-            break;
-          case "NotIn":
-            if (expr.values && labelValue && expr.values.includes(labelValue)) return false;
-            break;
-          case "Exists":
-            if (labelValue === undefined) return false;
-            break;
-          case "DoesNotExist":
-            if (labelValue !== undefined) return false;
-            break;
-        }
+  if (selectors.matchLabels) {
+    for (const [key, value] of Object.entries(selectors.matchLabels)) {
+      if (labels[key] !== value) {
+        return false;
       }
     }
   }
 
-  // Check tag match
-  if (selector.matchTags && selector.matchTags.length > 0) {
-    const monitorTags = monitor.tags || [];
-    const hasMatch = selector.matchTags.some((tag) => monitorTags.includes(tag));
-    if (!hasMatch) return false;
-  }
-
-  // Check exact name match
-  if (selector.matchNames && selector.matchNames.length > 0) {
-    const hasMatch = selector.matchNames.some(
-      (ref) => ref.namespace === monitor.namespace && ref.name === monitor.name,
-    );
-    if (!hasMatch) return false;
+  if (selectors.matchExpressions) {
+    for (const expr of selectors.matchExpressions) {
+      if (!matchesLabelExpression(expr, labels)) {
+        return false;
+      }
+    }
   }
 
   return true;
+}
+
+function matchesTags(selector: Selector, monitor: MonitorRef): boolean {
+  if (!selector.matchTags || selector.matchTags.length === 0) {
+    return true;
+  }
+  const monitorTags = monitor.tags || [];
+  return selector.matchTags.some((tag) => monitorTags.includes(tag));
+}
+
+function matchesNames(selector: Selector, monitor: MonitorRef): boolean {
+  if (!selector.matchNames || selector.matchNames.length === 0) {
+    return true;
+  }
+  return selector.matchNames.some(
+    (ref) => ref.namespace === monitor.namespace && ref.name === monitor.name,
+  );
+}
+
+/**
+ * Check if a monitor matches a selector
+ */
+export function matchesSelector(selector: Selector | undefined, monitor: MonitorRef): boolean {
+  if (!selector) return true;
+  return (
+    matchesNamespace(selector, monitor) &&
+    matchesLabels(selector, monitor) &&
+    matchesTags(selector, monitor) &&
+    matchesNames(selector, monitor)
+  );
 }
 
 /**

@@ -63,48 +63,48 @@ export function createMockSecretsApi(): MockSecretsApi {
   });
 
   return {
-    readNamespacedSecret: async (namespace: string, name: string) => {
+    readNamespacedSecret: (namespace: string, name: string) => {
       const key = `${namespace}/${name}`;
       const secret = secrets.get(key);
 
       if (!secret) {
-        throw new Error(`Secret ${key} not found`);
+        return Promise.reject(new Error(`Secret ${key} not found`));
       }
 
-      return { body: secret };
+      return Promise.resolve({ body: secret });
     },
 
-    createNamespacedSecret: async (namespace: string, secret: MockSecret) => {
+    createNamespacedSecret: (namespace: string, secret: MockSecret) => {
       const key = `${namespace}/${secret.metadata.name}`;
       secrets.set(key, secret);
-      return { body: secret };
+      return Promise.resolve({ body: secret });
     },
 
-    patchNamespacedSecret: async (namespace: string, name: string, patch: Partial<MockSecret>) => {
+    patchNamespacedSecret: (namespace: string, name: string, patch: Partial<MockSecret>) => {
       const key = `${namespace}/${name}`;
       const existing = secrets.get(key);
 
       if (!existing) {
-        throw new Error(`Secret ${key} not found`);
+        return Promise.reject(new Error(`Secret ${key} not found`));
       }
 
       const updated = { ...existing, ...patch };
       secrets.set(key, updated);
-      return { body: updated };
+      return Promise.resolve({ body: updated });
     },
 
-    deleteNamespacedSecret: async (namespace: string, name: string) => {
+    deleteNamespacedSecret: (namespace: string, name: string) => {
       const key = `${namespace}/${name}`;
       secrets.delete(key);
-      return { body: {} };
+      return Promise.resolve({ body: {} });
     },
 
-    listNamespacedSecret: async (namespace: string) => {
+    listNamespacedSecret: (namespace: string) => {
       const items = Array.from(secrets.entries())
         .filter(([key]) => key.startsWith(`${namespace}/`))
         .map(([, secret]) => secret);
 
-      return { body: { items } };
+      return Promise.resolve({ body: { items } });
     },
   };
 }
