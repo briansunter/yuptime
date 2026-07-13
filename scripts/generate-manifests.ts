@@ -6,10 +6,10 @@
  * and outputs individual YAML files for each resource.
  */
 
-import { execSync } from "child_process";
-import { writeFileSync, mkdirSync, readFileSync, readdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,12 +32,13 @@ function renderManifests(config: ManifestConfig): string {
     `Generating manifests for ${config.name}/${config.namespace}...`
   );
 
-  const output = execSync(
-    `timoni build yuptime ${CUE_MODULE_PATH} -n ${config.namespace} --output yaml`,
+  const output = execFileSync(
+    "timoni",
+    ["build", "yuptime", CUE_MODULE_PATH, "-n", config.namespace, "--output", "yaml"],
     {
       encoding: "utf-8",
       cwd: join(__dirname, ".."),
-    }
+    },
   );
 
   return output;
@@ -62,26 +63,20 @@ function splitAndWriteManifests(yaml: string): void {
     resourceTypes.push(kind);
 
     // Convert CamelCase to kebab-case
-    const filename =
-      kind
-        .replace(/([a-z])([A-Z])/g, "$1-$2")
-        .toLowerCase() + ".yaml";
+    const filename = `${kind.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase()}.yaml`;
 
-    files[filename] = (files[filename] || "") + `---\n${doc}`;
+    files[filename] = `${files[filename] || ""}---\n${doc}`;
   }
 
   // Write individual files
   for (const [filename, content] of Object.entries(files)) {
     const filepath = join(MANIFESTS_OUTPUT_PATH, filename);
-    writeFileSync(filepath, content.trimStart() + "\n");
+    writeFileSync(filepath, `${content.trimStart()}\n`);
     console.log(`  ✅ ${filename}`);
   }
 
   // Write combined manifest
-  writeFileSync(
-    join(MANIFESTS_OUTPUT_PATH, "all.yaml"),
-    yaml.trim() + "\n"
-  );
+  writeFileSync(join(MANIFESTS_OUTPUT_PATH, "all.yaml"), `${yaml.trim()}\n`);
   console.log(`  ✅ all.yaml (combined)`);
 
   // Write README
@@ -132,7 +127,7 @@ function main() {
 
   // Check if timoni is available
   try {
-    execSync("which timoni");
+    execFileSync("timoni", ["version"], { stdio: "ignore" });
   } catch {
     console.error(
       "❌ Timoni not found. Install with: brew install timoni"

@@ -41,12 +41,28 @@ export async function fetchOAuth2Token(config: OAuth2Config, timeout: number): P
     );
   }
 
+  let tokenUrl: URL;
+  try {
+    tokenUrl = new URL(config.tokenUrl);
+  } catch {
+    throw new Error("OAuth2 token URL must be a valid URL");
+  }
+
+  if (tokenUrl.protocol !== "http:" && tokenUrl.protocol !== "https:") {
+    throw new Error("OAuth2 token URL must use http or https");
+  }
+
+  if (tokenUrl.username || tokenUrl.password) {
+    throw new Error("OAuth2 token URL must not contain credentials");
+  }
+
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeout * 1000);
 
   try {
-    const response = await fetch(config.tokenUrl, {
+    const response = await fetch(tokenUrl, {
       method: "POST",
+      redirect: "error",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
@@ -75,7 +91,7 @@ export async function fetchOAuth2Token(config: OAuth2Config, timeout: number): P
 
     logger.debug(
       {
-        tokenUrl: config.tokenUrl,
+        tokenUrl: tokenUrl.toString(),
         expiresIn: data.expires_in,
         tokenType: data.token_type,
       },

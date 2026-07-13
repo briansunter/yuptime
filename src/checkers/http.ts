@@ -223,7 +223,17 @@ async function prepareFetchTarget(
   timeout: number,
   headers: Headers,
 ): Promise<PreparedFetchTarget | { error: string }> {
-  const originalUrl = new URL(requestUrl);
+  let originalUrl: URL;
+  try {
+    originalUrl = new URL(requestUrl);
+  } catch {
+    return { error: "Invalid HTTP URL" };
+  }
+
+  if (originalUrl.protocol !== "http:" && originalUrl.protocol !== "https:") {
+    return { error: "HTTP monitor URL must use http or https" };
+  }
+
   const originalHostname = originalUrl.hostname;
   const dnsConfig = target.dns ?? getDnsConfigFromEnv();
   const resolvedIp = await resolveHostname(originalHostname, {
@@ -234,9 +244,12 @@ async function prepareFetchTarget(
 
   let fetchUrl = requestUrl;
   if (resolvedIp !== originalHostname) {
-    const resolvedUrl = new URL(requestUrl);
-    resolvedUrl.hostname = resolvedIp;
-    fetchUrl = resolvedUrl.toString();
+    try {
+      originalUrl.hostname = resolvedIp;
+      fetchUrl = originalUrl.toString();
+    } catch {
+      return { error: "Unable to construct resolved HTTP URL" };
+    }
 
     if (!headers.has("Host")) {
       headers.set(
@@ -329,7 +342,12 @@ async function fetchWithRedirects(
       return { error: `Exceeded maximum redirects (${maxRedirects})` };
     }
 
-    currentUrl = new URL(location, currentUrl).toString();
+    try {
+      currentUrl = new URL(location, currentUrl).toString();
+    } catch {
+      return { error: "Redirect location is not a valid URL" };
+    }
+
     method = nextRedirectMethod(response.status, method);
     if (method === "GET" || method === "HEAD") {
       body = undefined;
@@ -589,7 +607,12 @@ function validateJsonBody(
   body: string,
   criteria: JsonQueryCriteria,
 ): { reason: string; message: string } | null {
-  const data = JSON.parse(body);
+  let data: unknown;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    throw new Error("Invalid JSON response");
+  }
   const result = queryJsonPath(data, criteria.path);
   const validation = validateJsonPathResult(result, {
     equals: criteria.equals,

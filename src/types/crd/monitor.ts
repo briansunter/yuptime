@@ -12,19 +12,24 @@ export const DnsConfigSchema = z.object({
 export type DnsConfig = z.infer<typeof DnsConfigSchema>;
 
 // Monitor schedule configuration
-export const MonitorScheduleSchema = z.object({
-  intervalSeconds: z.number().min(1),
-  timeoutSeconds: z.number().min(1),
-  retries: z
-    .object({
-      maxRetries: z.number().min(0),
-      retryIntervalSeconds: z.number().min(1),
-    })
-    .optional(),
-  initialDelaySeconds: z.number().min(0).optional(),
-  graceDownSeconds: z.number().min(0).optional(),
-  jitterPercent: z.number().min(0).max(100).optional(),
-});
+export const MonitorScheduleSchema = z
+  .object({
+    intervalSeconds: z.number().min(20),
+    timeoutSeconds: z.number().min(1),
+    retries: z
+      .object({
+        maxRetries: z.number().min(0),
+        retryIntervalSeconds: z.number().min(1),
+      })
+      .optional(),
+    initialDelaySeconds: z.number().min(0).optional(),
+    graceDownSeconds: z.number().min(0).optional(),
+    jitterPercent: z.number().min(0).max(100).optional(),
+  })
+  .refine((data) => data.timeoutSeconds < data.intervalSeconds, {
+    message: "timeoutSeconds must be less than intervalSeconds",
+    path: ["timeoutSeconds"],
+  });
 
 export type MonitorSchedule = z.infer<typeof MonitorScheduleSchema>;
 

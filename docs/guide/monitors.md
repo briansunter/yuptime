@@ -30,6 +30,13 @@ spec:
   alertmanagerUrl: "http://alertmanager.monitoring:9093/api/v2/alerts"
 ```
 
+## Schedule Constraints
+
+- `intervalSeconds` must be at least `20`.
+- `timeoutSeconds` must be less than `intervalSeconds`.
+
+Existing monitors with shorter intervals must be updated before their next spec change.
+
 ## Monitor Types
 
 | Type | Target Key |

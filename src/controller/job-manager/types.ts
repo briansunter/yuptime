@@ -34,7 +34,6 @@ export type JobStatus = "pending" | "running" | "succeeded" | "failed";
  */
 export interface JobManagerConfig {
   kubeConfig: KubeConfig;
-  concurrency: number; // Max parallel Jobs (default: 10)
   jobTTL: number; // Cleanup after seconds (default: 3600)
   namespace: string; // Default namespace for Jobs
 }

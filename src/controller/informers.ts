@@ -1,8 +1,3 @@
-import {
-  cacheResource as cacheResourceInMemory,
-  removeCachedResource as removeCachedResourceInMemory,
-  updateCachedResource as updateCachedResourceInMemory,
-} from "../lib/crd-cache";
 import { logger } from "../lib/logger";
 import { createCRDWatcher } from "./k8s-client";
 
@@ -166,27 +161,6 @@ export const informerRegistry = createRegistry();
  */
 export const registry = registryFunctions;
 
-/**
- * Cache resource in memory
- */
-function cacheResource(resource: unknown) {
-  cacheResourceInMemory(resource);
-}
-
-/**
- * Update cached resource
- */
-function updateCachedResource(resource: unknown) {
-  updateCachedResourceInMemory(resource);
-}
-
-/**
- * Remove cached resource
- */
-function removeCachedResource(kind: string, namespace: string, name: string) {
-  removeCachedResourceInMemory(kind, namespace, name);
-}
-
 function clearRestartTimer(kind: string) {
   const timer = restartTimers.get(kind);
   if (timer) {
@@ -266,7 +240,6 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS, genera
   try {
     const resources = await watcher.list();
     for (const resource of resources) {
-      await cacheResource(resource);
       await registry.handleAdd(informerRegistry, kind, resource);
     }
     logger.info(
@@ -288,22 +261,14 @@ export async function startCRDWatcher(kind: keyof typeof CRD_DEFINITIONS, genera
 
       switch (phase) {
         case "ADDED":
-          cacheResource(resource);
           registry.handleAdd(informerRegistry, kind, resource);
           break;
         case "MODIFIED":
-          updateCachedResource(resource);
           registry.handleModify(informerRegistry, kind, resource);
           break;
-        case "DELETED": {
-          const metadata = (resource as { metadata?: { namespace?: string; name?: string } })
-            .metadata;
-          if (metadata?.namespace && metadata?.name) {
-            removeCachedResource(kind, metadata.namespace, metadata.name);
-          }
+        case "DELETED":
           registry.handleDelete(informerRegistry, kind, resource);
           break;
-        }
       }
     },
     (error) => {

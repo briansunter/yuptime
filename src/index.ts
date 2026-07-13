@@ -26,7 +26,7 @@ async function main() {
     // Start metrics server for Prometheus scraping
     logger.info("Starting metrics server...");
     metricsServer = createMetricsServer({
-      port: config.port || 3000,
+      port: config.port,
       host: "0.0.0.0",
     });
     await metricsServer.start();

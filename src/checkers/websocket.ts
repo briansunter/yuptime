@@ -90,9 +90,7 @@ function connectWebSocket(
 
         // If expecting a specific response, check it
         if (expectedResponse) {
-          const matches =
-            responseData.includes(expectedResponse) ||
-            new RegExp(expectedResponse).test(responseData);
+          const matches = responseData.includes(expectedResponse);
 
           if (matches) {
             resolveWithTimeout({
@@ -164,12 +162,24 @@ export async function checkWebSocket(monitor: Monitor, timeout: number): Promise
 
   try {
     const url = target.url;
-    if (!url.startsWith("ws://") && !url.startsWith("wss://")) {
+    let protocol: string;
+    try {
+      protocol = new URL(url).protocol;
+    } catch {
       return {
         state: "down",
         latencyMs: 0,
         reason: "INVALID_CONFIG",
-        message: "WebSocket URL must start with ws:// or wss://",
+        message: "WebSocket URL must be a valid URL",
+      };
+    }
+
+    if (protocol !== "ws:" && protocol !== "wss:") {
+      return {
+        state: "down",
+        latencyMs: 0,
+        reason: "INVALID_CONFIG",
+        message: "WebSocket URL must use a WebSocket protocol",
       };
     }
 

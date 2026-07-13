@@ -68,11 +68,13 @@
 
           shellHook = ''
             echo "Timoni module development environment"
+            timoni version
             echo ""
             echo "Commands:"
             echo "  timoni mod vet .     - Validate module"
             echo "  timoni build test .  - Build and preview resources"
             echo "  timoni apply ...     - Apply to cluster"
+            echo "  bun run validate:generated - Validate generated artifacts"
             echo ""
           '';
         };

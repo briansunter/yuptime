@@ -13,9 +13,6 @@ export interface ValidationResult {
  * Reconciliation context - passed to reconcilers
  */
 export interface ReconcileContext {
-  crdWatcher?: unknown;
-  statusUpdater?: unknown;
-  secretResolver?: (ns: string, name: string, key: string) => Promise<string>;
   jobManager?: JobManager | null;
 }
 

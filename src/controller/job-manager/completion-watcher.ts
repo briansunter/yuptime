@@ -58,7 +58,9 @@ export async function rescheduleWithRetry(
 
 export interface JobCompletionWatcherConfig {
   kubeConfig: KubeConfig;
-  namespace: string;
+  // Checker Jobs are watched cluster-wide (filtered by label selector).
+  // No namespace scoping is needed.
+  namespace?: string;
   jobManager?: JobManager;
 }
 
@@ -175,7 +177,7 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
       // omitted: the checker executor does not record wall-clock duration
       // separately from latencyMs, and dual-publishing the same value under
       // two metrics would mislead dashboards.
-      recordCheckResult(name, namespace, monitor.spec.type, getMonitorUrl(monitor), {
+      recordCheckResult(name, namespace, monitor.spec.type, {
         state: checkResult.state,
         latencyMs: checkResult.latencyMs,
       });
@@ -443,31 +445,3 @@ export function createJobCompletionWatcher(config: JobCompletionWatcherConfig) {
 }
 
 export type JobCompletionWatcher = ReturnType<typeof createJobCompletionWatcher>;
-
-/**
- * Extract monitor URL for metrics labels
- */
-function getMonitorUrl(monitor: Monitor): string {
-  const target = monitor.spec?.target;
-
-  if (target?.http) {
-    return target.http.url;
-  }
-  if (target?.tcp) {
-    return `${target.tcp.host}:${target.tcp.port}`;
-  }
-  if (target?.dns) {
-    return target.dns.name;
-  }
-  if (target?.ping) {
-    return target.ping.host;
-  }
-  if (target?.websocket) {
-    return target.websocket.url;
-  }
-  if (target?.k8s) {
-    return `${target.k8s.resource.kind}/${target.k8s.resource.name}`;
-  }
-
-  return "unknown";
-}

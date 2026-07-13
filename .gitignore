@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-bun.lockb
 package-lock.json
 yarn.lock
 
@@ -8,6 +7,9 @@ yarn.lock
 dist/
 build/
 *.tsbuildinfo
+
+# Coverage
+coverage/
 
 # Environment
 .env
@@ -38,7 +40,3 @@ yarn-error.log*
 tmp/
 temp/
 .turbo/
-
-# Web build
-web/dist/
-web/node_modules/

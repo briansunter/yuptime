@@ -52,6 +52,7 @@ import (
 						{name: "NODE_EXTRA_CA_CERTS", value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"},
 						{name: "CHECKER_IMAGE", value: #config.checkerImage.reference},
 						{name: "CHECKER_IMAGE_PULL_POLICY", value: #config.checkerImage.pullPolicy},
+						{name: "CHECKER_SERVICE_ACCOUNT", value: #config.metadata.name + "-checker"},
 						{
 							name: "KUBE_NAMESPACE"
 							valueFrom: fieldRef: fieldPath: "metadata.namespace"

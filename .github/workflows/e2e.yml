@@ -8,6 +8,13 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e-minikube:
     name: E2E Tests (Minikube)
@@ -15,7 +22,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       # Start database services BEFORE Minikube to claim host ports
       # before the Minikube Docker driver allocates its network
@@ -52,33 +59,33 @@ jobs:
           docker compose -f docker-compose.e2e.yml ps
 
       - name: Setup Minikube
-        uses: medyagh/setup-minikube@latest
+        uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e
         with:
-          minikube-version: 'latest'
+          minikube-version: "v1.38.1"
           driver: docker
           container-runtime: docker
           cpus: 2
           memory: 4096
-          start-args: '--force'  # Required for running as root in CI containers
+          start-args: "--force" # Required for running as root in CI containers
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
         with:
-          bun-version: latest
+          bun-version: "1.3.3"
 
       - name: Install dependencies
         timeout-minutes: 2
         run: bun install
 
       - name: Setup Timoni
-        uses: stefanprodan/timoni/actions/setup@main
+        uses: stefanprodan/timoni/actions/setup@69e421aebbed979ded721df0da2a54428c5b4b9c
         with:
-          version: latest
+          version: v0.27.0
 
       - name: Start Mock Server
         timeout-minutes: 1
         env:
-          SKIP_MOCK_DATABASES: "true"  # Real databases provided by docker-compose
+          SKIP_MOCK_DATABASES: "true" # Real databases provided by docker-compose
         run: |
           echo "Starting mock server..."
           SKIP_MOCK_DATABASES=true bun run e2e/mock-server/index.ts &
@@ -102,7 +109,7 @@ jobs:
             # Fallback: get docker bridge gateway
             MOCK_HOST=$(docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
           fi
-          echo "mock_host=$MOCK_HOST" >> $GITHUB_OUTPUT
+          echo "mock_host=$MOCK_HOST" >> "$GITHUB_OUTPUT"
           echo "Mock server will be accessible at: $MOCK_HOST"
 
           # Verify connectivity from minikube to host
@@ -113,7 +120,7 @@ jobs:
         timeout-minutes: 5
         run: |
           # Build images in minikube's docker
-          eval $(minikube docker-env)
+          eval "$(minikube docker-env)"
 
           echo "Building yuptime-api image..."
           docker build -t yuptime-api:latest -f Dockerfile .

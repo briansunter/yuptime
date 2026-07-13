@@ -5,6 +5,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"
     labels:
@@ -16,6 +18,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "deps"
     labels:
@@ -40,42 +44,15 @@ updates:
           - "etcd3"
 
   # Bun/npm packages (frontend)
-  - package-ecosystem: "npm"
-    directory: "/web"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: "deps(web)"
-    labels:
-      - "dependencies"
-      - "frontend"
-    groups:
-      react:
-        patterns:
-          - "react"
-          - "react-dom"
-          - "@types/react*"
-      radix:
-        patterns:
-          - "@radix-ui/*"
-      tanstack:
-        patterns:
-          - "@tanstack/*"
-      tailwind:
-        patterns:
-          - "tailwindcss*"
-          - "postcss"
-          - "autoprefixer"
-      vite:
-        patterns:
-          - "vite"
-          - "@vitejs/*"
+  # Note: /web workspace removed — frontend is not yet implemented.
 
   # Docker base images
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "docker"
     labels:

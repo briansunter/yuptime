@@ -16,7 +16,6 @@ export {
   markInvalid,
   markValid,
   updateConditions,
-  updateStatus,
 } from "./status-utils";
 
 // Types

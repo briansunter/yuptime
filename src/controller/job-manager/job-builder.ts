@@ -27,6 +27,10 @@ function getCheckerImagePullPolicy(image: string): "Always" | "IfNotPresent" | "
   return image === "yuptime-checker:latest" ? "Never" : "Always";
 }
 
+function getCheckerServiceAccount(): string {
+  return process.env.CHECKER_SERVICE_ACCOUNT || "yuptime-checker";
+}
+
 /**
  * Extract secret-backed environment variables from monitor spec.
  * These are injected into the Job pod using Kubernetes valueFrom.secretKeyRef,
@@ -222,7 +226,7 @@ export function buildJobForMonitor(
         },
         spec: {
           restartPolicy: "Never",
-          serviceAccountName: "yuptime-checker",
+          serviceAccountName: getCheckerServiceAccount(),
           securityContext: {
             runAsNonRoot: true,
             runAsUser: 1000,
@@ -270,7 +274,8 @@ export function buildJobForMonitor(
                 readOnlyRootFilesystem: true,
                 capabilities: {
                   drop: ["ALL"],
-                  add: ["NET_RAW"], // Required for ping checker
+                  // NET_RAW is only needed for ICMP-based ping checks.
+                  ...(monitor.spec.type === "ping" ? { add: ["NET_RAW"] } : {}),
                 },
               },
             },

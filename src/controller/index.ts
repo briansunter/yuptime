@@ -1,4 +1,5 @@
 import type { KubeConfig } from "@kubernetes/client-node";
+import { config } from "../lib/config";
 import { logger } from "../lib/logger";
 import { informerRegistry, registry, startAllWatchers, stopAllWatchers } from "./informers";
 import type { JobManager } from "./job-manager";
@@ -38,17 +39,18 @@ export async function startController() {
     // Create and start Job Manager
     jobManager = createJobManager({
       kubeConfig,
-      concurrency: 10, // Configurable via Settings CRD later
       jobTTL: 3600, // 1 hour
-      namespace: "yuptime",
+      namespace: config.kubeNamespace,
     });
     await jobManager.start();
     logger.info("Job Manager started");
 
-    // Create and start Job Completion Watcher
+    // Create and start Job Completion Watcher.
+    // The watcher observes checker Jobs cluster-wide (it filters by label
+    // selector), so no namespace is passed here — the namespace field is only
+    // used for the Job Manager's default creation namespace above.
     jobCompletionWatcher = createJobCompletionWatcher({
       kubeConfig,
-      namespace: "yuptime",
       jobManager,
     });
     await jobCompletionWatcher.start();

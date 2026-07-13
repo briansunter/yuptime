@@ -1,4 +1,5 @@
 import { logger } from "../../lib/logger";
+import { resetMonitorMetrics } from "../../lib/prometheus";
 import type { Monitor } from "../../types/crd";
 import { MonitorSchema } from "../../types/crd";
 import { calculateJitter } from "../job-manager/jitter";
@@ -158,7 +159,22 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
   safetyNetJobManager = jobManager;
 
   // Schedule check with Job Manager if enabled
-  if (spec.enabled !== false) {
+  if (spec.enabled === false) {
+    // Cancel pending jobs for disabled monitors
+    try {
+      await jobManager.cancelJob(namespace, name);
+
+      // Remove from tracking
+      const monitorId = `${namespace}/${name}`;
+      clearPendingSchedule(monitorId);
+      removeMonitor(monitorId);
+      activeMonitors.delete(monitorId);
+
+      logger.info({ namespace, name }, "Monitor jobs cancelled (disabled)");
+    } catch (error) {
+      logger.error({ namespace, name, error }, "Failed to cancel monitor jobs");
+    }
+  } else {
     const monitorId = `${namespace}/${name}`;
 
     // Always store/update monitor reference for safety-net
@@ -183,21 +199,6 @@ const reconcileMonitor = async (resource: Monitor, ctx: ReconcileContext) => {
       scheduleMonitorCheck(jobManager, monitorId, jitterMs);
 
       logger.debug({ namespace, name, jitterMs }, "Monitor scheduled with jitter");
-    }
-  } else {
-    // Cancel pending jobs for disabled monitors
-    try {
-      await jobManager.cancelJob(namespace, name);
-
-      // Remove from tracking
-      const monitorId = `${namespace}/${name}`;
-      clearPendingSchedule(monitorId);
-      removeMonitor(monitorId);
-      activeMonitors.delete(monitorId);
-
-      logger.info({ namespace, name }, "Monitor jobs cancelled (disabled)");
-    } catch (error) {
-      logger.error({ namespace, name, error }, "Failed to cancel monitor jobs");
     }
   }
 
@@ -301,6 +302,9 @@ export const handleMonitorDeletion = (namespace: string, name: string): Promise<
   clearPendingSchedule(monitorId);
   removeMonitor(monitorId);
   activeMonitors.delete(monitorId);
+
+  // Drop Prometheus gauge/histogram series so deleted monitors don't leak.
+  resetMonitorMetrics(name, namespace);
 
   logger.debug({ namespace, name }, "Monitor deleted, removed from tracker");
   return Promise.resolve();

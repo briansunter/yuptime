@@ -7,7 +7,7 @@
  * - Long-term retention and analysis
  */
 
-import { Counter, collectDefaultMetrics, Gauge, Registry } from "prom-client";
+import { Counter, collectDefaultMetrics, Gauge, Histogram, Registry } from "prom-client";
 
 // Create registry for yuptime metrics
 const registry = new Registry();
@@ -22,7 +22,7 @@ collectDefaultMetrics({ register: registry });
 export const monitorState = new Gauge({
   name: "yuptime_monitor_state",
   help: "Current state of monitor (0=down, 1=up)",
-  labelNames: ["monitor", "namespace", "type", "url"] as const,
+  labelNames: ["monitor", "namespace", "type"] as const,
   registers: [registry],
 });
 
@@ -74,12 +74,31 @@ export const activeIncidents = new Gauge({
  * Monitor check duration
  * Histogram showing time taken to run checks
  */
-export const checkDuration = new Gauge({
+export const checkDuration = new Histogram({
   name: "yuptime_monitor_check_duration_seconds",
   help: "Time taken to run monitor check",
   labelNames: ["monitor", "namespace", "type"] as const,
   registers: [registry],
 });
+
+/**
+ * Alert delivery failures
+ * Counter incremented whenever an Alertmanager delivery fails (invalid URL,
+ * timeout, network error, or non-2xx response). Makes alert loss observable.
+ */
+export const alertDeliveryFailedTotal = new Counter({
+  name: "yuptime_alert_delivery_failed_total",
+  help: "Total number of Alertmanager alert deliveries that failed",
+  labelNames: ["monitor", "namespace", "reason"] as const,
+  registers: [registry],
+});
+
+/**
+ * Label values observed per monitor, so resetMonitorMetrics() can remove
+ * complete label sets across all metric types without guessing cardinality.
+ */
+const monitorLabelValues = new Map<string, { type: string }>();
+const monitorIncidentSeverities = new Map<string, Set<"critical" | "warning" | "info">>();
 
 /**
  * Get metrics endpoint for Prometheus scraping
@@ -105,16 +124,23 @@ export function recordCheckResult(
   monitorName: string,
   namespace: string,
   type: string,
-  url: string,
   result: {
     state: "up" | "down" | "pending" | "flapping" | "paused";
     latencyMs?: number;
     durationMs?: number;
   },
 ): void {
+  const monitorKey = `${namespace}/${monitorName}`;
+  monitorLabelValues.set(monitorKey, { type });
+
   // Record state (0 = down, 1 = up, 0.5 = pending)
-  const stateValue = result.state === "up" ? 1 : result.state === "down" ? 0 : 0.5;
-  monitorState.set({ monitor: monitorName, namespace, type, url }, stateValue);
+  let stateValue = 0.5;
+  if (result.state === "up") {
+    stateValue = 1;
+  } else if (result.state === "down") {
+    stateValue = 0;
+  }
+  monitorState.set({ monitor: monitorName, namespace, type }, stateValue);
 
   // Record latency if available
   if (result.latencyMs !== undefined) {
@@ -123,7 +149,7 @@ export function recordCheckResult(
 
   // Record check duration if available
   if (result.durationMs !== undefined) {
-    checkDuration.set(
+    checkDuration.observe(
       { monitor: monitorName, namespace, type },
       result.durationMs / 1000, // Convert to seconds
     );
@@ -161,6 +187,11 @@ export function incrementActiveIncidents(
   namespace: string,
   severity: "critical" | "warning" | "info",
 ): void {
+  const monitorKey = `${namespace}/${monitorName}`;
+  const severities = monitorIncidentSeverities.get(monitorKey) ?? new Set();
+  severities.add(severity);
+  monitorIncidentSeverities.set(monitorKey, severities);
+
   activeIncidents.inc({ monitor: monitorName, namespace, severity }, 1);
 }
 
@@ -176,13 +207,29 @@ export function decrementActiveIncidents(
 }
 
 /**
- * Reset metrics for a specific monitor
- * Useful when a monitor is deleted
+ * Reset metrics for a specific monitor.
+ * Removes gauge/histogram series so deleted monitors do not leak.
+ *
+ * Cumulative counters (monitor_checks_total, monitor_state_changes_total)
+ * are intentionally retained: counters represent total event counts and
+ * Prometheus handles staleness via staleness markers after the series stops
+ * being scraped. Removing a counter mid-life would break `increase()`/`rate()`
+ * computations. This is the documented retention policy.
  */
 export function resetMonitorMetrics(monitorName: string, namespace: string): void {
-  // Remove all metrics for this monitor
-  monitorState.remove({ monitor: monitorName, namespace });
-  monitorLatency.remove({ monitor: monitorName, namespace });
-  checkDuration.remove({ monitor: monitorName, namespace });
-  // Note: We don't reset counters as they are cumulative
+  const monitorKey = `${namespace}/${monitorName}`;
+  const labels = monitorLabelValues.get(monitorKey);
+  const type = labels?.type ?? "";
+
+  // Remove gauge/histogram series with the full label set
+  monitorState.remove({ monitor: monitorName, namespace, type });
+  monitorLatency.remove({ monitor: monitorName, namespace, type });
+  checkDuration.remove({ monitor: monitorName, namespace, type });
+
+  for (const severity of monitorIncidentSeverities.get(monitorKey) ?? []) {
+    activeIncidents.remove({ monitor: monitorName, namespace, severity });
+  }
+
+  monitorLabelValues.delete(monitorKey);
+  monitorIncidentSeverities.delete(monitorKey);
 }

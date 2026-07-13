@@ -5,11 +5,7 @@ on:
     branches:
       - master
 
-permissions:
-  contents: write
-  pull-requests: write
-  packages: write
-  id-token: write
+permissions: {}
 
 env:
   GHCR_REGISTRY: ghcr.io
@@ -17,6 +13,9 @@ env:
 
 jobs:
   release-please:
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -24,10 +23,10 @@ jobs:
       version: ${{ steps.release.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Release Please
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@a02a34c4d625f9be7cb89156071d8567266a2445
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -37,17 +36,19 @@ jobs:
 
   test:
     name: Run Unit Tests
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
         with:
-          bun-version: latest
+          bun-version: "1.3.3"
 
       - name: Install dependencies
         run: bun install
@@ -63,12 +64,17 @@ jobs:
 
   e2e-test:
     name: E2E Tests
+    permissions:
+      contents: read
     needs: [release-please, test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     uses: ./.github/workflows/e2e.yml
 
   build-api:
     name: Build API Image
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     needs: [release-please, test, e2e-test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
@@ -76,16 +82,16 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@18ce135bb5112fa8ce4ed6c17ab05699d7f3a5e0
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
@@ -93,7 +99,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f
         with:
           images: |
             ${{ env.GHCR_REGISTRY }}/${{ github.repository }}-api
@@ -106,7 +112,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
         with:
           context: .
           file: ./Dockerfile
@@ -119,6 +125,9 @@ jobs:
 
   build-checker:
     name: Build Checker Image
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     needs: [release-please, test, e2e-test]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
@@ -126,16 +135,16 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@18ce135bb5112fa8ce4ed6c17ab05699d7f3a5e0
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
@@ -143,7 +152,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f
         with:
           images: |
             ${{ env.GHCR_REGISTRY }}/${{ github.repository }}-checker
@@ -156,7 +165,7 @@ jobs:
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
         with:
           context: .
           file: ./Dockerfile.checker
@@ -169,22 +178,27 @@ jobs:
 
   publish-timoni-module:
     name: Publish Timoni Module
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     needs: [release-please, build-api, build-checker]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Timoni
-        uses: stefanprodan/timoni/actions/setup@main
+        uses: stefanprodan/timoni/actions/setup@69e421aebbed979ded721df0da2a54428c5b4b9c
         with:
-          version: latest
+          version: v0.27.0
 
       - name: Login to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USER: ${{ github.actor }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | \
-            timoni registry login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "$GH_TOKEN" | timoni registry login ghcr.io -u "$GH_USER" --password-stdin
 
       - name: Validate module
         run: |
@@ -192,34 +206,38 @@ jobs:
           timoni mod vet .
 
       - name: Push module to GHCR
+        env:
+          RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          VERSION=${{ needs.release-please.outputs.version }}
           timoni mod push ./timoni/yuptime \
-            oci://ghcr.io/${{ github.repository }}/timoni-module \
-            --version ${VERSION} \
+            "oci://ghcr.io/$GITHUB_REPOSITORY/timoni-module" \
+            --version "$RELEASE_VERSION" \
             --latest \
             -a 'org.opencontainers.image.licenses=Apache-2.0' \
-            -a 'org.opencontainers.image.source=https://github.com/${{ github.repository }}' \
+            -a "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             -a 'org.opencontainers.image.description=Yuptime - Kubernetes-native monitoring solution'
 
   generate-artifacts:
     name: Generate Helm Chart & Manifests
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     needs: [release-please, build-api, build-checker]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
         with:
-          bun-version: latest
+          bun-version: "1.3.3"
 
       - name: Setup Timoni
-        uses: stefanprodan/timoni/actions/setup@main
+        uses: stefanprodan/timoni/actions/setup@69e421aebbed979ded721df0da2a54428c5b4b9c
         with:
-          version: latest
+          version: v0.27.0
 
       - name: Install dependencies
         run: bun install
@@ -234,57 +252,65 @@ jobs:
         run: bun run validate:generated
 
       - name: Upload Helm chart artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: helm-chart
           path: helm/yuptime/
 
   publish-helm:
     name: Publish Helm Chart to OCI
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     needs: [release-please, generate-artifacts]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Download Helm chart artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: helm-chart
           path: helm/yuptime/
 
       - name: Setup Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78
         with:
           version: 'v3.16.0'
 
       - name: Login to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USER: ${{ github.actor }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | \
-            helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "$GH_USER" --password-stdin
 
       - name: Package Helm chart
-        run: |
-          VERSION=${{ needs.release-please.outputs.version }}
-          helm package helm/yuptime --version ${VERSION} --destination ./
+        env:
+          RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+        run: helm package helm/yuptime --version "$RELEASE_VERSION" --destination ./
 
       - name: Publish Helm chart to OCI
-        run: |
-          VERSION=${{ needs.release-please.outputs.version }}
-          helm push yuptime-${VERSION}.tgz oci://ghcr.io/${{ github.repository }}/charts
+        env:
+          RELEASE_VERSION: ${{ needs.release-please.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: helm push "yuptime-${RELEASE_VERSION}.tgz" "oci://ghcr.io/$GITHUB_REPOSITORY/charts"
 
   commit-artifacts:
     name: Commit Generated Artifacts
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     needs: [generate-artifacts, publish-helm]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Download Helm chart artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: helm-chart
           path: helm/yuptime/
@@ -299,6 +325,8 @@ jobs:
 
   make-packages-public:
     name: Make Packages Public
+    permissions:
+      packages: write
     runs-on: ubuntu-latest
     needs: [publish-timoni-module, publish-helm]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}

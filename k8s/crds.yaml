@@ -37,16 +37,38 @@ spec:
                   default: true
                 type:
                   type: string
-                  enum: [http, tcp, ping, dns, keyword, jsonQuery, xmlQuery, htmlQuery, websocket, push, steam, k8s, docker, mysql, postgresql, redis, grpc]
+                  enum:
+                    [
+                      http,
+                      tcp,
+                      ping,
+                      dns,
+                      keyword,
+                      jsonQuery,
+                      xmlQuery,
+                      htmlQuery,
+                      websocket,
+                      push,
+                      steam,
+                      k8s,
+                      docker,
+                      mysql,
+                      postgresql,
+                      redis,
+                      grpc,
+                    ]
                 schedule:
                   type: object
                   required:
                     - intervalSeconds
                     - timeoutSeconds
+                  x-kubernetes-validations:
+                    - rule: "self.timeoutSeconds < self.intervalSeconds"
+                      message: "timeoutSeconds must be less than intervalSeconds"
                   properties:
                     intervalSeconds:
                       type: integer
-                      minimum: 1
+                      minimum: 20
                     timeoutSeconds:
                       type: integer
                       minimum: 1

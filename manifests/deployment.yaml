@@ -35,6 +35,8 @@ spec:
           value: ghcr.io/yuptime/yuptime-checker:latest
         - name: CHECKER_IMAGE_PULL_POLICY
           value: IfNotPresent
+        - name: CHECKER_SERVICE_ACCOUNT
+          value: yuptime-checker
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:

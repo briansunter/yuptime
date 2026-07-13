@@ -40,11 +40,8 @@ export function createTypeSafeReconciliationHandler<T extends object>(
   statusUpdater = { markValid, markInvalid },
 ): (resource: unknown) => Promise<void> {
   return async (resource: unknown) => {
-    // Merge contexts: default + additional + runtime
+    // Merge contexts: runtime + additional
     const ctx: ReconcileContext = {
-      crdWatcher: null,
-      statusUpdater,
-      secretResolver: async () => "",
       ...additionalContext,
     };
 

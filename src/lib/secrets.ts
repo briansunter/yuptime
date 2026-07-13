@@ -97,7 +97,7 @@ export async function resolveSecret(
       "K8s client config",
     );
 
-    const url = `${cluster.server}/api/v1/namespaces/${namespace}/secrets/${secretName}`;
+    const url = `${cluster.server}/api/v1/namespaces/${encodeURIComponent(namespace)}/secrets/${encodeURIComponent(secretName)}`;
     const tls = getClusterTlsOptions(cluster);
 
     logger.debug({ namespace, secretName, key, url }, "Resolving secret from K8s");

@@ -9,10 +9,10 @@
  * 4. Creates a complete Helm chart
  */
 
-import { execSync } from "child_process";
-import { writeFileSync, mkdirSync, readFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,8 +27,12 @@ const TEMPLATES_DIR = join(HELM_OUTPUT_PATH, "templates");
  */
 function getVersion(): string {
   const pkgPath = join(__dirname, "..", "package.json");
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-  return pkg.version || "0.0.0";
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string };
+    return pkg.version || "0.0.0";
+  } catch (error) {
+    throw new Error(`Failed to read package version from ${pkgPath}`, { cause: error });
+  }
 }
 
 /**
@@ -156,18 +160,28 @@ function renderWithTimoni(valuesOverride: string): string {
   writeFileSync(tempValuesPath, valuesOverride);
 
   try {
-    const output = execSync(
-      `timoni build yuptime ${CUE_MODULE_PATH} -n yuptime -f ${tempValuesPath} --output yaml`,
+    const output = execFileSync(
+      "timoni",
+      [
+        "build",
+        "yuptime",
+        CUE_MODULE_PATH,
+        "-n",
+        "yuptime",
+        "-f",
+        tempValuesPath,
+        "--output",
+        "yaml",
+      ],
       {
         encoding: "utf-8",
         cwd: join(__dirname, ".."),
-      }
+      },
     );
     return output;
   } finally {
     // Cleanup temp file
-    const fs = require("fs");
-    fs.unlinkSync(tempValuesPath);
+    unlinkSync(tempValuesPath);
   }
 }
 
@@ -405,7 +419,7 @@ function main() {
 
   // Check if timoni is available
   try {
-    execSync("which timoni");
+    execFileSync("timoni", ["version"], { stdio: "ignore" });
   } catch {
     console.error("❌ Timoni not found. Install with: brew install timoni");
     process.exit(1);

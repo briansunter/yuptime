@@ -316,7 +316,7 @@ describe("buildJobForMonitor", () => {
     );
   });
 
-  test("uses yuptime-checker service account", () => {
+  test("uses yuptime-checker service account by default", () => {
     const monitor = createTestMonitor({
       http: { url: "https://example.com" },
     });
@@ -324,6 +324,22 @@ describe("buildJobForMonitor", () => {
     const job = buildJobForMonitor(monitor, 0);
 
     expect(job.spec?.template?.spec?.serviceAccountName).toBe("yuptime-checker");
+  });
+
+  test("uses the configured checker service account", () => {
+    process.env.CHECKER_SERVICE_ACCOUNT = "validation-checker";
+
+    try {
+      const monitor = createTestMonitor({
+        http: { url: "https://example.com" },
+      });
+
+      const job = buildJobForMonitor(monitor, 0);
+
+      expect(job.spec?.template?.spec?.serviceAccountName).toBe("validation-checker");
+    } finally {
+      delete process.env.CHECKER_SERVICE_ACCOUNT;
+    }
   });
 
   test("does not globally disable TLS verification in checker jobs", () => {
@@ -380,5 +396,41 @@ describe("buildJobForMonitor", () => {
     const podSecurityContext = job.spec?.template?.spec?.securityContext;
     expect(podSecurityContext?.runAsNonRoot).toBe(true);
     expect(podSecurityContext?.runAsUser).toBe(1000);
+  });
+
+  test("grants NET_RAW capability only to ping jobs", () => {
+    const pingMonitor = createTestMonitor({
+      ping: { host: "example.com" },
+    });
+    pingMonitor.spec.type = "ping";
+
+    const httpMonitor = createTestMonitor({
+      http: { url: "https://example.com" },
+    });
+
+    const pingJob = buildJobForMonitor(pingMonitor, 0);
+    const httpJob = buildJobForMonitor(httpMonitor, 0);
+
+    const pingCaps = pingJob.spec?.template?.spec?.containers?.[0]?.securityContext?.capabilities;
+    const httpCaps = httpJob.spec?.template?.spec?.containers?.[0]?.securityContext?.capabilities;
+
+    expect(pingCaps?.drop).toEqual(["ALL"]);
+    expect(pingCaps?.add).toEqual(["NET_RAW"]);
+
+    expect(httpCaps?.drop).toEqual(["ALL"]);
+    expect(httpCaps?.add).toBeUndefined();
+  });
+
+  test("does not grant NET_RAW to tcp jobs", () => {
+    const tcpMonitor = createTestMonitor({
+      tcp: { host: "example.com", port: 80 },
+    });
+    tcpMonitor.spec.type = "tcp";
+
+    const job = buildJobForMonitor(tcpMonitor, 0);
+    const caps = job.spec?.template?.spec?.containers?.[0]?.securityContext?.capabilities;
+
+    expect(caps?.drop).toEqual(["ALL"]);
+    expect(caps?.add).toBeUndefined();
   });
 });

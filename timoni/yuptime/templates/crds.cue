@@ -62,10 +62,16 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 									"intervalSeconds",
 									"timeoutSeconds",
 								]
+								"x-kubernetes-validations": [
+									{
+										rule:    "self.timeoutSeconds < self.intervalSeconds"
+										message: "timeoutSeconds must be less than intervalSeconds"
+									},
+								]
 								properties: {
 									intervalSeconds: {
 										type:    "integer"
-										minimum: 1
+										minimum: 20
 									}
 									timeoutSeconds: {
 										type:    "integer"

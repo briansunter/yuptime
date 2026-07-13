@@ -34,6 +34,8 @@ spec:
           value: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"
         - name: CHECKER_IMAGE_PULL_POLICY
           value: "{{ .Values.checkerImage.pullPolicy }}"
+        - name: CHECKER_SERVICE_ACCOUNT
+          value: yuptime-checker
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:

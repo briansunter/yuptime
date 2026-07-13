@@ -9,7 +9,25 @@
  */
 
 import { logger } from "../lib/logger";
+import { alertDeliveryFailedTotal } from "../lib/prometheus";
 import type { Monitor } from "../types/crd/monitor";
+
+/** Timeout for Alertmanager delivery (ms). */
+const ALERT_DELIVERY_TIMEOUT_MS = 10_000;
+
+/**
+ * Increment the alert delivery failure counter.
+ */
+function recordDeliveryFailure(monitor: Monitor, reason: string): void {
+  alertDeliveryFailedTotal.inc(
+    {
+      monitor: monitor.metadata.name,
+      namespace: monitor.metadata.namespace,
+      reason,
+    },
+    1,
+  );
+}
 
 /**
  * Send alert to Alertmanager when monitor state changes
@@ -74,15 +92,55 @@ export async function sendAlertToAlertmanager(
   }
 
   try {
-    const response = await fetch(alertmanagerUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([alert]),
-    });
+    // Allowlist schemes to prevent SSRF via non-HTTP protocols (file://, gopher://, etc.)
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(alertmanagerUrl);
+    } catch {
+      recordDeliveryFailure(monitor, "invalid_url");
+      logger.warn({ monitorId, alertmanagerUrl }, "Invalid Alertmanager URL, skipping alert");
+      return;
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      recordDeliveryFailure(monitor, "invalid_scheme");
+      logger.warn(
+        { monitorId, scheme: parsedUrl.protocol },
+        "Alertmanager URL must be http or https, skipping alert",
+      );
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ALERT_DELIVERY_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(alertmanagerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify([alert]),
+        signal: controller.signal,
+        // Do not follow redirects: the configured Alertmanager URL is authoritative.
+        redirect: "error",
+      });
+    } catch (fetchError) {
+      if (controller.signal.aborted) {
+        recordDeliveryFailure(monitor, "timeout");
+        logger.warn({ monitorId }, "Alertmanager delivery timed out");
+      } else {
+        recordDeliveryFailure(monitor, "network_error");
+        logger.warn({ monitorId, error: fetchError }, "Failed to send alert to Alertmanager");
+      }
+      return;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
+      recordDeliveryFailure(monitor, `status_${response.status}`);
       const responseText = await response.text();
       logger.warn(
         {
@@ -97,6 +155,7 @@ export async function sendAlertToAlertmanager(
 
     logger.info({ monitorId, toState, fromState, alertmanagerUrl }, "Sent alert to Alertmanager");
   } catch (error) {
+    recordDeliveryFailure(monitor, "unknown");
     logger.warn({ monitorId, toState, error }, "Failed to send alert to Alertmanager");
   }
 }

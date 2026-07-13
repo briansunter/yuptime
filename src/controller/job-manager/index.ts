@@ -18,6 +18,9 @@ export function createJobManager(config: JobManagerConfig): JobManager {
   const defaultNamespace = config.namespace || "default";
 
   let running = false;
+  let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+  // Run cleanup roughly every hour; cleanupOldJobs deletes Jobs older than jobTTL.
+  const CLEANUP_INTERVAL_MS = 3600_000;
 
   /**
    * Schedule a check for the given monitor
@@ -218,8 +221,13 @@ export function createJobManager(config: JobManagerConfig): JobManager {
     running = true;
     logger.info("Job Manager started");
 
-    // TODO: Start background cleanup task
-    // setInterval(() => cleanupOldJobs(config.jobTTL), 3600000); // Every hour
+    // Start background cleanup of finished Jobs older than jobTTL
+    cleanupTimer = setInterval(() => {
+      cleanupOldJobs(config.jobTTL).catch((error) => {
+        logger.error({ error }, "Job cleanup cycle failed");
+      });
+    }, CLEANUP_INTERVAL_MS);
+
     return Promise.resolve();
   }
 
@@ -232,9 +240,14 @@ export function createJobManager(config: JobManagerConfig): JobManager {
     }
 
     running = false;
+
+    if (cleanupTimer) {
+      clearInterval(cleanupTimer);
+      cleanupTimer = null;
+    }
+
     logger.info("Job Manager stopped");
 
-    // TODO: Stop background cleanup task
     return Promise.resolve();
   }
 
