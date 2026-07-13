@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.28](https://github.com/briansunter/yuptime/compare/v0.0.27...v0.0.28) (2026-07-13)
+
+
+### Features
+
+* harden monitoring runtime and deployment validation ([0230eef](https://github.com/briansunter/yuptime/commit/0230eefc2f62e4c9a68bdd4e3f882bd450010720))
+
 ## [0.0.27](https://github.com/briansunter/yuptime/compare/v0.0.26...v0.0.27) (2026-05-01)
 
 
