@@ -82,7 +82,7 @@ export function buildCronJobForMonitor(monitor: Monitor, config: CronJobBuilderC
         spec: {
           backoffLimit: 0, // No retries (check logic handles failures)
           activeDeadlineSeconds: 300, // 5 minutes max execution time
-          ttlSecondsAfterFinished: config.jobTTLSeconds ?? 600,
+          ttlSecondsAfterFinished: config.jobTTLSeconds ?? 120,
           template: {
             metadata: {
               labels: {

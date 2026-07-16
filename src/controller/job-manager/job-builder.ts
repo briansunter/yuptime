@@ -175,7 +175,7 @@ export function buildJobForMonitor(
   monitor: Monitor,
   jitterMs: number,
   image: string = DEFAULT_CHECKER_IMAGE,
-  jobTTLSeconds = 600,
+  jobTTLSeconds = 120,
 ): V1Job {
   const namespace = monitor.metadata.namespace || "default";
   const monitorId = `${namespace}/${monitor.metadata.name}`;

@@ -58,7 +58,7 @@ describe("parsePort", () => {
 });
 
 describe("parseJobTTLSeconds", () => {
-  test("defaults to ten minutes", () => expect(parseJobTTLSeconds(undefined)).toBe(600));
+  test("defaults to two minutes", () => expect(parseJobTTLSeconds(undefined)).toBe(120));
   test("accepts a bounded custom TTL", () => expect(parseJobTTLSeconds("900")).toBe(900));
   test("rejects too-short retention", () =>
     expect(() => parseJobTTLSeconds("59")).toThrow(/JOB_TTL_SECONDS/));

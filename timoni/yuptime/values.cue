@@ -27,7 +27,7 @@ values: {
 	mode: "development"
 
 	// Completed checker Job retention
-	jobTTLSeconds: 600
+	jobTTLSeconds: 120
 
 	// Logging
 	logging: level: "info"

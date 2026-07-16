@@ -38,7 +38,7 @@ import (
 
 	// Retain completed checker Jobs long enough for debugging without allowing
 	// short-interval monitors to dominate kube-state-metrics cardinality.
-	jobTTLSeconds: *600 | int & >=60 & <=86400
+	jobTTLSeconds: *120 | int & >=60 & <=86400
 
 	// Resource requirements
 	resources: timoniv1.#ResourceRequirements & {

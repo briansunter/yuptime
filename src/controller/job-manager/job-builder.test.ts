@@ -255,9 +255,9 @@ describe("extractSecretEnvVars", () => {
 });
 
 describe("buildJobForMonitor", () => {
-  test("retains completed checker Jobs for ten minutes by default", () => {
+  test("retains completed checker Jobs for two minutes by default", () => {
     const monitor = createTestMonitor({ http: { url: "https://example.com" } });
-    expect(buildJobForMonitor(monitor, 0).spec?.ttlSecondsAfterFinished).toBe(600);
+    expect(buildJobForMonitor(monitor, 0).spec?.ttlSecondsAfterFinished).toBe(120);
     expect(buildJobForMonitor(monitor, 0, undefined, 900).spec?.ttlSecondsAfterFinished).toBe(900);
   });
 

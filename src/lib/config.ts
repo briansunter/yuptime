@@ -17,7 +17,7 @@ export function parsePort(raw: string | undefined): number {
 }
 
 export function parseJobTTLSeconds(raw: string | undefined): number {
-  if (raw === undefined || raw === "") return 600;
+  if (raw === undefined || raw === "") return 120;
 
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isInteger(parsed) || parsed < 60 || parsed > 86400 || String(parsed) !== raw.trim()) {

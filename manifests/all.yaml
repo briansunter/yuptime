@@ -262,7 +262,7 @@ spec:
         - name: CHECKER_SERVICE_ACCOUNT
           value: yuptime-checker
         - name: JOB_TTL_SECONDS
-          value: "600"
+          value: "120"
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:

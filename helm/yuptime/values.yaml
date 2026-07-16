@@ -15,7 +15,7 @@ checkerImage:
 mode: development
 
 # Completed checker Job retention in seconds (60-86400)
-jobTTLSeconds: 600
+jobTTLSeconds: 120
 
 logging:
   level: info # debug | info | warn | error

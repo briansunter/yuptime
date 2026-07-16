@@ -91,7 +91,7 @@ checkerImage:
 mode: development
 
 # Completed checker Job retention in seconds (60-86400)
-jobTTLSeconds: 600
+jobTTLSeconds: 120
 
 logging:
   level: info # debug | info | warn | error
@@ -231,7 +231,7 @@ function convertToHelmTemplate(yaml: string, _resourceName: string): string {
 
     // Replace completed checker Job TTL env var value.
     processed = processed.replace(
-      /(-\s*name: JOB_TTL_SECONDS\n\s*value:) "600"/g,
+      /(-\s*name: JOB_TTL_SECONDS\n\s*value:) "120"/g,
       '$1 "{{ .Values.jobTTLSeconds }}"'
     );
 

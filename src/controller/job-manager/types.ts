@@ -34,7 +34,7 @@ export type JobStatus = "pending" | "running" | "succeeded" | "failed";
  */
 export interface JobManagerConfig {
   kubeConfig: KubeConfig;
-  jobTTL: number; // Cleanup after seconds (default: 3600)
+  jobTTL: number; // Cleanup after seconds (default: 120)
   namespace: string; // Default namespace for Jobs
 }
 
