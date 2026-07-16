@@ -39,7 +39,7 @@ export function createJobManager(config: JobManagerConfig): JobManager {
       logger.debug({ monitorId, jitterMs, namespace, name }, "Calculated jitter for monitor");
 
       // Build Job manifest
-      const job = buildJobForMonitor(monitor, jitterMs);
+      const job = buildJobForMonitor(monitor, jitterMs, undefined, config.jobTTL);
 
       logger.debug(
         { namespace, jobName: job.metadata?.name || "unknown" },

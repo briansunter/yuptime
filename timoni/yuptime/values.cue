@@ -26,6 +26,9 @@ values: {
 	// Application mode
 	mode: "development"
 
+	// Completed checker Job retention
+	jobTTLSeconds: 600
+
 	// Logging
 	logging: level: "info"
 

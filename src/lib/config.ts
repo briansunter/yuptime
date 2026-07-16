@@ -16,6 +16,16 @@ export function parsePort(raw: string | undefined): number {
   return parsed;
 }
 
+export function parseJobTTLSeconds(raw: string | undefined): number {
+  if (raw === undefined || raw === "") return 600;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 60 || parsed > 86400 || String(parsed) !== raw.trim()) {
+    throw new Error(`Invalid JOB_TTL_SECONDS "${raw}": must be an integer between 60 and 86400`);
+  }
+  return parsed;
+}
+
 /**
  * Load configuration from environment variables.
  * Values are validated eagerly in loadConfig(); callers can use the `config`
@@ -33,6 +43,7 @@ function loadConfig() {
     // Kubernetes
     kubeConfig: process.env.KUBECONFIG,
     kubeNamespace,
+    jobTTLSeconds: parseJobTTLSeconds(process.env.JOB_TTL_SECONDS),
 
     // Logging
     logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug"),
@@ -53,6 +64,16 @@ export function validateConfig(): void {
     errors.push("KUBE_NAMESPACE must be a non-empty string");
   }
 
+  if (
+    !Number.isInteger(config.jobTTLSeconds) ||
+    config.jobTTLSeconds < 60 ||
+    config.jobTTLSeconds > 86400
+  ) {
+    errors.push(
+      `jobTTLSeconds must be an integer between 60 and 86400 (got ${config.jobTTLSeconds})`,
+    );
+  }
+
   if (errors.length > 0) {
     logger.error("Configuration errors:");
     for (const e of errors) {
@@ -66,6 +87,7 @@ export function validateConfig(): void {
       env: config.env,
       port: config.port,
       namespace: config.kubeNamespace,
+      jobTTLSeconds: config.jobTTLSeconds,
     },
     "Configuration loaded",
   );

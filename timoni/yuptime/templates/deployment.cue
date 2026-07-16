@@ -53,6 +53,7 @@ import (
 						{name: "CHECKER_IMAGE", value: #config.checkerImage.reference},
 						{name: "CHECKER_IMAGE_PULL_POLICY", value: #config.checkerImage.pullPolicy},
 						{name: "CHECKER_SERVICE_ACCOUNT", value: #config.metadata.name + "-checker"},
+						{name: "JOB_TTL_SECONDS", value: "\(#config.jobTTLSeconds)"},
 						{
 							name: "KUBE_NAMESPACE"
 							valueFrom: fieldRef: fieldPath: "metadata.namespace"

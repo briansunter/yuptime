@@ -175,6 +175,7 @@ export function buildJobForMonitor(
   monitor: Monitor,
   jitterMs: number,
   image: string = DEFAULT_CHECKER_IMAGE,
+  jobTTLSeconds = 600,
 ): V1Job {
   const namespace = monitor.metadata.namespace || "default";
   const monitorId = `${namespace}/${monitor.metadata.name}`;
@@ -215,7 +216,7 @@ export function buildJobForMonitor(
     spec: {
       backoffLimit: 0, // No retries (check logic handles retry)
       activeDeadlineSeconds: 300, // 5 minutes max execution time
-      ttlSecondsAfterFinished: 3600, // Auto-cleanup after 1 hour
+      ttlSecondsAfterFinished: jobTTLSeconds,
       template: {
         metadata: {
           labels: {

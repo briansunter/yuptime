@@ -15,6 +15,7 @@ export interface CronJobBuilderConfig {
   serviceAccountName?: string;
   tolerations?: V1Toleration[];
   nodeSelector?: Record<string, string>;
+  jobTTLSeconds?: number;
   resources?: {
     requests?: { cpu: string; memory: string };
     limits?: { cpu: string; memory: string };
@@ -81,7 +82,7 @@ export function buildCronJobForMonitor(monitor: Monitor, config: CronJobBuilderC
         spec: {
           backoffLimit: 0, // No retries (check logic handles failures)
           activeDeadlineSeconds: 300, // 5 minutes max execution time
-          ttlSecondsAfterFinished: 3600, // Auto-cleanup after 1 hour
+          ttlSecondsAfterFinished: config.jobTTLSeconds ?? 600,
           template: {
             metadata: {
               labels: {

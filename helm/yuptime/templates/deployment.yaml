@@ -36,6 +36,8 @@ spec:
           value: "{{ .Values.checkerImage.pullPolicy }}"
         - name: CHECKER_SERVICE_ACCOUNT
           value: yuptime-checker
+        - name: JOB_TTL_SECONDS
+          value: "{{ .Values.jobTTLSeconds }}"
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:
