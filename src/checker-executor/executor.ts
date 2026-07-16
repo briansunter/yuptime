@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import type { CheckResult } from "../checkers";
 import { executeCheck as runCheck } from "../checkers";
 import { type LastResult, type Monitor, MonitorSchema } from "../types/crd";
+import { fetchK8sWithRetry } from "./k8s-request";
 
 const logger = console;
 
@@ -48,15 +49,28 @@ function k8sRequest(
 
   logger.debug(`Making ${method} request to ${path}, auth present: ${!!headers.Authorization}`);
 
-  return fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    tls: {
-      ca: caBundle,
-      serverName: process.env.KUBERNETES_SERVICE_HOST,
+  return fetchK8sWithRetry(
+    url,
+    {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      tls: {
+        ca: caBundle,
+        serverName: process.env.KUBERNETES_SERVICE_HOST,
+      },
     },
-  });
+    undefined,
+    {
+      fetch: globalThis.fetch,
+      sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+      onRetry: (attempt, delayMs, reason) => {
+        logger.warn(
+          `Kubernetes API request ${method} ${path} failed transiently (${reason}); retry ${attempt + 1} in ${delayMs}ms`,
+        );
+      },
+    },
+  );
 }
 
 /**
