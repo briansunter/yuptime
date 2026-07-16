@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.29](https://github.com/briansunter/yuptime/compare/v0.0.28...v0.0.29) (2026-07-16)
+
+
+### Bug Fixes
+
+* retry transient Kubernetes API failures ([#62](https://github.com/briansunter/yuptime/issues/62)) ([d76bf51](https://github.com/briansunter/yuptime/commit/d76bf519997987f8ca2642f7b8914e285987df3e))
+
 ## [0.0.28](https://github.com/briansunter/yuptime/compare/v0.0.27...v0.0.28) (2026-07-13)
 
 
