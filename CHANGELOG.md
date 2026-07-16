@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.30](https://github.com/briansunter/yuptime/compare/v0.0.29...v0.0.30) (2026-07-16)
+
+
+### Bug Fixes
+
+* bound completed checker job retention ([#64](https://github.com/briansunter/yuptime/issues/64)) ([bba0435](https://github.com/briansunter/yuptime/commit/bba04354ea2c0d229f49b6ccbdda95d679116b00))
+
 ## [0.0.29](https://github.com/briansunter/yuptime/compare/v0.0.28...v0.0.29) (2026-07-16)
 
 
