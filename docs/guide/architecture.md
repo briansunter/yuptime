@@ -2,6 +2,10 @@
 
 Yuptime is designed around Kubernetes-native principles: declarative configuration, eventual consistency, and separation of concerns.
 
+The sections below describe the current Job-based executor. Its planned
+replacement and compatibility strategy are documented in
+[Checker execution redesign](./checker-execution-redesign.md).
+
 ## System Overview
 
 ```

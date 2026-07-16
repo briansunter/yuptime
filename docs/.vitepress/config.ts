@@ -49,6 +49,7 @@ export default defineConfig({
             { text: 'What is Yuptime?', link: '/guide/what-is-yuptime' },
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Architecture', link: '/guide/architecture' },
+            { text: 'Checker Execution Redesign', link: '/guide/checker-execution-redesign' },
           ],
         },
         {
