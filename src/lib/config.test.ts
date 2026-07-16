@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { config, parsePort, validateConfig } from "./config";
+import { config, parseJobTTLSeconds, parsePort, validateConfig } from "./config";
 
 function withConfig(overrides: Partial<typeof config>, fn: () => void) {
-  const original = { port: config.port, kubeNamespace: config.kubeNamespace };
+  const original = {
+    port: config.port,
+    kubeNamespace: config.kubeNamespace,
+    jobTTLSeconds: config.jobTTLSeconds,
+  };
   Object.assign(config, overrides);
   try {
     fn();
@@ -53,11 +57,21 @@ describe("parsePort", () => {
   });
 });
 
+describe("parseJobTTLSeconds", () => {
+  test("defaults to ten minutes", () => expect(parseJobTTLSeconds(undefined)).toBe(600));
+  test("accepts a bounded custom TTL", () => expect(parseJobTTLSeconds("900")).toBe(900));
+  test("rejects too-short retention", () =>
+    expect(() => parseJobTTLSeconds("59")).toThrow(/JOB_TTL_SECONDS/));
+  test("rejects non-integers", () =>
+    expect(() => parseJobTTLSeconds("600.5")).toThrow(/JOB_TTL_SECONDS/));
+});
+
 describe("validateConfig", () => {
   afterEach(() => {
     // Restore sane defaults
     config.port = 3000;
     config.kubeNamespace = "monitoring";
+    config.jobTTLSeconds = 600;
   });
 
   test("succeeds with valid config", () => {

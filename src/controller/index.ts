@@ -39,7 +39,7 @@ export async function startController() {
     // Create and start Job Manager
     jobManager = createJobManager({
       kubeConfig,
-      jobTTL: 3600, // 1 hour
+      jobTTL: config.jobTTLSeconds,
       namespace: config.kubeNamespace,
     });
     await jobManager.start();

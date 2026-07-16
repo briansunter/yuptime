@@ -255,6 +255,12 @@ describe("extractSecretEnvVars", () => {
 });
 
 describe("buildJobForMonitor", () => {
+  test("retains completed checker Jobs for ten minutes by default", () => {
+    const monitor = createTestMonitor({ http: { url: "https://example.com" } });
+    expect(buildJobForMonitor(monitor, 0).spec?.ttlSecondsAfterFinished).toBe(600);
+    expect(buildJobForMonitor(monitor, 0, undefined, 900).spec?.ttlSecondsAfterFinished).toBe(900);
+  });
+
   test("includes secret env vars in job container", () => {
     const monitor = createTestMonitor({
       mysql: {

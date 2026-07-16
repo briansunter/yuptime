@@ -90,6 +90,9 @@ checkerImage:
 
 mode: development
 
+# Completed checker Job retention in seconds (60-86400)
+jobTTLSeconds: 600
+
 logging:
   level: info # debug | info | warn | error
 
@@ -224,6 +227,12 @@ function convertToHelmTemplate(yaml: string, _resourceName: string): string {
     processed = processed.replace(
       /(-\s*name: CHECKER_IMAGE_PULL_POLICY\n\s*value:) IfNotPresent/g,
       '$1 "{{ .Values.checkerImage.pullPolicy }}"'
+    );
+
+    // Replace completed checker Job TTL env var value.
+    processed = processed.replace(
+      /(-\s*name: JOB_TTL_SECONDS\n\s*value:) "600"/g,
+      '$1 "{{ .Values.jobTTLSeconds }}"'
     );
 
     // Replace imagePullPolicy

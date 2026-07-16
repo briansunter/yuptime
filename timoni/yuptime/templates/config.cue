@@ -36,6 +36,10 @@ import (
 	// Replicas (singleton controller - max 1 for leader election)
 	replicas: *1 | int & >=0 & <=1
 
+	// Retain completed checker Jobs long enough for debugging without allowing
+	// short-interval monitors to dominate kube-state-metrics cardinality.
+	jobTTLSeconds: *600 | int & >=60 & <=86400
+
 	// Resource requirements
 	resources: timoniv1.#ResourceRequirements & {
 		requests: {
