@@ -93,6 +93,86 @@ export const alertDeliveryFailedTotal = new Counter({
   registers: [registry],
 });
 
+export const schedulerLastTick = new Gauge({
+  name: "yuptime_scheduler_last_tick_timestamp_seconds",
+  help: "Wall-clock timestamp of the most recent Check Engine scheduler tick",
+  registers: [registry],
+});
+
+export const schedulerOverdueMonitors = new Gauge({
+  name: "yuptime_scheduler_overdue_monitors",
+  help: "Number of monitors with a due slot not yet admitted",
+  registers: [registry],
+});
+
+export const checkQueueDepth = new Gauge({
+  name: "yuptime_check_queue_depth",
+  help: "Number of admitted checks waiting for a runner",
+  registers: [registry],
+});
+
+export const checksInFlight = new Gauge({
+  name: "yuptime_checks_in_flight",
+  help: "Number of checks currently executing",
+  registers: [registry],
+});
+
+export const checkQueueWait = new Histogram({
+  name: "yuptime_check_queue_wait_seconds",
+  help: "Time from admission until checker execution starts",
+  labelNames: ["type"] as const,
+  registers: [registry],
+});
+
+export const checkStartDelay = new Histogram({
+  name: "yuptime_check_start_delay_seconds",
+  help: "Time from immutable schedule slot until checker execution starts",
+  labelNames: ["type"] as const,
+  registers: [registry],
+});
+
+export const checksTotal = new Counter({
+  name: "yuptime_checks_total",
+  help: "Total persistent Check Engine attempts",
+  labelNames: ["type", "result", "reason"] as const,
+  registers: [registry],
+});
+
+export const checkerDuration = new Histogram({
+  name: "yuptime_check_duration_seconds",
+  help: "Duration of persistent checker attempts",
+  labelNames: ["type"] as const,
+  registers: [registry],
+});
+
+export const checkRetries = new Counter({
+  name: "yuptime_check_retries_total",
+  help: "Total checker retries",
+  labelNames: ["type", "reason"] as const,
+  registers: [registry],
+});
+
+export const checkCoalesced = new Counter({
+  name: "yuptime_check_coalesced_total",
+  help: "Total schedule slots coalesced into a newer pending slot",
+  labelNames: ["reason"] as const,
+  registers: [registry],
+});
+
+export const checkerWorkerRestarts = new Counter({
+  name: "yuptime_checker_worker_restarts_total",
+  help: "Total checker worker process replacements",
+  labelNames: ["reason"] as const,
+  registers: [registry],
+});
+
+export const checkerWorkers = new Gauge({
+  name: "yuptime_checker_workers",
+  help: "Checker worker processes by state",
+  labelNames: ["state"] as const,
+  registers: [registry],
+});
+
 /**
  * Label values observed per monitor, so resetMonitorMetrics() can remove
  * complete label sets across all metric types without guessing cardinality.
@@ -118,7 +198,7 @@ export function getRegistry(): Registry {
 
 /**
  * Record a check result in Prometheus metrics
- * Called by job completion watcher after each check
+ * Called by the ordered result publisher after a status commit wins.
  */
 export function recordCheckResult(
   monitorName: string,

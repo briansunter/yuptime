@@ -1,306 +1,155 @@
 # Architecture
 
-Yuptime is designed around Kubernetes-native principles: declarative configuration, eventual consistency, and separation of concerns.
+Yuptime is a Kubernetes-native monitoring controller. Monitor configuration is
+declarative, check results live in CRD status, metrics are exported to
+Prometheus, and alert transitions are sent directly to Alertmanager.
 
-The sections below describe the current Job-based executor. Its planned
-replacement and compatibility strategy are documented in
-[Checker execution redesign](./checker-execution-redesign.md).
+## Runtime overview
 
-## System Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Yuptime Pod                              │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Metrics   │  │ Controller  │  │      Job Manager        │  │
-│  │   Server    │  │  (Watches   │  │  (Creates K8s Jobs for  │  │
-│  │ (Port 3000) │  │    CRDs)    │  │     each check)         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Checker Job Pods (Isolated)                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Job 1: HTTP Check    →  Updates Monitor CRD status (no DB)     │
-│  Job 2: TCP Check     →  Updates Monitor CRD status (no DB)     │
-│  Job 3: DNS Check     →  Updates Monitor CRD status (no DB)     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        External Services                         │
-├─────────────────────────────────────────────────────────────────┤
-│  Prometheus (metrics)  │  Alertmanager (alerts)  │  Grafana     │
-└─────────────────────────────────────────────────────────────────┘
+```text
+Yuptime Pod
+├── controller container
+│   ├── CRD informers and reconcilers
+│   ├── absolute-slot Check Engine
+│   ├── bounded admission queue and retries
+│   ├── ordered status publisher
+│   └── /health, /ready, and /metrics on port 3000
+└── checker sidecar
+    ├── loopback-only attempt server on 127.0.0.1:3001
+    └── fixed pool of persistent worker processes
+        └── HTTP, TCP, DNS, ping, database, gRPC, and other checks
 ```
 
-## Components
+The controller and sidecar share the Pod network namespace, so their protocol
+uses loopback and is not exposed through a Service. The sidecar never schedules
+checks and never writes Kubernetes status.
 
-### Yuptime API Pod
+## Check flow
 
-The main Yuptime pod runs three components:
-
-#### 1. Controller
-
-The controller watches all Yuptime CRDs using Kubernetes informers:
-
-```
-Controller
-├── Monitor Informer       → Watches Monitor resources
-├── MonitorSet Informer    → Watches MonitorSet resources
-├── Maintenance Informer   → Watches MaintenanceWindow resources
-├── Silence Informer       → Watches Silence resources
-└── Settings Informer      → Watches YuptimeSettings resources
-```
-
-Key behaviors:
-- **Reconciliation**: Ensures actual state matches desired state
-- **Status updates only**: Never modifies `.spec`, only `.status`
-- **Event-driven**: Reacts to CRD changes via informers
-
-#### 2. Job Manager
-
-The job manager schedules and creates Kubernetes Jobs:
-
-```
-Job Manager
-├── Scheduler              → Determines when checks should run
-├── Jitter Calculator      → Adds deterministic jitter to prevent thundering herd
-└── Job Creator            → Creates K8s Jobs for each check
+```text
+Monitor informer event
+        |
+        v
+Check Engine registry and schedule heap
+        |
+        v
+bounded oldest-slot-first queue
+        |
+        v
+idle sidecar worker -> target
+        |
+        v
+ordered result publisher
+        |
+        +-> Monitor status subresource
+        +-> Prometheus metrics
+        +-> Alertmanager transition
 ```
 
-Features:
-- **Deterministic jitter**: Spreads checks evenly based on monitor name hash
-- **Kubernetes Lease**: Ensures only one scheduler runs
-- **Job cleanup**: Removes completed/failed jobs after retention period
+The Check Engine owns one immutable sequence of schedule slots per Monitor.
+Completion time, retry duration, queue delay, and Kubernetes API latency never
+move future slots. Missed slots are coalesced into at most one catch-up run,
+then execution returns to the original phase.
 
-#### 3. Metrics Server
+There is at most one queued or running check per Monitor. Global concurrency
+and queue capacity are fixed configuration, so overload cannot create an
+unbounded number of processes or Kubernetes objects.
 
-Exposes Prometheus metrics on port 3000:
+## Worker isolation
 
-```
-Metrics Server (Port 3000)
-├── /health    → Liveness probe
-├── /ready     → Readiness probe
-└── /metrics   → Prometheus scrape endpoint
-```
+Workers are persistent subprocesses, but each handles only one attempt at a
+time. Every attempt receives:
 
-### Checker Job Pods
+- a validated Monitor snapshot;
+- a deterministic execution identity;
+- a hard deadline and cancellation signal;
+- an attempt-local credential resolver.
 
-Each health check runs in an isolated Kubernetes Job:
+Credentials are not copied into process-global environment variables. If a
+worker crashes, hangs past its deadline, or cannot cancel cleanly, the
+supervisor kills and replaces that worker without restarting the Pod or
+growing the pool.
+
+The controller container drops all Linux capabilities. The checker container
+also drops all capabilities, then adds only `NET_RAW` for ping support.
+
+## Ordered status ownership
+
+The controller is the sole Monitor status writer. Before publishing a result it
+re-reads the Monitor and rejects:
+
+- a different UID or generation;
+- a result whose `scheduledAt` is not newer;
+- a status update that loses its resource-version race.
+
+Conflicts are re-read and retried. Metrics and alerts are emitted only after the
+status update commits, preventing a stale attempt from moving state backward or
+emitting a false transition.
 
 ```yaml
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: monitor-check-example-website-1703930400
-  namespace: yuptime
-  labels:
-    yuptime.io/monitor: example-website
-spec:
-  template:
-    spec:
-      containers:
-        - name: checker
-          image: ghcr.io/briansunter/yuptime-checker:latest
-          env:
-            - name: MONITOR_NAMESPACE
-              value: yuptime
-            - name: MONITOR_NAME
-              value: example-website
-      serviceAccountName: yuptime-checker
-      restartPolicy: Never
+status:
+  observedGeneration: 4
+  lastResult:
+    executionId: 1ab4d...
+    scheduledAt: "2026-07-16T10:00:00.000Z"
+    startedAt: "2026-07-16T10:00:00.041Z"
+    checkedAt: "2026-07-16T10:00:00.172Z"
+    state: up
+    attempts: 1
+    latencyMs: 131
+  nextRunAt: "2026-07-16T10:01:00.000Z"
 ```
 
-Benefits:
-- **Isolation**: Each check has its own pod, process, and resources
-- **Security**: Minimal RBAC permissions per checker
-- **Observability**: Each check has its own logs
-- **Reliability**: A failing check doesn't affect others
+## Readiness and observability
 
-### Status Update Flow
+Liveness reports whether the process is alive. Readiness additionally requires:
 
-Checkers update Monitor status directly via the Kubernetes API:
+- completed informer startup;
+- a recent scheduler tick;
+- a ready runner and healthy worker pool;
+- no queue stall beyond the readiness threshold.
 
-```
-1. Job Manager creates Job
-          ↓
-2. Checker pod runs check
-          ↓
-3. Checker updates Monitor status via K8s API
-          ↓
-4. Controller sees status change
-          ↓
-5. Metrics are updated
-```
+Target failures do not make Yuptime unready. Scheduler delay, queue wait, start
+delay, in-flight checks, overdue monitors, retries, coalescing, worker state,
+and worker replacements are exported as bounded-cardinality metrics.
 
-The status update uses merge-patch:
+## Kubernetes objects
 
-```bash
-# What the checker does internally
-kubectl patch monitor example-website \
-  --type=merge \
-  --subresource=status \
-  --patch='{"status":{"lastCheck":{"success":true,"latencyMs":125}}}'
-```
+The default `sidecar` mode creates one Deployment Pod and no per-check Jobs or
+Pods. Job/Pod RBAC and the checker ServiceAccount are omitted.
 
-## Data Flow
+`execution.mode: jobs` is an installation-wide rollback adapter. It uses the
+same Check Engine and ordered publisher, but one attempt is executed by one
+Kubernetes Job with `ttlSecondsAfterFinished`. It is not an automatic fallback
+and must not run concurrently with a sidecar-mode controller against the same
+Monitor set.
 
-### Check Execution
+## Scaling boundary
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Job Manager │────→│ K8s Job API  │────→│ Checker Pod  │
-└──────────────┘     └──────────────┘     └──────────────┘
-                                                  │
-                                                  │ Executes check
-                                                  ▼
-                                          ┌──────────────┐
-                                          │   Target     │
-                                          │  (HTTP/TCP/  │
-                                          │   DNS/...)   │
-                                          └──────────────┘
-                                                  │
-                                                  │ Returns result
-                                                  ▼
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Controller  │←────│  K8s API     │←────│ Checker Pod  │
-└──────────────┘     │ (status patch)│     └──────────────┘
-                     └──────────────┘
+The worker pool is sized by concurrent work, not checker type:
+
+```text
+required workers ~= checks per second * p95 attempt duration * headroom
 ```
 
-### Alerting Flow
+Queue wait, busy workers, and overdue monitors show when vertical capacity is
+insufficient. The current controller is intentionally singleton. Scaling past
+one Pod requires explicit monitor sharding with one status owner per Monitor;
+uncoordinated replicas and per-check Jobs are not horizontal scaling.
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Controller  │────→│ State Change │────→│ Alertmanager │
-│  (watches    │     │  Detection   │     │  Webhook     │
-│   status)    │     │              │     │              │
-└──────────────┘     └──────────────┘     └──────────────┘
-                                                  │
-                                                  ▼
-                                          ┌──────────────┐
-                                          │ Alertmanager │
-                                          │  (routes to  │
-                                          │ Slack/PD/...) │
-                                          └──────────────┘
-```
+## Data ownership
 
-## Design Principles
+| Data | Source of truth |
+|---|---|
+| Monitor configuration | `Monitor.spec` |
+| Current and previous results | `Monitor.status` |
+| Runtime health and aggregate observations | Prometheus |
+| Alert routing and delivery policy | Alertmanager |
+| Deployment, CRDs, and RBAC | Timoni/CUE module |
 
-### 1. Spec is Read-Only
+The controller never mutates CRD specs. Timoni templates are authoritative for
+maintainers; Helm, static manifests, and `k8s/crds.yaml` are deterministic
+generated mirrors whose complete resource contents are checked for parity.
 
-The controller never modifies the `.spec` of any CRD:
-
-```yaml
-apiVersion: monitoring.yuptime.io/v1
-kind: Monitor
-metadata:
-  name: example
-spec:          # ← Read by controller, never modified
-  type: http
-  ...
-status:        # ← Written by controller and checkers
-  lastCheck:
-    success: true
-```
-
-This ensures:
-- Git remains the source of truth
-- GitOps tools (Flux/Argo) don't conflict with the controller
-- Changes are auditable in Git history
-
-### 2. No Database
-
-Yuptime stores all state in Kubernetes:
-
-| Data | Storage |
-|------|---------|
-| Monitor configuration | `.spec` of Monitor CRD |
-| Check results | `.status` of Monitor CRD |
-| Uptime history | `.status.uptime` of Monitor CRD |
-| Current state | `.status.state` of Monitor CRD |
-
-Benefits:
-- No database to backup, scale, or manage
-- State is replicated by etcd (Kubernetes backing store)
-- Disaster recovery = `kubectl apply -f manifests/`
-
-### 3. Isolated Execution
-
-Each check runs in its own pod:
-
-```
-┌────────────────────────────────────────────────────┐
-│                  Traditional                        │
-│  ┌────────────────────────────────────────────┐    │
-│  │           Monolithic Process               │    │
-│  │  Check 1 │ Check 2 │ Check 3 │ Check N    │    │
-│  │  (shares memory, CPU, network stack)       │    │
-│  └────────────────────────────────────────────┘    │
-└────────────────────────────────────────────────────┘
-
-┌────────────────────────────────────────────────────┐
-│                    Yuptime                          │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │
-│  │ Pod 1   │ │ Pod 2   │ │ Pod 3   │ │ Pod N   │  │
-│  │ Check 1 │ │ Check 2 │ │ Check 3 │ │ Check N │  │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘  │
-│  (isolated memory, CPU, network stack)            │
-└────────────────────────────────────────────────────┘
-```
-
-### 4. Deterministic Jitter
-
-Checks are spread out to prevent thundering herd:
-
-```
-Without jitter:           With jitter:
-│ All checks at :00      │ Check 1 at :00
-│                        │ Check 2 at :12
-│                        │ Check 3 at :27
-│                        │ Check 4 at :41
-│                        │ Check 5 at :55
-```
-
-The jitter is deterministic (hash-based), so checks run at the same offset across restarts.
-
-## RBAC
-
-Yuptime uses two service accounts:
-
-### yuptime-api
-
-Full access for the controller:
-
-```yaml
-rules:
-  - apiGroups: ["monitoring.yuptime.io"]
-    resources: ["*"]
-    verbs: ["get", "list", "watch", "update", "patch"]
-  - apiGroups: ["batch"]
-    resources: ["jobs"]
-    verbs: ["create", "delete", "get", "list", "watch"]
-```
-
-### yuptime-checker
-
-Minimal access for checker pods:
-
-```yaml
-rules:
-  - apiGroups: ["monitoring.yuptime.io"]
-    resources: ["monitors"]
-    verbs: ["get"]
-  - apiGroups: ["monitoring.yuptime.io"]
-    resources: ["monitors/status"]
-    verbs: ["patch", "update"]
-```
-
-## Next Steps
-
-- [Installation options](/guide/installation/timoni)
-- [Monitor configuration](/guide/monitors)
-- [Alerting setup](/guide/alerting)
+See [Checker execution redesign](./checker-execution-redesign.md) for the exact
+timing model, failure semantics, migration details, and acceptance criteria.

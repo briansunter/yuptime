@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
+import type { CheckContext } from "./context";
 import type { CheckResult } from "./index";
 
 /**
@@ -108,6 +109,7 @@ async function checkPostgreSqlWithFactory(
   monitor: Monitor,
   timeout: number,
   clientFactory: (config: PostgreSqlClientConfig) => Promise<PostgreSqlClient>,
+  context?: CheckContext,
 ): Promise<CheckResult> {
   const target = monitor.spec.target.postgresql;
 
@@ -123,8 +125,19 @@ async function checkPostgreSqlWithFactory(
   const startTime = Date.now();
 
   try {
-    // Get credentials from environment variables (injected by Job builder)
-    const credentials = getCredentialsFromEnv();
+    const secretRef = target.credentialsSecretRef;
+    const credentials = context
+      ? {
+          username: await context.resolveSecret(
+            { name: secretRef.name, key: secretRef.usernameKey ?? "username" },
+            monitor.metadata.namespace,
+          ),
+          password: await context.resolveSecret(
+            { name: secretRef.name, key: secretRef.passwordKey ?? "password" },
+            monitor.metadata.namespace,
+          ),
+        }
+      : getCredentialsFromEnv();
 
     if (!credentials) {
       return {
@@ -230,8 +243,12 @@ async function checkPostgreSqlWithFactory(
 /**
  * PostgreSQL health checker
  */
-export function checkPostgreSql(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  return checkPostgreSqlWithFactory(monitor, timeout, createDefaultPostgreSqlClient);
+export function checkPostgreSql(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  return checkPostgreSqlWithFactory(monitor, timeout, createDefaultPostgreSqlClient, context);
 }
 
 /**
@@ -239,7 +256,7 @@ export function checkPostgreSql(monitor: Monitor, timeout: number): Promise<Chec
  */
 export function createCheckPostgreSql(
   clientFactory: (config: PostgreSqlClientConfig) => Promise<PostgreSqlClient>,
-): (monitor: Monitor, timeout: number) => Promise<CheckResult> {
-  return (monitor: Monitor, timeout: number) =>
-    checkPostgreSqlWithFactory(monitor, timeout, clientFactory);
+): (monitor: Monitor, timeout: number, context?: CheckContext) => Promise<CheckResult> {
+  return (monitor: Monitor, timeout: number, context?: CheckContext) =>
+    checkPostgreSqlWithFactory(monitor, timeout, clientFactory, context);
 }

@@ -13,6 +13,11 @@ export interface OAuth2Config {
   scopes?: string[];
 }
 
+export interface OAuth2Credentials {
+  clientId: string;
+  clientSecret: string;
+}
+
 /**
  * OAuth2 token response
  */
@@ -31,9 +36,14 @@ interface TokenResponse {
  * - YUPTIME_AUTH_OAUTH_CLIENT_ID: OAuth2 client ID
  * - YUPTIME_AUTH_OAUTH_CLIENT_SECRET: OAuth2 client secret
  */
-export async function fetchOAuth2Token(config: OAuth2Config, timeout: number): Promise<string> {
-  const clientId = process.env.YUPTIME_AUTH_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.YUPTIME_AUTH_OAUTH_CLIENT_SECRET;
+export async function fetchOAuth2Token(
+  config: OAuth2Config,
+  timeout: number,
+  credentials?: OAuth2Credentials,
+  signal?: AbortSignal,
+): Promise<string> {
+  const clientId = credentials?.clientId ?? process.env.YUPTIME_AUTH_OAUTH_CLIENT_ID;
+  const clientSecret = credentials?.clientSecret ?? process.env.YUPTIME_AUTH_OAUTH_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
     throw new Error(
@@ -58,6 +68,8 @@ export async function fetchOAuth2Token(config: OAuth2Config, timeout: number): P
 
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeout * 1000);
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
 
   try {
     const response = await fetch(tokenUrl, {
@@ -106,5 +118,6 @@ export async function fetchOAuth2Token(config: OAuth2Config, timeout: number): P
     throw error;
   } finally {
     clearTimeout(timeoutHandle);
+    signal?.removeEventListener("abort", abort);
   }
 }

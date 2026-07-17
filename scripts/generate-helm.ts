@@ -93,6 +93,20 @@ mode: development
 # Completed checker Job retention in seconds (60-86400)
 jobTTLSeconds: 120
 
+execution:
+  mode: sidecar # sidecar | jobs
+  concurrency: 4
+  queueCapacity: 256
+  shutdownGraceSeconds: 15
+
+checkerResources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
 logging:
   level: info # debug | info | warn | error
 
@@ -134,6 +148,8 @@ topologySpreadConstraints: []
 
 networkPolicy:
   enabled: true
+  # all supports arbitrary uptime targets; commonPorts is a restrictive opt-in.
+  egressMode: all # all | commonPorts
 
 podDisruptionBudget:
   enabled: true
@@ -196,56 +212,89 @@ function convertToHelmTemplate(yaml: string, _resourceName: string): string {
   let template = yaml;
 
   // Split into documents if there are multiple
-  const docs = template.split('---').filter((doc) => doc.trim());
+  const docs = template.split("---").filter((doc) => doc.trim());
 
   let processedDocs = docs.map((doc) => {
     let processed = doc;
 
     // Replace common patterns with Helm template syntax
-    processed = processed.replace(/name: yuptime-api/g, 'name: {{ include "yuptime.fullname" . }}-api');
-    processed = processed.replace(/name: yuptime-checker/g, 'name: {{ include "yuptime.fullname" . }}-checker');
+    processed = processed.replace(
+      /name: yuptime-api/g,
+      'name: {{ include "yuptime.fullname" . }}-api',
+    );
+    processed = processed.replace(
+      /name: yuptime-checker/g,
+      'name: {{ include "yuptime.fullname" . }}-checker',
+    );
     processed = processed.replace(/name: yuptime/g, 'name: {{ include "yuptime.fullname" . }}');
-    processed = processed.replace(/namespace: yuptime/g, 'namespace: {{ .Release.Namespace }}');
+    processed = processed.replace(/namespace: yuptime/g, "namespace: {{ .Release.Namespace }}");
 
     // Replace image references with Helm values
     processed = processed.replace(
       /image: ghcr\.io\/yuptime\/yuptime-api:latest/g,
-      'image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"'
+      'image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"',
     );
     processed = processed.replace(
       /image: ghcr\.io\/yuptime\/yuptime-checker:latest/g,
-      'image: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"'
+      'image: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"',
     );
 
     // Replace CHECKER_IMAGE env var value (rendered as string in env block)
     processed = processed.replace(
       /value: ghcr\.io\/yuptime\/yuptime-checker:latest/g,
-      'value: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"'
+      'value: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"',
     );
 
     // Replace CHECKER_IMAGE_PULL_POLICY env var value
     processed = processed.replace(
       /(-\s*name: CHECKER_IMAGE_PULL_POLICY\n\s*value:) IfNotPresent/g,
-      '$1 "{{ .Values.checkerImage.pullPolicy }}"'
+      '$1 "{{ .Values.checkerImage.pullPolicy }}"',
     );
 
     // Replace completed checker Job TTL env var value.
     processed = processed.replace(
       /(-\s*name: JOB_TTL_SECONDS\n\s*value:) "120"/g,
-      '$1 "{{ .Values.jobTTLSeconds }}"'
+      '$1 "{{ .Values.jobTTLSeconds }}"',
     );
+
+    processed = processed.replace(
+      /(-\s*name: EXECUTION_MODE\n\s*value:) sidecar/g,
+      '$1 "{{ .Values.execution.mode }}"',
+    );
+    processed = processed.replace(
+      /(-\s*name: EXECUTION_CONCURRENCY\n\s*value:) "4"/g,
+      '$1 "{{ .Values.execution.concurrency }}"',
+    );
+    processed = processed.replace(
+      /(-\s*name: EXECUTION_QUEUE_CAPACITY\n\s*value:) "256"/g,
+      '$1 "{{ .Values.execution.queueCapacity }}"',
+    );
+    processed = processed.replace(
+      /(-\s*name: EXECUTION_SHUTDOWN_GRACE_SECONDS\n\s*value:) "15"/g,
+      '$1 "{{ .Values.execution.shutdownGraceSeconds }}"',
+    );
+    processed = processed.replace(
+      /(-\s*name: NODE_ENV\n\s*value:) development/g,
+      '$1 "{{ .Values.mode }}"',
+    );
+    processed = processed.replace(
+      /(-\s*name: LOG_LEVEL\n\s*value:) info/g,
+      '$1 "{{ .Values.logging.level }}"',
+    );
+    processed = processed.replace(/^(\s*NODE_ENV:) development$/gm, '$1 "{{ .Values.mode }}"');
+    processed = processed.replace(/^(\s*LOG_LEVEL:) info$/gm, '$1 "{{ .Values.logging.level }}"');
 
     // Replace imagePullPolicy
     processed = processed.replace(
       /imagePullPolicy: IfNotPresent/g,
-      'imagePullPolicy: "{{ .Values.image.pullPolicy }}"'
+      'imagePullPolicy: "{{ .Values.image.pullPolicy }}"',
     );
 
     return processed.trim();
   });
 
   // Join documents back together
-  template = processedDocs.join('\n---\n');
+  template = processedDocs.join("\n---\n");
 
   return template;
 }
@@ -366,6 +415,13 @@ function generateHelmTemplates(_version: string): void {
   console.log("  📝 Generating Helm templates...");
 
   mkdirSync(TEMPLATES_DIR, { recursive: true });
+  for (const staleTemplate of ["role.yaml", "role-binding.yaml"]) {
+    try {
+      unlinkSync(join(TEMPLATES_DIR, staleTemplate));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
 
   // Generate helpers
   writeFileSync(join(TEMPLATES_DIR, "_helpers.tpl"), generateHelpers());
@@ -388,33 +444,152 @@ values: {
 
   const yaml = renderWithTimoni(defaultValues);
 
-  // Split into individual templates
-  const docs = yaml.split("---\n").filter((doc) => doc.trim());
+  const jobsYaml = renderWithTimoni(`
+package main
+values: {
+  metadata: {
+    name: "yuptime"
+    namespace: "yuptime"
+  }
+  execution: mode: "jobs"
+}
+`);
+  const crdsYaml = renderWithTimoni(`
+package main
+values: {
+  metadata: {
+    name: "yuptime"
+    namespace: "yuptime"
+  }
+  crds: install: true
+}
+`);
+  const commonPortsNetworkPolicyYaml = renderWithTimoni(`
+package main
+values: {
+  metadata: {
+    name: "yuptime"
+    namespace: "yuptime"
+  }
+  networkPolicy: egressMode: "commonPorts"
+}
+`);
+
+  type RenderedDoc = {
+    key: string;
+    kind: string;
+    content: string;
+    jobsOnly: boolean;
+    crdsOnly: boolean;
+  };
+
+  function parseDocs(rendered: string): RenderedDoc[] {
+    return rendered
+      .split("---\n")
+      .filter((doc) => doc.trim())
+      .flatMap((content) => {
+        const kind = content.match(/kind:\s*(\S+)/)?.[1];
+        const lines = content.split("\n");
+        const metadataIndex = lines.findIndex((line) => line === "metadata:");
+        const name = lines
+          .slice(metadataIndex + 1)
+          .find((line) => line.startsWith("  name: "))
+          ?.slice("  name: ".length);
+        return kind && name
+          ? [{ key: `${kind}/${name}`, kind, content, jobsOnly: false, crdsOnly: false }]
+          : [];
+      });
+  }
+
+  const sidecarDocs = parseDocs(yaml);
+  const jobsDocs = parseDocs(jobsYaml);
+  const commonPortsDocs = new Map(
+    parseDocs(commonPortsNetworkPolicyYaml).map((doc) => [doc.key, doc]),
+  );
+  const sidecarKeys = new Set(sidecarDocs.map((doc) => doc.key));
+  const jobsByKey = new Map(jobsDocs.map((doc) => [doc.key, doc]));
+  const docs = sidecarDocs.map((doc) => {
+    if (doc.kind === "ClusterRole") return jobsByKey.get(doc.key) ?? doc;
+    if (doc.kind === "NetworkPolicy") return commonPortsDocs.get(doc.key) ?? doc;
+    return doc;
+  });
+  for (const doc of jobsDocs) {
+    if (!sidecarKeys.has(doc.key)) docs.push({ ...doc, jobsOnly: true });
+  }
+  for (const doc of parseDocs(crdsYaml)) {
+    if (doc.kind === "CustomResourceDefinition") docs.push({ ...doc, crdsOnly: true });
+  }
 
   const templateFiles: Record<string, string> = {};
 
   for (const doc of docs) {
-    const kindMatch = doc.match(/kind:\s*(\S+)/);
-    if (!kindMatch) continue;
-
-    const kind = kindMatch[1]!;
-    let filename = kind
-      .replace(/([a-z])([A-Z])/g, "$1-$2")
-      .toLowerCase() + ".yaml";
+    const kind = doc.kind;
+    let filename = kind.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase() + ".yaml";
 
     // Special handling for certain resources
     if (kind === "CustomResourceDefinition") {
       filename = "crds.yaml";
-    } else if (kind === "ClusterRole" || kind === "ClusterRoleBinding") {
+    } else if (["ClusterRole", "ClusterRoleBinding", "Role", "RoleBinding"].includes(kind)) {
       filename = "rbac.yaml";
     }
 
-    templateFiles[filename] = (templateFiles[filename] || "") + `---\n${doc}`;
+    let converted = convertToHelmTemplate(doc.content, filename.replace(".yaml", ""));
+    if (kind === "ClusterRole") {
+      const lines = converted.split("\n");
+      const ruleStarts = lines
+        .map((line, index) => (line === "- apiGroups:" ? index : -1))
+        .filter((index) => index >= 0);
+      for (let index = ruleStarts.length - 1; index >= 0; index--) {
+        const start = ruleStarts[index] as number;
+        const end = (ruleStarts[index + 1] as number | undefined) ?? lines.length;
+        const block = lines.slice(start, end).join("\n");
+        if (block.includes("  - batch") || block.includes("  - pods/log")) {
+          lines.splice(
+            start,
+            end - start,
+            '{{- if eq .Values.execution.mode "jobs" }}',
+            ...block.split("\n"),
+            "{{- end }}",
+          );
+        }
+      }
+      converted = lines.join("\n");
+    }
+    if (kind === "NetworkPolicy") {
+      const egressMarker = "  egress:\n";
+      const egressStart = converted.indexOf(egressMarker);
+      const ingressStart = converted.indexOf("  ingress:\n", egressStart);
+      if (egressStart >= 0 && ingressStart > egressStart) {
+        const rulesStart = egressStart + egressMarker.length;
+        const commonPortRules = converted.slice(rulesStart, ingressStart);
+        converted = `${converted.slice(0, rulesStart)}{{- if eq .Values.networkPolicy.egressMode "commonPorts" }}\n${commonPortRules}{{- else }}\n  - {}\n{{- end }}\n${converted.slice(ingressStart)}`;
+      }
+    }
+    if (doc.jobsOnly) {
+      converted = `{{- if eq .Values.execution.mode "jobs" }}\n${converted}\n{{- end }}`;
+    }
+    if (doc.crdsOnly) {
+      converted = `{{- if .Values.crds.install }}\n${converted}\n{{- end }}`;
+    }
+    templateFiles[filename] = (templateFiles[filename] || "") + `---\n${converted}\n`;
   }
 
   // Write template files with Helm syntax
   for (const [filename, content] of Object.entries(templateFiles)) {
-    const templateContent = convertToHelmTemplate(content, filename.replace(".yaml", ""));
+    let templateContent = content.trim();
+    if (filename === "deployment.yaml") {
+      const checkerStart =
+        "      - command:\n        - bun\n        - src/checker-sidecar/server.ts";
+      const podSecurity = "      securityContext:\n        fsGroup:";
+      const start = templateContent.indexOf(checkerStart);
+      const end = templateContent.indexOf(podSecurity, start);
+      if (start >= 0 && end > start) {
+        const checker = templateContent
+          .slice(start, end)
+          .replaceAll(".Values.image.pullPolicy", ".Values.checkerImage.pullPolicy");
+        templateContent = `${templateContent.slice(0, start)}{{- if eq .Values.execution.mode "sidecar" }}\n${checker}{{- end }}\n${templateContent.slice(end)}`;
+      }
+    }
     writeFileSync(join(TEMPLATES_DIR, filename), templateContent);
     console.log(`    ✅ ${filename}`);
   }

@@ -101,14 +101,19 @@ alerting:
 
 ## Status
 
-The controller and checker Jobs update the status subresource.
+The controller is the sole status writer. The default persistent checker
+sidecar and the optional Jobs rollback adapter return structured results to the
+controller.
 
 ```yaml
 status:
   observedGeneration: 1
   lastResult:
+    executionId: "2cb34..."
+    scheduledAt: "2026-03-15T10:00:00Z"
+    startedAt: "2026-03-15T10:00:00.041Z"
     state: up
-    checkedAt: "2026-03-15T10:00:00Z"
+    checkedAt: "2026-03-15T10:00:00.125Z"
     latencyMs: 125
     attempts: 1
   previousResult:

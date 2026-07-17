@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type { Monitor } from "../../types/crd";
 import { buildJobForMonitor, buildJobLabelSelector, extractSecretEnvVars } from "./job-builder";
-import type { Monitor } from "./types";
 
 /**
  * Create a minimal monitor for testing.

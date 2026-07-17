@@ -62,6 +62,7 @@ affinity: {}
 # Features
 networkPolicy:
   enabled: true
+  egressMode: all # all | commonPorts
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

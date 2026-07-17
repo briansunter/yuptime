@@ -1,3 +1,4 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -75,6 +76,7 @@ rules:
   - update
   - patch
   - delete
+{{- if eq .Values.execution.mode "jobs" }}
 - apiGroups:
   - batch
   resources:
@@ -88,6 +90,8 @@ rules:
   - update
   - patch
   - delete
+{{- end }}
+{{- if eq .Values.execution.mode "jobs" }}
 - apiGroups:
   - ""
   resources:
@@ -96,6 +100,7 @@ rules:
   verbs:
   - get
   - list
+{{- end }}
 - apiGroups:
   - ""
   resources:
@@ -120,3 +125,49 @@ subjects:
 - kind: ServiceAccount
   name: {{ include "yuptime.fullname" . }}
   namespace: {{ .Release.Namespace }}
+---
+{{- if eq .Values.execution.mode "jobs" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+    app.kubernetes.io/version: 0.0.0-devel
+  name: {{ include "yuptime.fullname" . }}-checker
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups:
+  - monitoring.yuptime.io
+  resources:
+  - monitors
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+{{- end }}
+---
+{{- if eq .Values.execution.mode "jobs" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: {{ include "yuptime.fullname" . }}
+    app.kubernetes.io/version: 0.0.0-devel
+  name: {{ include "yuptime.fullname" . }}-checker
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "yuptime.fullname" . }}-checker
+subjects:
+- kind: ServiceAccount
+  name: {{ include "yuptime.fullname" . }}-checker
+  namespace: {{ .Release.Namespace }}
+{{- end }}

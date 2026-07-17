@@ -52,7 +52,10 @@ values: {
   }
 
   // Features
-  networkPolicy: enabled:        true
+  networkPolicy: {
+    enabled:    true
+    egressMode: "all" // all | commonPorts
+  }
   podDisruptionBudget: enabled:  true
   podDisruptionBudget: minAvailable: 1
   crds: install:                 false

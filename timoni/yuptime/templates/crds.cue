@@ -243,6 +243,9 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 							lastResult: {
 								type: "object"
 								properties: {
+									executionId: type: "string"
+									scheduledAt: type: "string"
+									startedAt:   type: "string"
 									state: {
 										type: "string"
 										enum: ["up", "down", "pending", "flapping", "paused"]
@@ -257,6 +260,9 @@ customresourcedefinition: "monitors.monitoring.yuptime.io": {
 							previousResult: {
 								type: "object"
 								properties: {
+									executionId: type: "string"
+									scheduledAt: type: "string"
+									startedAt:   type: "string"
 									state: {
 										type: "string"
 										enum: ["up", "down", "pending", "flapping", "paused"]

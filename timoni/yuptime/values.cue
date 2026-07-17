@@ -29,6 +29,13 @@ values: {
 	// Completed checker Job retention
 	jobTTLSeconds: 120
 
+	execution: {
+		mode:                 "sidecar"
+		concurrency:          4
+		queueCapacity:        256
+		shutdownGraceSeconds: 15
+	}
+
 	// Logging
 	logging: level: "info"
 
@@ -57,7 +64,10 @@ values: {
 	}
 
 	// Optional features
-	networkPolicy: enabled:        true
+	networkPolicy: {
+		enabled:    true
+		egressMode: "all"
+	}
 	podDisruptionBudget: enabled:  true
 	podDisruptionBudget: minAvailable: 1
 	crds: install:                 false // CRDs should be applied separately

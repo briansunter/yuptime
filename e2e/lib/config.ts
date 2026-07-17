@@ -27,7 +27,6 @@ export const E2E_NAMESPACE = process.env.E2E_NAMESPACE || "yuptime";
 
 // Timeout configuration
 export const DEFAULT_TIMEOUT_MS = 60000; // 60 seconds
-export const JOB_WAIT_TIMEOUT_MS = 120000; // 2 minutes
 export const STATUS_POLL_INTERVAL_MS = 1000; // 1 second
 
 /**

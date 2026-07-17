@@ -26,11 +26,8 @@ kubectl apply -f deployment.yaml
 
 - Namespace
 - ServiceAccount
-- ServiceAccount
 - ClusterRole
 - ClusterRoleBinding
-- Role
-- RoleBinding
 - ConfigMap
 - Secret
 - Deployment

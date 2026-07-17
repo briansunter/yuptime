@@ -17,6 +17,20 @@ mode: development
 # Completed checker Job retention in seconds (60-86400)
 jobTTLSeconds: 120
 
+execution:
+  mode: sidecar # sidecar | jobs
+  concurrency: 4
+  queueCapacity: 256
+  shutdownGraceSeconds: 15
+
+checkerResources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
 logging:
   level: info # debug | info | warn | error
 
@@ -58,6 +72,8 @@ topologySpreadConstraints: []
 
 networkPolicy:
   enabled: true
+  # all supports arbitrary uptime targets; commonPorts is a restrictive opt-in.
+  egressMode: all # all | commonPorts
 
 podDisruptionBudget:
   enabled: true

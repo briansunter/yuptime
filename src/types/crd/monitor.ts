@@ -469,6 +469,9 @@ export type MonitorSpec = z.infer<typeof MonitorSpecSchema>;
 
 // Last check result
 export const LastResultSchema = z.object({
+  executionId: z.string().optional(),
+  scheduledAt: z.string().optional(),
+  startedAt: z.string().optional(),
   state: z.enum(["up", "down", "pending", "flapping", "paused"]),
   checkedAt: z.string(),
   latencyMs: z.number().optional(),
@@ -519,6 +522,7 @@ export const MonitorSchema = z.object({
     uid: z.string().optional(),
     resourceVersion: z.string().optional(),
     generation: z.number().optional(),
+    creationTimestamp: z.string().optional(),
     labels: z.record(z.string()).optional(),
     annotations: z.record(z.string()).optional(),
   }),

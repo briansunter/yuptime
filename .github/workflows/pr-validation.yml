@@ -41,13 +41,12 @@ jobs:
           bun run generate:helm
           bun run generate:manifests
 
-      - name: Validate Helm chart
-        run: |
-          helm template yuptime helm/yuptime --debug
+      - name: Validate generated artifacts
+        run: bun run validate:generated
 
       - name: Check for drift
         run: |
-          git diff --exit-code helm/yuptime/ manifests/ || {
+          git diff --exit-code helm/yuptime/ manifests/ k8s/crds.yaml || {
             echo "❌ Generated artifacts are out of date"
             echo "Please run: bun run generate:all"
             exit 1
@@ -62,5 +61,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '### ⚠️ Generated Artifacts Out of Date\n\nThe CUE templates have changed but the generated artifacts have not been updated.\n\n**Please run:**\n```bash\nbun run generate:all\n```\n\nThis will regenerate:\n- `helm/yuptime/` - Helm chart\n- `manifests/` - Static YAML manifests\n\nThen commit the changes.'
+            body: '### ⚠️ Generated Artifacts Out of Date\n\nThe CUE templates have changed but the generated artifacts have not been updated.\n\n**Please run:**\n```bash\nbun run generate:all\n```\n\nThis will regenerate:\n- `helm/yuptime/` - Helm chart\n- `manifests/` - Static YAML manifests\n- `k8s/crds.yaml` - CRD mirror\n\nThen commit the changes.'
             })

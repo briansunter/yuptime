@@ -10,6 +10,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 NAMESPACE="yuptime"
+KUBECTL_CONTEXT=${KUBECTL_CONTEXT:-orbstack}
 TIMEOUT_MINUTES=${TIMEOUT_MINUTES:-15}
 CLEANUP_ON_SUCCESS=${CLEANUP_ON_SUCCESS:-true}
 CLEANUP_ON_FAILURE=${CLEANUP_ON_FAILURE:-false}
@@ -17,6 +18,10 @@ CLEANUP_ON_FAILURE=${CLEANUP_ON_FAILURE:-false}
 # Test configuration
 TEST_MONITOR_NAME="httpbin-test"
 TEST_TARGET_URL="https://httpbin.org/get"
+
+kubectl() {
+    command kubectl --context "$KUBECTL_CONTEXT" "$@"
+}
 
 # Helper functions
 log_info() {
@@ -72,7 +77,7 @@ cleanup() {
 
         log_info "Uninstalling Yuptime..."
         if command -v timoni &> /dev/null; then
-            timoni delete yuptime -n "$NAMESPACE" 2>/dev/null || true
+            timoni delete yuptime -n "$NAMESPACE" --kube-context "$KUBECTL_CONTEXT" 2>/dev/null || true
         fi
 
         log_info "Deleting namespace..."
@@ -302,7 +307,7 @@ EOF
     timoni mod vet ./timoni/yuptime
 
     log_info "Deploying Yuptime to namespace '$NAMESPACE'..."
-    timoni apply yuptime ./timoni/yuptime -n "$NAMESPACE" -f /tmp/values-orbstack.cue --timeout=5m
+    timoni apply yuptime ./timoni/yuptime -n "$NAMESPACE" -f /tmp/values-orbstack.cue --kube-context "$KUBECTL_CONTEXT" --timeout=5m
 
     log_success "Yuptime deployed"
 }
@@ -332,13 +337,8 @@ verify_crds() {
     local expected_crds=(
         "monitors.monitoring.yuptime.io"
         "monitorsets.monitoring.yuptime.io"
-        "notificationpolicies.monitoring.yuptime.io"
-        "notificationproviders.monitoring.yuptime.io"
-        "statuspages.monitoring.yuptime.io"
         "maintenancewindows.monitoring.yuptime.io"
         "silences.monitoring.yuptime.io"
-        "localusers.monitoring.yuptime.io"
-        "apikeys.monitoring.yuptime.io"
         "yuptimesettings.monitoring.yuptime.io"
     )
 
@@ -429,53 +429,33 @@ EOF
     kubectl get monitors -n "$NAMESPACE" -o wide
 }
 
-# Wait for check job to complete
-wait_for_check_job() {
-    print_section "Waiting for Check Job"
+# Wait for the persistent Check Engine to publish a result.
+wait_for_check_result() {
+    print_section "Waiting for Check Result"
 
-    log_info "Waiting for check job to complete..."
+    log_info "Waiting for the sidecar-backed check result..."
     local max_retries=30
     local retry_count=0
 
     while [ $retry_count -lt $max_retries ]; do
-        # Look for completed jobs
-        local completed=0
-        local jobs_output=$(kubectl get jobs -n "$NAMESPACE" -l monitoring.yuptime.io/monitor=yuptime-$TEST_MONITOR_NAME --no-headers 2>/dev/null || true)
-        if [ -n "$jobs_output" ]; then
-            completed=$(echo "$jobs_output" | grep -c "1/1" || true)
-        fi
-
-        if [ "$completed" -gt 0 ]; then
-            log_success "✓ Check job completed"
-            kubectl get jobs -n "$NAMESPACE" -l monitoring.yuptime.io/monitor=yuptime-$TEST_MONITOR_NAME
-
-            # Get the job pod logs
-            local job_pod=$(kubectl get pods -n "$NAMESPACE" -l monitoring.yuptime.io/monitor=yuptime-$TEST_MONITOR_NAME --no-headers 2>/dev/null | head -1 | awk '{print $1}')
-            if [ -n "$job_pod" ]; then
-                log_info "Checker job logs:"
-                kubectl logs -n "$NAMESPACE" "$job_pod" 2>/dev/null || true
-            fi
-
+        local checked_at=$(kubectl get monitor "$TEST_MONITOR_NAME" -n "$NAMESPACE" -o jsonpath='{.status.lastResult.checkedAt}' 2>/dev/null || true)
+        if [ -n "$checked_at" ]; then
+            local scheduled_at=$(kubectl get monitor "$TEST_MONITOR_NAME" -n "$NAMESPACE" -o jsonpath='{.status.lastResult.scheduledAt}')
+            local execution_id=$(kubectl get monitor "$TEST_MONITOR_NAME" -n "$NAMESPACE" -o jsonpath='{.status.lastResult.executionId}')
+            test -n "$scheduled_at" && test -n "$execution_id"
+            test -z "$(kubectl get jobs -n "$NAMESPACE" -l app.kubernetes.io/component=checker --no-headers 2>/dev/null || true)"
+            test -z "$(kubectl get pods -n "$NAMESPACE" -l app.kubernetes.io/component=checker --no-headers 2>/dev/null || true)"
+            log_success "✓ Persistent checker published a structured result without creating Jobs"
             return 0
         fi
-
-        # Check for running jobs
-        local jobs=$(kubectl get jobs -n "$NAMESPACE" -l monitoring.yuptime.io/monitor=yuptime-$TEST_MONITOR_NAME --no-headers 2>/dev/null | wc -l)
-
-        if [ "$jobs" -gt 0 ]; then
-            echo -n "."
-        else
-            log_info "No jobs found yet, waiting... ($retry_count/$max_retries)"
-        fi
-
+        echo -n "."
         retry_count=$((retry_count + 1))
         sleep 3
     done
 
     echo ""
-    log_warning "No completed jobs found in time"
-    log_info "Job status:"
-    kubectl get jobs -n "$NAMESPACE"
+    log_error "No checker result was published in time"
+    return 1
 }
 
 # Verify API endpoints
@@ -486,13 +466,9 @@ verify_api_endpoints() {
     local health=$(curl -s http://localhost:3000/health)
     log_success "Health: $health"
 
-    log_info "Testing /api/monitors endpoint..."
-    local monitors=$(curl -s http://localhost:3000/api/monitors)
-    log_success "Monitors: $monitors"
-
-    log_info "Testing /api/status-pages endpoint..."
-    local status_pages=$(curl -s http://localhost:3000/api/status-pages)
-    log_success "Status pages: $status_pages"
+    log_info "Testing /ready endpoint..."
+    curl -sf http://localhost:3000/ready > /dev/null
+    log_success "Readiness: OK"
 
     log_info "Testing /metrics endpoint..."
     local metrics=$(curl -s http://localhost:3000/metrics)
@@ -510,16 +486,14 @@ verify_monitor_status() {
     log_info "Checking monitor CRD status..."
     kubectl get monitor "$TEST_MONITOR_NAME" -n "$NAMESPACE" -o yaml
 
-    local status=$(kubectl get monitor "$TEST_MONITOR_NAME" -n "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+    local status=$(kubectl get monitor "$TEST_MONITOR_NAME" -n "$NAMESPACE" -o jsonpath='{.status.lastResult.state}' 2>/dev/null || echo "")
 
     if [ -n "$status" ]; then
-        log_success "Monitor status phase: $status"
+        log_success "Monitor check state: $status"
     else
         log_warning "No monitor status found (may still be processing)"
     fi
 
-    log_info "Monitor incidents:"
-    kubectl get incidents -n "$NAMESPACE" --no-headers 2>/dev/null || echo "No incidents found"
 }
 
 # Run E2E test suite
@@ -527,7 +501,7 @@ run_e2e_tests() {
     print_section "Running E2E Tests"
 
     log_info "Running E2E tests with mock server at $MOCK_HOST..."
-    MOCK_SERVER_HOST=$MOCK_HOST E2E_NAMESPACE=$NAMESPACE bun test "./e2e/tests/*.test.ts" --timeout 120000
+    MOCK_SERVER_HOST=$MOCK_HOST E2E_NAMESPACE=$NAMESPACE bun run test:e2e:tests
 
     log_success "E2E tests completed"
 }
@@ -545,7 +519,7 @@ run_tests() {
     verify_crds
     health_check
     create_test_monitor
-    wait_for_check_job
+    wait_for_check_result
     verify_api_endpoints
     verify_monitor_status
     run_e2e_tests
@@ -575,7 +549,7 @@ main() {
     log_info "  • CRDs installed: PASS"
     log_info "  • Health check: PASS"
     log_info "  • Test monitor: PASS"
-    log_info "  • Check job: PASS"
+    log_info "  • Persistent checker result with zero Jobs: PASS"
     log_info "  • API endpoints: PASS"
     log_info "  • Monitor status: PASS"
     echo ""

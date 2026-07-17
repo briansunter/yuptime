@@ -1,11 +1,11 @@
-import type { KubeConfig } from "@kubernetes/client-node";
+import type { CheckEngine } from "../check-engine";
+import { createCheckEngine } from "../check-engine";
+import { createKubernetesResultPublisher } from "../check-engine/kubernetes-publisher";
+import { createKubernetesJobRunner } from "../check-runner/kubernetes-job-runner";
+import { createSidecarRunner } from "../check-runner/sidecar-runner";
 import { config } from "../lib/config";
 import { logger } from "../lib/logger";
 import { informerRegistry, registry, startAllWatchers, stopAllWatchers } from "./informers";
-import type { JobManager } from "./job-manager";
-import { createJobManager } from "./job-manager";
-import type { JobCompletionWatcher } from "./job-manager/completion-watcher";
-import { createJobCompletionWatcher } from "./job-manager/completion-watcher";
 import { initializeK8sClient } from "./k8s-client";
 import {
   createMaintenanceWindowReconciler,
@@ -22,8 +22,7 @@ import { stopSafetyNet } from "./reconcilers/monitor-reconciler";
 import type { TypeSafeReconciler } from "./reconcilers/types";
 
 // Global instances
-let jobManager: JobManager | null = null;
-let jobCompletionWatcher: JobCompletionWatcher | null = null;
+let checkEngine: CheckEngine | null = null;
 
 /**
  * Initialize and start the Kubernetes controller
@@ -34,30 +33,23 @@ export async function startController() {
     logger.info("Starting Kubernetes controller...");
 
     // Initialize Kubernetes client
-    const kubeConfig = initializeK8sClient();
+    initializeK8sClient();
 
-    // Create and start Job Manager
-    jobManager = createJobManager({
-      kubeConfig,
-      jobTTL: config.jobTTLSeconds,
-      namespace: config.kubeNamespace,
+    const runner =
+      config.executionMode === "sidecar"
+        ? createSidecarRunner(config.checkerUrl)
+        : createKubernetesJobRunner(config.jobTTLSeconds);
+    checkEngine = createCheckEngine({
+      runner,
+      publisher: createKubernetesResultPublisher(),
+      concurrency: config.executionConcurrency,
+      queueCapacity: config.executionQueueCapacity,
     });
-    await jobManager.start();
-    logger.info("Job Manager started");
-
-    // Create and start Job Completion Watcher.
-    // The watcher observes checker Jobs cluster-wide (it filters by label
-    // selector), so no namespace is passed here — the namespace field is only
-    // used for the Job Manager's default creation namespace above.
-    jobCompletionWatcher = createJobCompletionWatcher({
-      kubeConfig,
-      jobManager,
-    });
-    await jobCompletionWatcher.start();
-    logger.info("Job Completion Watcher started");
+    await checkEngine.start();
+    logger.info({ mode: config.executionMode }, "Check Engine started");
 
     // Register all reconcilers with job manager context
-    registerAllReconcilers(kubeConfig);
+    registerAllReconcilers();
 
     // Start watching all CRD types
     await startAllWatchers();
@@ -76,19 +68,12 @@ export async function stopController() {
   try {
     logger.info("Stopping Kubernetes controller...");
 
-    // Stop safety-net timer and clear schedule tracker
+    // Stop the periodic validation safety net.
     stopSafetyNet();
 
-    // Stop Job Completion Watcher
-    if (jobCompletionWatcher) {
-      jobCompletionWatcher.stop();
-      jobCompletionWatcher = null;
-    }
-
-    // Stop Job Manager
-    if (jobManager) {
-      await jobManager.stop();
-      jobManager = null;
+    if (checkEngine) {
+      await checkEngine.stop(config.shutdownGraceMs);
+      checkEngine = null;
     }
 
     await stopAllWatchers();
@@ -102,14 +87,10 @@ export async function stopController() {
  * Register all reconcilers with the informer registry
  * Using functional composition and factory functions
  */
-function registerAllReconcilers(kubeConfig: KubeConfig) {
+function registerAllReconcilers() {
   logger.debug("Registering reconcilers...");
 
-  // Create reconciliation context with job manager
-  const reconcileContext = {
-    jobManager,
-    kubeConfig,
-  };
+  const reconcileContext = { checkEngine };
 
   // Create reconciler configs using factory functions
   const reconcilers = [
@@ -136,7 +117,10 @@ function registerAllReconcilers(kubeConfig: KubeConfig) {
       registry.registerDeleteHandler(
         informerRegistry,
         config.kind,
-        createTypeSafeDeleteHandler(config as unknown as TypeSafeReconciler<object>),
+        createTypeSafeDeleteHandler(
+          config as unknown as TypeSafeReconciler<object>,
+          reconcileContext,
+        ),
       );
     }
 
@@ -152,4 +136,11 @@ function registerAllReconcilers(kubeConfig: KubeConfig) {
 export const controller = {
   start: startController,
   stop: stopController,
+  ready: () => {
+    const snapshot = checkEngine?.snapshot();
+    if (!snapshot?.running || !snapshot.runnerReady || !snapshot.lastTickAt) return false;
+    return (
+      Date.now() - Date.parse(snapshot.lastTickAt) < 90_000 && snapshot.oldestQueuedMs < 60_000
+    );
+  },
 };

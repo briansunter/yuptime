@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
+import type { CheckContext } from "./context";
 import type { CheckResult } from "./index";
 
 /**
@@ -81,6 +82,7 @@ async function checkMySqlWithFactory(
   monitor: Monitor,
   timeout: number,
   clientFactory: (config: MySqlClientConfig) => Promise<MySqlClient>,
+  context?: CheckContext,
 ): Promise<CheckResult> {
   const target = monitor.spec.target.mysql;
 
@@ -96,8 +98,19 @@ async function checkMySqlWithFactory(
   const startTime = Date.now();
 
   try {
-    // Get credentials from environment variables (injected by Job builder)
-    const credentials = getCredentialsFromEnv();
+    const secretRef = target.credentialsSecretRef;
+    const credentials = context
+      ? {
+          username: await context.resolveSecret(
+            { name: secretRef.name, key: secretRef.usernameKey ?? "username" },
+            monitor.metadata.namespace,
+          ),
+          password: await context.resolveSecret(
+            { name: secretRef.name, key: secretRef.passwordKey ?? "password" },
+            monitor.metadata.namespace,
+          ),
+        }
+      : getCredentialsFromEnv();
 
     if (!credentials) {
       return {
@@ -199,8 +212,12 @@ async function checkMySqlWithFactory(
 /**
  * MySQL health checker
  */
-export function checkMySql(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  return checkMySqlWithFactory(monitor, timeout, createDefaultMySqlClient);
+export function checkMySql(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  return checkMySqlWithFactory(monitor, timeout, createDefaultMySqlClient, context);
 }
 
 /**
@@ -208,7 +225,7 @@ export function checkMySql(monitor: Monitor, timeout: number): Promise<CheckResu
  */
 export function createCheckMySql(
   clientFactory: (config: MySqlClientConfig) => Promise<MySqlClient>,
-): (monitor: Monitor, timeout: number) => Promise<CheckResult> {
-  return (monitor: Monitor, timeout: number) =>
-    checkMySqlWithFactory(monitor, timeout, clientFactory);
+): (monitor: Monitor, timeout: number, context?: CheckContext) => Promise<CheckResult> {
+  return (monitor: Monitor, timeout: number, context?: CheckContext) =>
+    checkMySqlWithFactory(monitor, timeout, clientFactory, context);
 }

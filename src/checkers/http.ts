@@ -12,6 +12,7 @@ import {
 import { resolveSecretCached } from "../lib/secrets";
 import type { Monitor } from "../types/crd";
 import type { HttpAuth, HttpTarget } from "../types/crd/monitor";
+import type { CheckContext } from "./context";
 
 export interface CheckResult {
   state: "up" | "down";
@@ -65,8 +66,10 @@ function monitorNamespace(monitor: Monitor): string {
  * Credentials are read from environment variables injected by the Job builder.
  */
 async function buildAuthHeaders(
+  monitor: Monitor,
   auth: HttpAuth | undefined,
   timeout: number,
+  context?: CheckContext,
 ): Promise<{ headers: Headers; error?: string }> {
   const headers = new Headers();
 
@@ -75,8 +78,24 @@ async function buildAuthHeaders(
   }
 
   if (auth.basic) {
-    const username = process.env.YUPTIME_AUTH_BASIC_USERNAME;
-    const password = process.env.YUPTIME_AUTH_BASIC_PASSWORD;
+    const username = context
+      ? await context.resolveSecret(
+          {
+            name: auth.basic.secretRef.name,
+            key: auth.basic.secretRef.usernameKey ?? "username",
+          },
+          monitorNamespace(monitor),
+        )
+      : process.env.YUPTIME_AUTH_BASIC_USERNAME;
+    const password = context
+      ? await context.resolveSecret(
+          {
+            name: auth.basic.secretRef.name,
+            key: auth.basic.secretRef.passwordKey ?? "password",
+          },
+          monitorNamespace(monitor),
+        )
+      : process.env.YUPTIME_AUTH_BASIC_PASSWORD;
 
     if (!username || !password) {
       return {
@@ -90,7 +109,9 @@ async function buildAuthHeaders(
   }
 
   if (auth.bearer) {
-    const token = process.env.YUPTIME_AUTH_BEARER_TOKEN;
+    const token = context
+      ? await context.resolveSecret(auth.bearer.tokenSecretRef, monitorNamespace(monitor))
+      : process.env.YUPTIME_AUTH_BEARER_TOKEN;
 
     if (!token) {
       return {
@@ -104,12 +125,27 @@ async function buildAuthHeaders(
 
   if (auth.oauth2) {
     try {
+      const secretRef = auth.oauth2.clientSecretRef;
+      const credentials = context
+        ? {
+            clientId: await context.resolveSecret(
+              { name: secretRef.name, key: secretRef.clientIdKey ?? "client_id" },
+              monitorNamespace(monitor),
+            ),
+            clientSecret: await context.resolveSecret(
+              { name: secretRef.name, key: secretRef.clientSecretKey ?? "client_secret" },
+              monitorNamespace(monitor),
+            ),
+          }
+        : undefined;
       const token = await fetchOAuth2Token(
         {
           tokenUrl: auth.oauth2.tokenUrl,
           scopes: auth.oauth2.scopes,
         },
         timeout,
+        credentials,
+        context?.signal,
       );
       headers.set("Authorization", `Bearer ${token}`);
     } catch (error) {
@@ -127,11 +163,12 @@ async function buildBaseHeaders(
   monitor: Monitor,
   target: HttpTarget,
   timeout: number,
+  context?: CheckContext,
 ): Promise<{ headers: Headers } | { error: string }> {
   const headers = new Headers();
   headers.set("User-Agent", "Yuptime/1.0");
 
-  const authResult = await buildAuthHeaders(target.auth, timeout);
+  const authResult = await buildAuthHeaders(monitor, target.auth, timeout, context);
   if (authResult.error) {
     return { error: authResult.error };
   }
@@ -145,11 +182,13 @@ async function buildBaseHeaders(
 
     if (header.valueFromSecretRef) {
       try {
-        value = await resolveSecretCached(
-          header.valueFromSecretRef.namespace ?? monitorNamespace(monitor),
-          header.valueFromSecretRef.name,
-          header.valueFromSecretRef.key,
-        );
+        value = context
+          ? await context.resolveSecret(header.valueFromSecretRef, monitorNamespace(monitor))
+          : await resolveSecretCached(
+              header.valueFromSecretRef.namespace ?? monitorNamespace(monitor),
+              header.valueFromSecretRef.name,
+              header.valueFromSecretRef.key,
+            );
       } catch (error) {
         logger.warn(
           { monitor: monitor.metadata.name, header: header.name, error },
@@ -183,6 +222,7 @@ async function buildTlsOptions(
   target: HttpTarget,
   hostname: string,
   isHttps: boolean,
+  context?: CheckContext,
 ): Promise<{ tls?: Bun.TLSOptions } | { error: string }> {
   if (!isHttps && !target.tls) {
     return {};
@@ -202,11 +242,13 @@ async function buildTlsOptions(
   const caRef = target.tls?.caBundleSecretRef;
   if (caRef) {
     try {
-      tls.ca = await resolveSecretCached(
-        caRef.namespace ?? monitorNamespace(monitor),
-        caRef.name,
-        caRef.key,
-      );
+      tls.ca = context
+        ? await context.resolveSecret(caRef, monitorNamespace(monitor))
+        : await resolveSecretCached(
+            caRef.namespace ?? monitorNamespace(monitor),
+            caRef.name,
+            caRef.key,
+          );
     } catch (error) {
       logger.warn({ monitor: monitor.metadata.name, caRef, error }, "Failed to resolve TLS CA");
       return { error: "Failed to resolve TLS CA bundle secret" };
@@ -222,6 +264,7 @@ async function prepareFetchTarget(
   monitor: Monitor,
   timeout: number,
   headers: Headers,
+  context?: CheckContext,
 ): Promise<PreparedFetchTarget | { error: string }> {
   let originalUrl: URL;
   try {
@@ -269,6 +312,7 @@ async function prepareFetchTarget(
     target,
     originalHostname,
     originalUrl.protocol === "https:",
+    context,
   );
 
   if ("error" in tlsResult) {
@@ -300,6 +344,7 @@ async function fetchWithRedirects(
   parts: HttpRequestParts,
   timeout: number,
   signal: AbortSignal,
+  context?: CheckContext,
 ): Promise<{ response: Response } | { error: string }> {
   let currentUrl = target.url;
   let method = parts.method;
@@ -315,7 +360,14 @@ async function fetchWithRedirects(
       headers.delete("Content-Length");
     }
 
-    const prepared = await prepareFetchTarget(currentUrl, target, monitor, timeout, headers);
+    const prepared = await prepareFetchTarget(
+      currentUrl,
+      target,
+      monitor,
+      timeout,
+      headers,
+      context,
+    );
     if ("error" in prepared) {
       return { error: prepared.error };
     }
@@ -417,6 +469,7 @@ async function executeHttpRequest(
   monitor: Monitor,
   timeout: number,
   options: { readBody?: boolean } = {},
+  context?: CheckContext,
 ): Promise<HttpExecutionResult> {
   const target = monitor.spec.target.http;
 
@@ -430,9 +483,11 @@ async function executeHttpRequest(
   const latency = () => Date.now() - startTime;
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), timeout * 1000);
+  const abort = () => controller.abort();
+  context?.signal.addEventListener("abort", abort, { once: true });
 
   try {
-    const headersResult = await buildBaseHeaders(monitor, target, timeout);
+    const headersResult = await buildBaseHeaders(monitor, target, timeout, context);
     if ("error" in headersResult) {
       return {
         result: downResult(latency(), "AUTH_ERROR", headersResult.error),
@@ -452,6 +507,7 @@ async function executeHttpRequest(
       parts,
       timeout,
       controller.signal,
+      context,
     );
 
     if ("error" in fetchResult) {
@@ -528,14 +584,19 @@ async function executeHttpRequest(
     return { result };
   } finally {
     clearTimeout(timeoutHandle);
+    context?.signal.removeEventListener("abort", abort);
   }
 }
 
 /**
  * HTTP/HTTPS monitor checker
  */
-export async function checkHttp(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  const execution = await executeHttpRequest(monitor, timeout);
+export async function checkHttp(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  const execution = await executeHttpRequest(monitor, timeout, {}, context);
   return execution.result;
 }
 
@@ -584,8 +645,12 @@ function validateKeywordBody(
 /**
  * Execute HTTP check with keyword matching
  */
-export async function checkKeyword(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  const execution = await executeHttpRequest(monitor, timeout, { readBody: true });
+export async function checkKeyword(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  const execution = await executeHttpRequest(monitor, timeout, { readBody: true }, context);
   if (execution.result.state === "down") {
     return execution.result;
   }
@@ -634,8 +699,12 @@ function validateJsonBody(
 /**
  * Execute HTTP check with JSON path validation (enhanced with full JSONPath support)
  */
-export async function checkJsonQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  const execution = await executeHttpRequest(monitor, timeout, { readBody: true });
+export async function checkJsonQuery(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  const execution = await executeHttpRequest(monitor, timeout, { readBody: true }, context);
   if (execution.result.state === "down") {
     return execution.result;
   }
@@ -685,8 +754,12 @@ function validateXmlBody(
 /**
  * Execute HTTP check with XML/XPath validation
  */
-export async function checkXmlQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  const execution = await executeHttpRequest(monitor, timeout, { readBody: true });
+export async function checkXmlQuery(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  const execution = await executeHttpRequest(monitor, timeout, { readBody: true }, context);
   if (execution.result.state === "down") {
     return execution.result;
   }
@@ -734,8 +807,12 @@ function validateHtmlBody(
 /**
  * Execute HTTP check with HTML/CSS selector validation
  */
-export async function checkHtmlQuery(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  const execution = await executeHttpRequest(monitor, timeout, { readBody: true });
+export async function checkHtmlQuery(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  const execution = await executeHttpRequest(monitor, timeout, { readBody: true }, context);
   if (execution.result.state === "down") {
     return execution.result;
   }

@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,9 +24,9 @@ spec:
       containers:
       - env:
         - name: NODE_ENV
-          value: development
+          value: "{{ .Values.mode }}"
         - name: LOG_LEVEL
-          value: info
+          value: "{{ .Values.logging.level }}"
         - name: PORT
           value: "3000"
         - name: NODE_EXTRA_CA_CERTS
@@ -38,6 +39,16 @@ spec:
           value: yuptime-checker
         - name: JOB_TTL_SECONDS
           value: "{{ .Values.jobTTLSeconds }}"
+        - name: EXECUTION_MODE
+          value: "{{ .Values.execution.mode }}"
+        - name: EXECUTION_CONCURRENCY
+          value: "{{ .Values.execution.concurrency }}"
+        - name: EXECUTION_QUEUE_CAPACITY
+          value: "{{ .Values.execution.queueCapacity }}"
+        - name: EXECUTION_SHUTDOWN_GRACE_SECONDS
+          value: "{{ .Values.execution.shutdownGraceSeconds }}"
+        - name: CHECKER_URL
+          value: http://127.0.0.1:3001
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:
@@ -60,7 +71,7 @@ spec:
         readinessProbe:
           failureThreshold: 2
           httpGet:
-            path: /health
+            path: /ready
             port: 3000
           initialDelaySeconds: 10
           periodSeconds: 10
@@ -79,9 +90,73 @@ spec:
             - ALL
           privileged: false
           readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /health
+            port: 3000
+          periodSeconds: 2
         volumeMounts:
         - mountPath: /tmp
           name: tmp
+{{- if eq .Values.execution.mode "sidecar" }}
+      - command:
+        - bun
+        - src/checker-sidecar/server.ts
+        env:
+        - name: NODE_ENV
+          value: "{{ .Values.mode }}"
+        - name: LOG_LEVEL
+          value: "{{ .Values.logging.level }}"
+        - name: CHECKER_PORT
+          value: "3001"
+        - name: CHECKER_CONCURRENCY
+          value: "4"
+        - name: CHECKER_SHUTDOWN_GRACE_MS
+          value: "15000"
+        image: "{{ .Values.checkerImage.repository }}:{{ .Values.checkerImage.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: "{{ .Values.checkerImage.pullPolicy }}"
+        livenessProbe:
+          exec:
+            command:
+            - bun
+            - -e
+            - const r=await fetch('http://127.0.0.1:3001/health');process.exit(r.ok?0:1)
+        name: checker
+        readinessProbe:
+          exec:
+            command:
+            - bun
+            - -e
+            - const r=await fetch('http://127.0.0.1:3001/ready');process.exit(r.ok?0:1)
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_RAW
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - bun
+            - -e
+            - const r=await fetch('http://127.0.0.1:3001/health');process.exit(r.ok?0:1)
+          failureThreshold: 30
+          periodSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+{{- end }}
       securityContext:
         fsGroup: 1000
         runAsNonRoot: true

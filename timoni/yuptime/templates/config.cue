@@ -40,6 +40,26 @@ import (
 	// short-interval monitors to dominate kube-state-metrics cardinality.
 	jobTTLSeconds: *120 | int & >=60 & <=86400
 
+	// Persistent checker execution is the default. Jobs remains an explicit
+	// installation-wide rollback mode during the migration window.
+	execution: {
+		mode:                 *"sidecar" | "jobs"
+		concurrency:          *4 | int & >=1 & <=64
+		queueCapacity:        *256 | int & >=1
+		shutdownGraceSeconds: *15 | int & >=0
+	}
+
+	checkerResources: timoniv1.#ResourceRequirements & {
+		requests: {
+			cpu:    *"100m" | timoniv1.#CPUQuantity
+			memory: *"128Mi" | timoniv1.#MemoryQuantity
+		}
+		limits: {
+			cpu:    *"500m" | timoniv1.#CPUQuantity
+			memory: *"512Mi" | timoniv1.#MemoryQuantity
+		}
+	}
+
 	// Resource requirements
 	resources: timoniv1.#ResourceRequirements & {
 		requests: {
@@ -105,7 +125,8 @@ import (
 
 	// Network Policy
 	networkPolicy: {
-		enabled: *true | bool
+		enabled:    *true | bool
+		egressMode: *"all" | "commonPorts"
 	}
 
 	// Pod Disruption Budget
@@ -154,13 +175,17 @@ import (
 
 		// ServiceAccounts
 		sa: #ServiceAccount & {#config: config}
-		checkerSa: #CheckerServiceAccount & {#config: config}
+		if config.execution.mode == "jobs" {
+			checkerSa: #CheckerServiceAccount & {#config: config}
+		}
 
 		// RBAC
 		clusterRole: #ClusterRole & {#config: config}
 		clusterRoleBinding: #ClusterRoleBinding & {#config: config}
-		role: #Role & {#config: config}
-		roleBinding: #RoleBinding & {#config: config}
+		if config.execution.mode == "jobs" {
+			role:        #Role & {#config: config}
+			roleBinding: #RoleBinding & {#config: config}
+		}
 
 		// ConfigMap and Secret
 		cm: #ConfigMap & {#config: config}
