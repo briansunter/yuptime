@@ -16,16 +16,6 @@ metadata:
   name: yuptime
   namespace: yuptime
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: timoni
-    app.kubernetes.io/name: yuptime
-    app.kubernetes.io/version: 0.0.0-devel
-  name: yuptime-checker
-  namespace: yuptime
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -104,27 +94,6 @@ rules:
   - patch
   - delete
 - apiGroups:
-  - batch
-  resources:
-  - jobs
-  - jobs/status
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - pods/log
-  verbs:
-  - get
-  - list
-- apiGroups:
   - ""
   resources:
   - events
@@ -147,55 +116,6 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: yuptime
-  namespace: yuptime
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: timoni
-    app.kubernetes.io/name: yuptime
-    app.kubernetes.io/version: 0.0.0-devel
-  name: yuptime-checker
-  namespace: yuptime
-rules:
-- apiGroups:
-  - monitoring.yuptime.io
-  resources:
-  - monitors
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - monitoring.yuptime.io
-  resources:
-  - monitors/status
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: timoni
-    app.kubernetes.io/name: yuptime
-    app.kubernetes.io/version: 0.0.0-devel
-  name: yuptime-checker
-  namespace: yuptime
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: yuptime-checker
-subjects:
-- kind: ServiceAccount
-  name: yuptime-checker
   namespace: yuptime
 ---
 apiVersion: v1
@@ -263,6 +183,16 @@ spec:
           value: yuptime-checker
         - name: JOB_TTL_SECONDS
           value: "120"
+        - name: EXECUTION_MODE
+          value: sidecar
+        - name: EXECUTION_CONCURRENCY
+          value: "4"
+        - name: EXECUTION_QUEUE_CAPACITY
+          value: "256"
+        - name: EXECUTION_SHUTDOWN_GRACE_SECONDS
+          value: "15"
+        - name: CHECKER_URL
+          value: http://127.0.0.1:3001
         - name: KUBE_NAMESPACE
           valueFrom:
             fieldRef:
@@ -285,7 +215,7 @@ spec:
         readinessProbe:
           failureThreshold: 2
           httpGet:
-            path: /health
+            path: /ready
             port: 3000
           initialDelaySeconds: 10
           periodSeconds: 10
@@ -304,6 +234,68 @@ spec:
             - ALL
           privileged: false
           readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /health
+            port: 3000
+          periodSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      - command:
+        - bun
+        - src/checker-sidecar/server.ts
+        env:
+        - name: NODE_ENV
+          value: development
+        - name: LOG_LEVEL
+          value: info
+        - name: CHECKER_PORT
+          value: "3001"
+        - name: CHECKER_CONCURRENCY
+          value: "4"
+        - name: CHECKER_SHUTDOWN_GRACE_MS
+          value: "15000"
+        image: ghcr.io/yuptime/yuptime-checker:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - bun
+            - -e
+            - const r=await fetch('http://127.0.0.1:3001/health');process.exit(r.ok?0:1)
+        name: checker
+        readinessProbe:
+          exec:
+            command:
+            - bun
+            - -e
+            - const r=await fetch('http://127.0.0.1:3001/ready');process.exit(r.ok?0:1)
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - NET_RAW
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        startupProbe:
+          exec:
+            command:
+            - bun
+            - -e
+            - const r=await fetch('http://127.0.0.1:3001/health');process.exit(r.ok?0:1)
+          failureThreshold: 30
+          periodSeconds: 2
         volumeMounts:
         - mountPath: /tmp
           name: tmp
@@ -350,42 +342,7 @@ metadata:
   namespace: yuptime
 spec:
   egress:
-  - ports:
-    - port: 443
-      protocol: TCP
-    to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-  - ports:
-    - port: 80
-      protocol: TCP
-    - port: 443
-      protocol: TCP
-    - port: 8080
-      protocol: TCP
-    to:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-  - ports:
-    - port: 3306
-      protocol: TCP
-    - port: 5432
-      protocol: TCP
-    - port: 6379
-      protocol: TCP
-    to:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-  - ports:
-    - port: 53
-      protocol: UDP
-    - port: 53
-      protocol: TCP
-    to:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
+  - {}
   ingress:
   - from:
     - namespaceSelector: {}

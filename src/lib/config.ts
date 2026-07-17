@@ -26,6 +26,21 @@ export function parseJobTTLSeconds(raw: string | undefined): number {
   return parsed;
 }
 
+function parseBoundedInteger(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+  min: number,
+  max: number,
+): number {
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max || String(parsed) !== raw.trim()) {
+    throw new Error(`Invalid ${name} "${raw}": must be an integer between ${min} and ${max}`);
+  }
+  return parsed;
+}
+
 /**
  * Load configuration from environment variables.
  * Values are validated eagerly in loadConfig(); callers can use the `config`
@@ -44,6 +59,30 @@ function loadConfig() {
     kubeConfig: process.env.KUBECONFIG,
     kubeNamespace,
     jobTTLSeconds: parseJobTTLSeconds(process.env.JOB_TTL_SECONDS),
+    executionMode: process.env.EXECUTION_MODE === "jobs" ? ("jobs" as const) : ("sidecar" as const),
+    checkerUrl: process.env.CHECKER_URL || "http://127.0.0.1:3001",
+    executionConcurrency: parseBoundedInteger(
+      process.env.EXECUTION_CONCURRENCY,
+      4,
+      "EXECUTION_CONCURRENCY",
+      1,
+      64,
+    ),
+    executionQueueCapacity: parseBoundedInteger(
+      process.env.EXECUTION_QUEUE_CAPACITY,
+      256,
+      "EXECUTION_QUEUE_CAPACITY",
+      1,
+      100000,
+    ),
+    shutdownGraceMs:
+      parseBoundedInteger(
+        process.env.EXECUTION_SHUTDOWN_GRACE_SECONDS,
+        15,
+        "EXECUTION_SHUTDOWN_GRACE_SECONDS",
+        0,
+        3600,
+      ) * 1000,
 
     // Logging
     logLevel: process.env.LOG_LEVEL || (process.env.NODE_ENV === "production" ? "info" : "debug"),

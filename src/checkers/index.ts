@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
+import { type CheckContext, createCheckContext } from "./context";
 import { checkDns } from "./dns";
 import { checkGrpc } from "./grpc";
 import {
@@ -24,7 +25,11 @@ import { checkWebSocket } from "./websocket";
  * Execute a check based on monitor type
  * Functional dispatcher pattern - compose checkers with logging and error handling
  */
-export async function executeCheck(monitor: Monitor, timeout: number): Promise<CheckResult> {
+export async function executeCheck(
+  monitor: Monitor,
+  timeout: number,
+  context: CheckContext = createCheckContext(),
+): Promise<CheckResult> {
   const type = monitor.spec.type;
   const start = Date.now();
 
@@ -34,19 +39,19 @@ export async function executeCheck(monitor: Monitor, timeout: number): Promise<C
     switch (type) {
       // Content-based HTTP checks
       case "http":
-        return await checkHttp(monitor, timeout);
+        return await checkHttp(monitor, timeout, context);
 
       case "keyword":
-        return await checkKeyword(monitor, timeout);
+        return await checkKeyword(monitor, timeout, context);
 
       case "jsonQuery":
-        return await checkJsonQuery(monitor, timeout);
+        return await checkJsonQuery(monitor, timeout, context);
 
       case "xmlQuery":
-        return await checkXmlQuery(monitor, timeout);
+        return await checkXmlQuery(monitor, timeout, context);
 
       case "htmlQuery":
-        return await checkHtmlQuery(monitor, timeout);
+        return await checkHtmlQuery(monitor, timeout, context);
 
       // Network checks
       case "tcp":
@@ -80,13 +85,13 @@ export async function executeCheck(monitor: Monitor, timeout: number): Promise<C
 
       // Database checks
       case "mysql":
-        return await checkMySql(monitor, timeout);
+        return await checkMySql(monitor, timeout, context);
 
       case "postgresql":
-        return await checkPostgreSql(monitor, timeout);
+        return await checkPostgreSql(monitor, timeout, context);
 
       case "redis":
-        return await checkRedis(monitor, timeout);
+        return await checkRedis(monitor, timeout, context);
 
       // gRPC health check
       case "grpc":
@@ -120,4 +125,6 @@ export async function executeCheck(monitor: Monitor, timeout: number): Promise<C
 }
 
 export type { CheckResult };
+export type { CheckContext } from "./context";
+export { createCheckContext } from "./context";
 export { recordPush, validatePushToken } from "./push";

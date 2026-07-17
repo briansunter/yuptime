@@ -29,7 +29,15 @@ import (
 				}]
 			},
 		]
-		egress: [
+		// Uptime targets can use arbitrary TCP/UDP ports. Restricting the
+		// default policy to a short port list silently disables valid checker
+		// types and custom endpoints. Operators with a known target inventory
+		// can opt into the narrower commonPorts policy.
+		if #config.networkPolicy.egressMode == "all" {
+			egress: [{}]
+		}
+		if #config.networkPolicy.egressMode == "commonPorts" {
+			egress: [
 			// Allow Kubernetes API access
 			{
 				to: [{
@@ -72,6 +80,7 @@ import (
 					{protocol: "TCP", port: 53},
 				]
 			},
-		]
+			]
+		}
 	}
 }

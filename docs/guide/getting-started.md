@@ -12,16 +12,16 @@ This guide installs Yuptime and creates your first monitor using the current mon
 
 ::: code-group
 
-```bash [Timoni (Recommended)]
-timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
-  --version latest \
-  --namespace yuptime
-```
-
-```bash [Helm]
+```bash [Helm (Recommended)]
 helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
   --namespace yuptime \
   --create-namespace
+```
+
+```bash [Timoni (Advanced)]
+timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
+  --version latest \
+  --namespace yuptime
 ```
 
 ```bash [kubectl]

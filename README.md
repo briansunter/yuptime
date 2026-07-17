@@ -31,7 +31,7 @@
 
 - **🎯 GitOps-Native**: All configuration lives in Git as YAML manifests
 - **📦 Database-Free**: No databases to manage — state lives in CRD status subresources
-- **🔒 Isolated Execution**: Each health check runs in its own Kubernetes Job pod
+- **⚙️ Bounded Execution**: Persistent workers run checks without per-check Kubernetes objects
 - **📊 Prometheus Metrics**: Native metrics export for Grafana dashboards
 - **🔔 Alertmanager Integration**: Direct webhook integration for alert routing
 - **⏰ Smart Suppression**: Maintenance windows with RRULE scheduling and ad-hoc silences
@@ -39,39 +39,20 @@
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Yuptime Pod                              │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Metrics   │  │ Controller  │  │      Job Manager        │  │
-│  │   Server    │  │  (Watches   │  │  (Creates K8s Jobs for  │  │
-│  │ (Port 3000) │  │    CRDs)    │  │     each check)         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Checker Job Pods (Isolated)                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Job 1: HTTP Check    →  Updates Monitor CRD status (no DB)     │
-│  Job 2: TCP Check     →  Updates Monitor CRD status (no DB)     │
-│  Job 3: DNS Check     →  Updates Monitor CRD status (no DB)     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        External Services                         │
-├─────────────────────────────────────────────────────────────────┤
-│  Prometheus (metrics)  │  Alertmanager (alerts)  │  Grafana     │
-└─────────────────────────────────────────────────────────────────┘
+Monitor CRDs -> Controller Check Engine -> Checker sidecar -> Targets
+                       |
+                       +-> Monitor status
+                       +-> Prometheus
+                       +-> Alertmanager
 ```
 
 **Key Design Principles:**
 - Controller only updates status subresources, never spec (source of truth stays in Git)
-- Stateless checkers with no database access — results written directly to K8s API
-- Each check runs in isolated Job pods for security and resource management
+- Exact schedule slots do not drift with execution time, retries, or queue delay
+- A fixed worker pool and bounded queue prevent API and process storms
+- The controller is the sole ordered status writer; workers hold no database state
 
-The Timoni module under `timoni/yuptime/` is the authoritative packaging and CRD source. The checked-in `k8s/`, `helm/yuptime/`, and `manifests/` trees are mirrors kept in sync from that CUE-first workflow.
+The Timoni/CUE module under `timoni/yuptime/` is the authoritative packaging and CRD source for maintainers. The checked-in `k8s/`, `helm/yuptime/`, and `manifests/` trees are generated mirrors with semantic parity checks.
 
 ## Quick Start
 
@@ -85,48 +66,9 @@ The Timoni module under `timoni/yuptime/` is the authoritative packaging and CRD
 Choose your preferred installation method:
 
 <details>
-<summary><b>📦 Timoni (Recommended)</b></summary>
+<summary><b>⎈ Helm (Recommended)</b></summary>
 
-[Timoni](https://timoni.sh) is a CUE-based package manager — most flexible and GitOps-friendly.
-
-```bash
-# Install Timoni
-brew install stefanprodan/tap/timoni
-
-# Apply the module
-timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
-  --version latest \
-  --namespace yuptime
-
-# With custom values
-cat > values.cue << 'EOF'
-values: {
-  image: {
-    repository: "ghcr.io/briansunter/yuptime-api"
-    tag:        "latest"
-  }
-  checkerImage: {
-    repository: "ghcr.io/briansunter/yuptime-checker"
-    tag:        "latest"
-  }
-  mode: "production"
-  logging: level: "info"
-  crds: install: true
-}
-EOF
-
-timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
-  --version latest \
-  --namespace yuptime \
-  -f values.cue
-```
-
-</details>
-
-<details>
-<summary><b>⎈ Helm</b></summary>
-
-Standard Helm 3 installation with OCI registry support.
+Helm is the default installation route and has the broadest Kubernetes ecosystem support.
 
 ```bash
 # Install from GHCR (public, no login required)
@@ -140,6 +82,23 @@ helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
   --create-namespace \
   --set mode=production \
   --set logging.level=info
+```
+
+</details>
+
+<details>
+<summary><b>📦 Timoni (Type-safe/advanced)</b></summary>
+
+[Timoni](https://timoni.sh) provides CUE validation, rich customization, OCI distribution, and GitOps-oriented lifecycle management.
+
+```bash
+# Install Timoni
+brew install stefanprodan/tap/timoni
+
+# Apply the module
+timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
+  --version latest \
+  --namespace yuptime
 ```
 
 </details>

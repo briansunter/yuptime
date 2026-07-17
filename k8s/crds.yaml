@@ -1,9 +1,11 @@
-# Yuptime Custom Resource Definitions
-# API Group: monitoring.yuptime.io/v1
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
   name: monitors.monitoring.yuptime.io
 spec:
   group: monitoring.yuptime.io
@@ -11,269 +13,292 @@ spec:
     kind: Monitor
     listKind: MonitorList
     plural: monitors
-    singular: monitor
     shortNames:
-      - mon
+    - mon
+    singular: monitor
   scope: Namespaced
   versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              required:
-                - type
-                - schedule
-                - target
-              properties:
-                enabled:
-                  type: boolean
-                  default: true
-                type:
-                  type: string
-                  enum:
-                    [
-                      http,
-                      tcp,
-                      ping,
-                      dns,
-                      keyword,
-                      jsonQuery,
-                      xmlQuery,
-                      htmlQuery,
-                      websocket,
-                      push,
-                      steam,
-                      k8s,
-                      docker,
-                      mysql,
-                      postgresql,
-                      redis,
-                      grpc,
-                    ]
-                schedule:
-                  type: object
-                  required:
-                    - intervalSeconds
-                    - timeoutSeconds
-                  x-kubernetes-validations:
-                    - rule: "self.timeoutSeconds < self.intervalSeconds"
-                      message: "timeoutSeconds must be less than intervalSeconds"
-                  properties:
-                    intervalSeconds:
-                      type: integer
-                      minimum: 20
-                    timeoutSeconds:
-                      type: integer
-                      minimum: 1
-                    retries:
-                      type: object
-                      properties:
-                        maxRetries:
-                          type: integer
-                          minimum: 0
-                        retryIntervalSeconds:
-                          type: integer
-                          minimum: 1
-                    initialDelaySeconds:
-                      type: integer
-                      minimum: 0
-                    graceDownSeconds:
-                      type: integer
-                      minimum: 0
-                    jitterPercent:
-                      type: integer
-                      minimum: 0
-                      maximum: 100
-                target:
-                  type: object
-                  properties:
-                    http:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    tcp:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    dns:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    websocket:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    ping:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    push:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    steam:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    k8s:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    kubernetes:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    mysql:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    postgresql:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    redis:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    grpc:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    keyword:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                    jsonQuery:
-                      type: object
-                      x-kubernetes-preserve-unknown-fields: true
-                successCriteria:
-                  type: object
-                  x-kubernetes-preserve-unknown-fields: true
-                alerting:
-                  type: object
-                  properties:
-                    policyRef:
-                      type: object
-                      properties:
-                        name:
-                          type: string
-                    resendIntervalMinutes:
-                      type: integer
-                      minimum: 0
-                      default: 0
-                    notifyOn:
-                      type: object
-                      properties:
-                        down:
-                          type: boolean
-                          default: true
-                        up:
-                          type: boolean
-                          default: true
-                        flapping:
-                          type: boolean
-                          default: true
-                        certExpiring:
-                          type: boolean
-                          default: true
-                alertmanagerUrl:
-                  type: string
-                  format: uri
-                tags:
-                  type: array
-                  items:
-                    type: string
-                annotations:
-                  type: object
-                  additionalProperties:
-                    type: string
-            status:
-              type: object
-              properties:
-                observedGeneration:
-                  type: integer
-                conditions:
-                  type: array
-                  items:
-                    type: object
+  - additionalPrinterColumns:
+    - jsonPath: .spec.type
+      name: Type
+      type: string
+    - jsonPath: .status.lastResult.state
+      name: Status
+      type: string
+    - jsonPath: .status.lastResult.checkedAt
+      name: Last Check
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              alerting:
+                properties:
+                  notifyOn:
                     properties:
-                      type:
+                      certExpiring:
+                        default: true
+                        type: boolean
+                      down:
+                        default: true
+                        type: boolean
+                      flapping:
+                        default: true
+                        type: boolean
+                      up:
+                        default: true
+                        type: boolean
+                    type: object
+                  policyRef:
+                    properties:
+                      name:
                         type: string
-                      status:
-                        type: string
-                      reason:
-                        type: string
-                      message:
-                        type: string
-                      lastTransitionTime:
-                        type: string
-                lastResult:
-                  type: object
-                  properties:
-                    state:
-                      type: string
-                      enum: [up, down, pending, flapping, paused]
-                    checkedAt:
-                      type: string
-                    latencyMs:
-                      type: number
-                    attempts:
-                      type: integer
-                    reason:
-                      type: string
-                    message:
-                      type: string
-                previousResult:
-                  type: object
-                  properties:
-                    state:
-                      type: string
-                      enum: [up, down, pending, flapping, paused]
-                    checkedAt:
-                      type: string
-                    latencyMs:
-                      type: number
-                    attempts:
-                      type: integer
-                    reason:
-                      type: string
-                    message:
-                      type: string
-                uptime:
-                  type: object
-                  properties:
-                    last1h:
-                      type: number
-                    last24h:
-                      type: number
-                    last7d:
-                      type: number
-                    last30d:
-                      type: number
-                cert:
-                  type: object
-                  properties:
-                    expiresAt:
-                      type: string
-                    daysRemaining:
-                      type: number
-                    valid:
-                      type: boolean
-                nextRunAt:
+                    type: object
+                  resendIntervalMinutes:
+                    default: 0
+                    minimum: 0
+                    type: integer
+                type: object
+              alertmanagerUrl:
+                format: uri
+                type: string
+              annotations:
+                additionalProperties:
                   type: string
-      subresources:
-        status: {}
-      additionalPrinterColumns:
-        - name: Type
-          type: string
-          jsonPath: .spec.type
-        - name: Status
-          type: string
-          jsonPath: .status.lastResult.state
-        - name: Last Check
-          type: string
-          jsonPath: .status.lastResult.checkedAt
-        - name: Age
-          type: date
-          jsonPath: .metadata.creationTimestamp
-
+                type: object
+              enabled:
+                default: true
+                type: boolean
+              schedule:
+                properties:
+                  graceDownSeconds:
+                    minimum: 0
+                    type: integer
+                  initialDelaySeconds:
+                    minimum: 0
+                    type: integer
+                  intervalSeconds:
+                    minimum: 20
+                    type: integer
+                  jitterPercent:
+                    maximum: 100
+                    minimum: 0
+                    type: integer
+                  retries:
+                    properties:
+                      maxRetries:
+                        minimum: 0
+                        type: integer
+                      retryIntervalSeconds:
+                        minimum: 1
+                        type: integer
+                    type: object
+                  timeoutSeconds:
+                    minimum: 1
+                    type: integer
+                required:
+                - intervalSeconds
+                - timeoutSeconds
+                type: object
+                x-kubernetes-validations:
+                - message: timeoutSeconds must be less than intervalSeconds
+                  rule: self.timeoutSeconds < self.intervalSeconds
+              successCriteria:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              tags:
+                items:
+                  type: string
+                type: array
+              target:
+                properties:
+                  dns:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  grpc:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  http:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  jsonQuery:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  k8s:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  keyword:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  kubernetes:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  mysql:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  ping:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  postgresql:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  push:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  redis:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  steam:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  tcp:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  websocket:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                type: object
+              type:
+                enum:
+                - http
+                - tcp
+                - ping
+                - dns
+                - keyword
+                - jsonQuery
+                - xmlQuery
+                - htmlQuery
+                - websocket
+                - push
+                - steam
+                - k8s
+                - docker
+                - mysql
+                - postgresql
+                - redis
+                - grpc
+                type: string
+            required:
+            - type
+            - schedule
+            - target
+            type: object
+          status:
+            properties:
+              cert:
+                properties:
+                  daysRemaining:
+                    type: number
+                  expiresAt:
+                    type: string
+                  valid:
+                    type: boolean
+                type: object
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              lastResult:
+                properties:
+                  attempts:
+                    type: integer
+                  checkedAt:
+                    type: string
+                  executionId:
+                    type: string
+                  latencyMs:
+                    type: number
+                  message:
+                    type: string
+                  reason:
+                    type: string
+                  scheduledAt:
+                    type: string
+                  startedAt:
+                    type: string
+                  state:
+                    enum:
+                    - up
+                    - down
+                    - pending
+                    - flapping
+                    - paused
+                    type: string
+                type: object
+              nextRunAt:
+                type: string
+              observedGeneration:
+                type: integer
+              previousResult:
+                properties:
+                  attempts:
+                    type: integer
+                  checkedAt:
+                    type: string
+                  executionId:
+                    type: string
+                  latencyMs:
+                    type: number
+                  message:
+                    type: string
+                  reason:
+                    type: string
+                  scheduledAt:
+                    type: string
+                  startedAt:
+                    type: string
+                  state:
+                    enum:
+                    - up
+                    - down
+                    - pending
+                    - flapping
+                    - paused
+                    type: string
+                type: object
+              uptime:
+                properties:
+                  last1h:
+                    type: number
+                  last7d:
+                    type: number
+                  last24h:
+                    type: number
+                  last30d:
+                    type: number
+                type: object
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
   name: maintenancewindows.monitoring.yuptime.io
 spec:
   group: monitoring.yuptime.io
@@ -284,81 +309,84 @@ spec:
     singular: maintenancewindow
   scope: Namespaced
   versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              required:
-                - schedule
-                - behavior
-              properties:
-                enabled:
-                  type: boolean
-                  default: true
-                schedule:
-                  type: object
-                  required:
-                    - start
-                    - end
-                  properties:
-                    start:
-                      type: string
-                    end:
-                      type: string
-                    recurrence:
-                      type: object
-                      properties:
-                        rrule:
-                          type: string
-                match:
-                  type: object
-                  x-kubernetes-preserve-unknown-fields: true
-                behavior:
-                  type: object
-                  properties:
-                    suppressNotifications:
-                      type: boolean
-                      default: true
-            status:
-              type: object
-              properties:
-                observedGeneration:
-                  type: integer
-                conditions:
-                  type: array
-                  items:
-                    type: object
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              behavior:
+                properties:
+                  suppressNotifications:
+                    default: true
+                    type: boolean
+                type: object
+              enabled:
+                default: true
+                type: boolean
+              match:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              schedule:
+                properties:
+                  end:
+                    type: string
+                  recurrence:
                     properties:
-                      type:
+                      rrule:
                         type: string
-                      status:
-                        type: string
-                      reason:
-                        type: string
-                      message:
-                        type: string
-                      lastTransitionTime:
-                        type: string
-                isActive:
-                  type: boolean
-                nextOccurrence:
-                  type: string
-                monitorCount:
-                  type: integer
-      subresources:
-        status: {}
-
+                    type: object
+                  start:
+                    type: string
+                required:
+                - start
+                - end
+                type: object
+            required:
+            - schedule
+            - behavior
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              isActive:
+                type: boolean
+              monitorCount:
+                type: integer
+              nextOccurrence:
+                type: string
+              observedGeneration:
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
   name: silences.monitoring.yuptime.io
 spec:
   group: monitoring.yuptime.io
@@ -369,85 +397,88 @@ spec:
     singular: silence
   scope: Namespaced
   versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              required:
-                - expiresAt
-                - match
-              properties:
-                expiresAt:
-                  type: string
-                match:
-                  type: object
-                  properties:
-                    names:
-                      type: array
-                      items:
-                        type: object
-                        required:
-                          - namespace
-                          - name
-                        properties:
-                          namespace:
-                            type: string
-                          name:
-                            type: string
-                    namespaces:
-                      type: array
-                      items:
-                        type: string
-                    labels:
-                      type: object
-                      additionalProperties:
-                        type: string
-                    tags:
-                      type: array
-                      items:
-                        type: string
-                reason:
-                  type: string
-            status:
-              type: object
-              properties:
-                observedGeneration:
-                  type: integer
-                conditions:
-                  type: array
-                  items:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              expiresAt:
+                type: string
+              match:
+                properties:
+                  labels:
+                    additionalProperties:
+                      type: string
                     type: object
-                    properties:
-                      type:
-                        type: string
-                      status:
-                        type: string
-                      reason:
-                        type: string
-                      message:
-                        type: string
-                      lastTransitionTime:
-                        type: string
-                isActive:
-                  type: boolean
-                expiresIn:
-                  type: string
-                affectedCount:
-                  type: integer
-      subresources:
-        status: {}
-
+                  names:
+                    items:
+                      properties:
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      required:
+                      - namespace
+                      - name
+                      type: object
+                    type: array
+                  namespaces:
+                    items:
+                      type: string
+                    type: array
+                  tags:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              reason:
+                type: string
+            required:
+            - expiresAt
+            - match
+            type: object
+          status:
+            properties:
+              affectedCount:
+                type: integer
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              expiresIn:
+                type: string
+              isActive:
+                type: boolean
+              observedGeneration:
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
   name: monitorsets.monitoring.yuptime.io
 spec:
   group: monitoring.yuptime.io
@@ -458,81 +489,84 @@ spec:
     singular: monitorset
   scope: Namespaced
   versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              required:
-                - items
-              properties:
-                defaults:
-                  type: object
-                  x-kubernetes-preserve-unknown-fields: true
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              defaults:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              items:
                 items:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - name
-                      - spec
-                    properties:
-                      name:
-                        type: string
-                      spec:
-                        type: object
-                        x-kubernetes-preserve-unknown-fields: true
-            status:
-              type: object
-              properties:
-                observedGeneration:
-                  type: integer
-                conditions:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      type:
-                        type: string
-                      status:
-                        type: string
-                      reason:
-                        type: string
-                      message:
-                        type: string
-                      lastTransitionTime:
-                        type: string
-                validCount:
-                  type: integer
-                invalidCount:
-                  type: integer
-                itemStatuses:
-                  type: array
-                  items:
-                    type: object
-                    required:
-                      - name
-                      - ready
-                    properties:
-                      name:
-                        type: string
-                      ready:
-                        type: boolean
-                      message:
-                        type: string
-      subresources:
-        status: {}
-
+                  properties:
+                    name:
+                      type: string
+                    spec:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - name
+                  - spec
+                  type: object
+                type: array
+            required:
+            - items
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              invalidCount:
+                type: integer
+              itemStatuses:
+                items:
+                  properties:
+                    message:
+                      type: string
+                    name:
+                      type: string
+                    ready:
+                      type: boolean
+                  required:
+                  - name
+                  - ready
+                  type: object
+                type: array
+              observedGeneration:
+                type: integer
+              validCount:
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/managed-by: timoni
+    app.kubernetes.io/name: yuptime
+    app.kubernetes.io/version: 0.0.0-devel
   name: yuptimesettings.monitoring.yuptime.io
 spec:
   group: monitoring.yuptime.io
@@ -543,127 +577,130 @@ spec:
     singular: yuptimesettings
   scope: Cluster
   versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          required:
-            - spec
-          properties:
-            spec:
-              type: object
-              required:
-                - mode
-                - scheduler
-                - networking
-              properties:
-                mode:
-                  type: object
-                  properties:
-                    gitOpsReadOnly:
-                      type: boolean
-                      default: false
-                    singleInstanceRequired:
-                      type: boolean
-                      default: true
-                scheduler:
-                  type: object
-                  properties:
-                    minIntervalSeconds:
-                      type: integer
-                      minimum: 1
-                      default: 20
-                    maxConcurrentNetChecks:
-                      type: integer
-                      minimum: 1
-                      default: 200
-                    maxConcurrentPrivChecks:
-                      type: integer
-                      minimum: 1
-                      default: 20
-                    defaultTimeoutSeconds:
-                      type: integer
-                      minimum: 1
-                      default: 10
-                    jitterPercent:
-                      type: integer
-                      minimum: 0
-                      maximum: 100
-                      default: 5
-                    flapping:
-                      type: object
-                      properties:
-                        enabled:
-                          type: boolean
-                          default: true
-                        toggleThreshold:
-                          type: integer
-                          minimum: 1
-                          default: 6
-                        windowMinutes:
-                          type: integer
-                          minimum: 1
-                          default: 10
-                        suppressNotificationsMinutes:
-                          type: integer
-                          minimum: 0
-                          default: 30
-                networking:
-                  type: object
-                  properties:
-                    userAgent:
-                      type: string
-                      default: Yuptime/1.0
-                    dns:
-                      type: object
-                      properties:
-                        resolvers:
-                          type: array
-                          items:
-                            type: string
-                        timeoutSeconds:
-                          type: integer
-                          minimum: 1
-                          default: 5
-                    ping:
-                      type: object
-                      properties:
-                        mode:
-                          type: string
-                          enum: [icmp, tcpFallback, tcpOnly]
-                          default: tcpFallback
-                        tcpFallbackPort:
-                          type: integer
-                          minimum: 1
-                          maximum: 65535
-                          default: 443
-            status:
-              type: object
-              properties:
-                observedGeneration:
-                  type: integer
-                conditions:
-                  type: array
-                  items:
-                    type: object
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              mode:
+                properties:
+                  gitOpsReadOnly:
+                    default: false
+                    type: boolean
+                  singleInstanceRequired:
+                    default: true
+                    type: boolean
+                type: object
+              networking:
+                properties:
+                  dns:
                     properties:
-                      type:
+                      resolvers:
+                        items:
+                          type: string
+                        type: array
+                      timeoutSeconds:
+                        default: 5
+                        minimum: 1
+                        type: integer
+                    type: object
+                  ping:
+                    properties:
+                      mode:
+                        default: tcpFallback
+                        enum:
+                        - icmp
+                        - tcpFallback
+                        - tcpOnly
                         type: string
-                      status:
-                        type: string
-                      reason:
-                        type: string
-                      message:
-                        type: string
-                      lastTransitionTime:
-                        type: string
-                lastValidation:
-                  type: string
-                errors:
-                  type: array
-                  items:
+                      tcpFallbackPort:
+                        default: 443
+                        maximum: 65535
+                        minimum: 1
+                        type: integer
+                    type: object
+                  userAgent:
+                    default: Yuptime/1.0
                     type: string
-      subresources:
-        status: {}
+                type: object
+              scheduler:
+                properties:
+                  defaultTimeoutSeconds:
+                    default: 10
+                    minimum: 1
+                    type: integer
+                  flapping:
+                    properties:
+                      enabled:
+                        default: true
+                        type: boolean
+                      suppressNotificationsMinutes:
+                        default: 30
+                        minimum: 0
+                        type: integer
+                      toggleThreshold:
+                        default: 6
+                        minimum: 1
+                        type: integer
+                      windowMinutes:
+                        default: 10
+                        minimum: 1
+                        type: integer
+                    type: object
+                  jitterPercent:
+                    default: 5
+                    maximum: 100
+                    minimum: 0
+                    type: integer
+                  maxConcurrentNetChecks:
+                    default: 200
+                    minimum: 1
+                    type: integer
+                  maxConcurrentPrivChecks:
+                    default: 20
+                    minimum: 1
+                    type: integer
+                  minIntervalSeconds:
+                    default: 20
+                    minimum: 1
+                    type: integer
+                type: object
+            required:
+            - mode
+            - scheduler
+            - networking
+            type: object
+          status:
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  type: object
+                type: array
+              errors:
+                items:
+                  type: string
+                type: array
+              lastValidation:
+                type: string
+              observedGeneration:
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

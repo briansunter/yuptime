@@ -2,12 +2,14 @@
 /**
  * Checker Executor CLI
  * Entry point for Job pods to execute monitor checks
- * Updates Monitor CRD status directly via Kubernetes API
+ * Returns structured results to the controller in rollback Job mode. The
+ * legacy direct-status path remains available only for manual compatibility.
  *
  * Usage:
  *   checker-executor --monitor namespace/name
  */
 
+import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { executeCheck, updateMonitorStatus } from "./executor";
 
@@ -25,6 +27,7 @@ async function main() {
         type: "string",
         required: true,
       },
+      "runner-result": { type: "boolean", default: false },
     },
   });
 
@@ -43,8 +46,23 @@ async function main() {
   }
 
   try {
+    const startedAt = new Date().toISOString();
     // Execute the check
     const result = await executeCheck(namespace, name);
+
+    if (values["runner-result"]) {
+      writeFileSync(
+        "/dev/termination-log",
+        JSON.stringify({
+          ...result,
+          executionId: process.env.EXECUTION_ID,
+          attempt: Number.parseInt(process.env.ATTEMPT ?? "1", 10),
+          startedAt,
+          checkedAt: new Date().toISOString(),
+        }),
+      );
+      process.exit(0);
+    }
 
     // Update Monitor CRD status
     await updateMonitorStatus(namespace, name, result);
@@ -59,6 +77,23 @@ async function main() {
       process.exit(1);
     }
   } catch (error) {
+    if (values["runner-result"]) {
+      const now = new Date().toISOString();
+      writeFileSync(
+        "/dev/termination-log",
+        JSON.stringify({
+          executionId: process.env.EXECUTION_ID ?? "unknown",
+          attempt: Number.parseInt(process.env.ATTEMPT ?? "1", 10),
+          startedAt: now,
+          checkedAt: now,
+          state: "down",
+          latencyMs: 0,
+          reason: "EXECUTION_ERROR",
+          message: error instanceof Error ? error.message.slice(0, 4096) : "Check failed",
+        }),
+      );
+      process.exit(0);
+    }
     logger.error("Check execution failed:", error);
     process.exit(2);
   }

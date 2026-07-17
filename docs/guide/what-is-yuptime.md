@@ -33,9 +33,12 @@ Unlike traditional monitoring tools, Yuptime **doesn't require a database**. All
 
 ```yaml
 status:
-  lastCheck:
-    timestamp: "2025-12-30T10:00:00Z"
-    success: true
+  lastResult:
+    executionId: "2cb34..."
+    scheduledAt: "2025-12-30T10:00:00Z"
+    startedAt: "2025-12-30T10:00:00.041Z"
+    checkedAt: "2025-12-30T10:00:00.125Z"
+    state: up
     latencyMs: 125
   uptime:
     last24h: 99.95
@@ -47,37 +50,25 @@ Benefits:
 - State is automatically replicated by the Kubernetes API
 - Disaster recovery is just `kubectl apply`
 
-### 3. Isolated Execution
+### 3. Bounded Persistent Execution
 
-Each health check runs in its own Kubernetes Job pod:
+Checks run through a fixed pool of persistent worker processes in a checker
+sidecar:
 
 ```
-┌────────────────────┐
-│    Yuptime API     │
-│  (Controller Pod)  │
-└─────────┬──────────┘
-          │ Creates Jobs
-          ▼
-┌─────────────────────────────────────────┐
-│          Checker Job Pods               │
-├─────────┬─────────┬─────────┬──────────┤
-│ Check 1 │ Check 2 │ Check 3 │ Check N  │
-│  HTTP   │   TCP   │   DNS   │   ...    │
-└─────────┴─────────┴─────────┴──────────┘
-          │
-          │ Updates status directly
-          ▼
-┌────────────────────┐
-│   Monitor CRDs     │
-│ (Status subresource)│
-└────────────────────┘
+Yuptime Pod
+├── Controller: exact slots, bounded queue, ordered status
+└── Checker sidecar: fixed worker pool
+    ├── worker 1: one attempt at a time
+    ├── worker 2: one attempt at a time
+    └── worker N: one attempt at a time
 ```
 
 Benefits:
-- **Security**: Each check runs with minimal permissions
-- **Isolation**: A failing check doesn't affect others
-- **Resource control**: Set CPU/memory limits per check
-- **Observability**: Each check has its own pod logs
+- **Low API load**: Normal checks create no Jobs or Pods
+- **Bounded resources**: Concurrency and queue size are explicit limits
+- **Failure isolation**: Hung workers are killed and replaced independently
+- **Accurate timing**: Completion and retry duration never shift future slots
 
 ### 4. GitOps-Native
 
@@ -97,31 +88,11 @@ This means you can:
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Yuptime Pod                              │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Metrics   │  │ Controller  │  │      Job Manager        │  │
-│  │   Server    │  │  (Watches   │  │  (Creates K8s Jobs for  │  │
-│  │ (Port 3000) │  │    CRDs)    │  │     each check)         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Checker Job Pods (Isolated)                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Job 1: HTTP Check    →  Updates Monitor CRD status (no DB)     │
-│  Job 2: TCP Check     →  Updates Monitor CRD status (no DB)     │
-│  Job 3: DNS Check     →  Updates Monitor CRD status (no DB)     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        External Services                         │
-├─────────────────────────────────────────────────────────────────┤
-│  Prometheus (metrics)  │  Alertmanager (alerts)  │  Grafana     │
-└─────────────────────────────────────────────────────────────────┘
+Monitor CRDs -> Controller Check Engine -> Checker sidecar -> Targets
+                       |
+                       +-> Monitor status
+                       +-> Prometheus
+                       +-> Alertmanager
 ```
 
 ### Components
@@ -129,9 +100,9 @@ This means you can:
 | Component | Description |
 |-----------|-------------|
 | **Controller** | Watches Monitor CRDs and reconciles desired state |
-| **Job Manager** | Creates Kubernetes Jobs for each monitor check |
+| **Check Engine** | Owns exact slots, admission, retries, and ordered publication |
 | **Metrics Server** | Exposes Prometheus metrics on port 3000 |
-| **Checker Pods** | Isolated pods that execute health checks |
+| **Checker sidecar** | Supervises the fixed persistent worker pool |
 
 ## Custom Resources
 

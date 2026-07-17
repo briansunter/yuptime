@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +17,7 @@ const __dirname = dirname(__filename);
 // Constants
 const CUE_MODULE_PATH = join(__dirname, "..", "timoni", "yuptime");
 const MANIFESTS_OUTPUT_PATH = join(__dirname, "..", "manifests");
+const CRDS_OUTPUT_PATH = join(__dirname, "..", "k8s", "crds.yaml");
 
 interface ManifestConfig {
   name: string;
@@ -28,9 +29,7 @@ interface ManifestConfig {
  * Render manifests using timoni apply with dry-run
  */
 function renderManifests(config: ManifestConfig): string {
-  console.log(
-    `Generating manifests for ${config.name}/${config.namespace}...`
-  );
+  console.log(`Generating manifests for ${config.name}/${config.namespace}...`);
 
   const output = execFileSync(
     "timoni",
@@ -42,6 +41,25 @@ function renderManifests(config: ManifestConfig): string {
   );
 
   return output;
+}
+
+function renderCrds(): string {
+  const valuesPath = join(__dirname, ".tmp.crds.values.cue");
+  writeFileSync(valuesPath, "package main\nvalues: crds: install: true\n");
+  try {
+    const rendered = execFileSync(
+      "timoni",
+      ["build", "yuptime", CUE_MODULE_PATH, "-n", "yuptime", "-f", valuesPath, "--output", "yaml"],
+      { encoding: "utf-8", cwd: join(__dirname, "..") },
+    );
+    return rendered
+      .split("---\n")
+      .filter((doc) => /kind:\s*CustomResourceDefinition/.test(doc))
+      .map((doc) => `---\n${doc.trim()}\n`)
+      .join("");
+  } finally {
+    unlinkSync(valuesPath);
+  }
 }
 
 /**
@@ -129,9 +147,7 @@ function main() {
   try {
     execFileSync("timoni", ["version"], { stdio: "ignore" });
   } catch {
-    console.error(
-      "❌ Timoni not found. Install with: brew install timoni"
-    );
+    console.error("❌ Timoni not found. Install with: brew install timoni");
     process.exit(1);
   }
 
@@ -143,6 +159,8 @@ function main() {
 
   const yaml = renderManifests(config);
   splitAndWriteManifests(yaml);
+  writeFileSync(CRDS_OUTPUT_PATH, renderCrds());
+  console.log("  ✅ k8s/crds.yaml");
 
   console.log(`\n✅ Static manifests generated to ${MANIFESTS_OUTPUT_PATH}`);
 }

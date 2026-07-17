@@ -18,7 +18,7 @@ async function main() {
     // Validate configuration
     validateConfig();
 
-    // Start Kubernetes controller (includes informers, reconcilers, job completion watcher)
+    // Start Kubernetes informers, reconcilers, and the persistent Check Engine.
     logger.info("Starting Kubernetes controller...");
     await controller.start();
     logger.info("Kubernetes controller started");
@@ -28,6 +28,7 @@ async function main() {
     metricsServer = createMetricsServer({
       port: config.port,
       host: "0.0.0.0",
+      ready: controller.ready,
     });
     await metricsServer.start();
 

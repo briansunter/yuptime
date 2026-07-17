@@ -1,5 +1,6 @@
 import { logger } from "../lib/logger";
 import type { Monitor } from "../types/crd";
+import type { CheckContext } from "./context";
 import type { CheckResult } from "./index";
 
 /**
@@ -84,6 +85,7 @@ async function checkRedisWithFactory(
   monitor: Monitor,
   timeout: number,
   clientFactory: (config: RedisClientConfig) => Promise<RedisClient>,
+  context?: CheckContext,
 ): Promise<CheckResult> {
   const target = monitor.spec.target.redis;
 
@@ -101,7 +103,17 @@ async function checkRedisWithFactory(
   try {
     // Get password from environment variables (injected by Job builder)
     // Only check env if credentialsSecretRef was defined in the Monitor spec
-    const password = target.credentialsSecretRef ? getPasswordFromEnv() : undefined;
+    const password = target.credentialsSecretRef
+      ? context
+        ? await context.resolveSecret(
+            {
+              name: target.credentialsSecretRef.name,
+              key: target.credentialsSecretRef.passwordKey ?? "password",
+            },
+            monitor.metadata.namespace,
+          )
+        : getPasswordFromEnv()
+      : undefined;
 
     // If secret ref was defined but password is missing, return error
     if (target.credentialsSecretRef && !password) {
@@ -224,8 +236,12 @@ function classifyRedisError(
 /**
  * Redis health checker
  */
-export function checkRedis(monitor: Monitor, timeout: number): Promise<CheckResult> {
-  return checkRedisWithFactory(monitor, timeout, createDefaultRedisClient);
+export function checkRedis(
+  monitor: Monitor,
+  timeout: number,
+  context?: CheckContext,
+): Promise<CheckResult> {
+  return checkRedisWithFactory(monitor, timeout, createDefaultRedisClient, context);
 }
 
 /**
@@ -233,7 +249,7 @@ export function checkRedis(monitor: Monitor, timeout: number): Promise<CheckResu
  */
 export function createCheckRedis(
   clientFactory: (config: RedisClientConfig) => Promise<RedisClient>,
-): (monitor: Monitor, timeout: number) => Promise<CheckResult> {
-  return (monitor: Monitor, timeout: number) =>
-    checkRedisWithFactory(monitor, timeout, clientFactory);
+): (monitor: Monitor, timeout: number, context?: CheckContext) => Promise<CheckResult> {
+  return (monitor: Monitor, timeout: number, context?: CheckContext) =>
+    checkRedisWithFactory(monitor, timeout, clientFactory, context);
 }

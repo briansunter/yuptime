@@ -2,6 +2,26 @@ import { logger } from "../../lib/logger";
 import { markInvalid, markValid } from "./status-utils";
 import type { ReconcileContext, TypeSafeReconciler } from "./types";
 
+function isAlreadyMarkedValid(resource: unknown, generation: number): boolean {
+  if (typeof resource !== "object" || resource === null || !("status" in resource)) return false;
+  const status = (resource as { status?: { observedGeneration?: number; conditions?: unknown[] } })
+    .status;
+  if (status?.observedGeneration !== generation || !Array.isArray(status.conditions)) return false;
+  const expected = new Set(["Valid", "Reconciled", "Ready"]);
+  for (const condition of status.conditions) {
+    if (
+      typeof condition === "object" &&
+      condition !== null &&
+      "type" in condition &&
+      "status" in condition &&
+      condition.status === "True"
+    ) {
+      expected.delete(String(condition.type));
+    }
+  }
+  return expected.size === 0;
+}
+
 /**
  * Type-safe reconciliation handler for CRD resources
  *
@@ -85,7 +105,9 @@ export function createTypeSafeReconciliationHandler<T extends object>(
       await config.reconciler(typedResource, ctx);
 
       // Step 4: Mark as valid and reconciled
-      await statusUpdater.markValid(config.kind, config.plural, namespace, name, generation);
+      if (!isAlreadyMarkedValid(typedResource, generation)) {
+        await statusUpdater.markValid(config.kind, config.plural, namespace, name, generation);
+      }
 
       logger.debug(
         { kind: config.kind, namespace, name },
@@ -127,6 +149,7 @@ export function createTypeSafeReconciliationHandler<T extends object>(
  */
 export function createTypeSafeDeleteHandler<T extends object>(
   config: TypeSafeReconciler<T>,
+  additionalContext?: Partial<ReconcileContext>,
 ): (namespace: string, name: string) => Promise<void> {
   return async (namespace: string, name: string) => {
     if (!config.deleteHandler) {
@@ -135,7 +158,7 @@ export function createTypeSafeDeleteHandler<T extends object>(
     }
 
     try {
-      await config.deleteHandler(namespace, name);
+      await config.deleteHandler(namespace, name, { ...additionalContext });
       logger.debug({ kind: config.kind, namespace, name }, `${config.kind} deleted successfully`);
     } catch (error) {
       logger.error(

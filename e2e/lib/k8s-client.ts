@@ -7,7 +7,6 @@ import { $ } from "bun";
 import {
   DEFAULT_TIMEOUT_MS,
   E2E_NAMESPACE,
-  JOB_WAIT_TIMEOUT_MS,
   STATUS_POLL_INTERVAL_MS,
 } from "./config";
 
@@ -58,6 +57,9 @@ export interface MonitorStatus {
     reason: string;
     message: string;
     latencyMs: number;
+    executionId: string;
+    scheduledAt: string;
+    startedAt: string;
     checkedAt: string;
   };
   uptime?: {
@@ -233,51 +235,23 @@ export async function deleteSilence(
   }
 }
 
-interface JobList {
-  items: Array<{
-    metadata: { name: string };
-    status?: { succeeded?: number; failed?: number };
-  }>;
-}
-
 /**
- * Wait for a checker job to complete for a monitor
+ * Count checker Jobs created for a monitor.
  */
-export async function waitForJobCompletion(
+export async function getCheckerJobCount(
   monitorName: string,
   namespace: string = E2E_NAMESPACE,
-  timeoutMs: number = JOB_WAIT_TIMEOUT_MS,
-): Promise<void> {
-  const startTime = Date.now();
+): Promise<number> {
   const labelSelector = `monitoring.yuptime.io/monitor=${namespace}-${monitorName}`;
-
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const jobs = await kubectlJson<JobList>([
-        "get",
-        "jobs",
-        "-n",
-        namespace,
-        "-l",
-        labelSelector,
-      ]);
-
-      // Check if any job has completed
-      const completedJob = jobs.items.find(
-        (job) => job.status?.succeeded && job.status.succeeded > 0,
-      );
-
-      if (completedJob) {
-        return;
-      }
-    } catch {
-      // Ignore errors and retry
-    }
-
-    await sleep(STATUS_POLL_INTERVAL_MS);
-  }
-
-  throw new Error(`Timeout waiting for job completion for monitor ${monitorName}`);
+  const jobs = await kubectlJson<{ items: unknown[] }>([
+    "get",
+    "jobs",
+    "-n",
+    namespace,
+    "-l",
+    labelSelector,
+  ]);
+  return jobs.items.length;
 }
 
 /**

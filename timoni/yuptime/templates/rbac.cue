@@ -61,14 +61,14 @@ import (
 			resources: ["leases"]
 			verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 		},
-		// Jobs for monitor check execution
-		{
+		// Jobs for explicit rollback execution only.
+		if #config.execution.mode == "jobs" {
 			apiGroups: ["batch"]
 			resources: ["jobs", "jobs/status"]
 			verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 		},
 		// Pods for checking Job status
-		{
+		if #config.execution.mode == "jobs" {
 			apiGroups: [""]
 			resources: ["pods", "pods/log"]
 			verbs: ["get", "list"]
@@ -120,17 +120,12 @@ import (
 			resources: ["monitors"]
 			verbs: ["get", "list"]
 		},
-		// Allow updating Monitor status (checker writes results here)
-		{
-			apiGroups: ["monitoring.yuptime.io"]
-			resources: ["monitors/status"]
-			verbs: ["patch", "update"]
-		},
-		// Allow creating Events
+		// Resolve per-monitor Secret references. Results are returned to the
+		// controller, which remains the only status writer.
 		{
 			apiGroups: [""]
-			resources: ["events"]
-			verbs: ["create"]
+			resources: ["secrets"]
+			verbs: ["get"]
 		},
 	]
 }

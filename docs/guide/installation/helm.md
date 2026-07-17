@@ -1,6 +1,6 @@
 # Installing with Helm
 
-Helm is the most widely used Kubernetes package manager. Yuptime publishes Helm charts to GitHub Container Registry (GHCR).
+Helm is Yuptime's recommended installation route because it has the broadest Kubernetes ecosystem support. Yuptime publishes Helm charts to GitHub Container Registry (GHCR).
 
 ## Prerequisites
 
@@ -105,6 +105,7 @@ crds:
 # Network policy
 networkPolicy:
   enabled: true
+  egressMode: all # Use commonPorts only when every target uses the built-in allowlist.
 
 # Pod disruption budget
 podDisruptionBudget:

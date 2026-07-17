@@ -298,37 +298,39 @@ jobs:
           echo "Monitor status:"
           kubectl get monitors -n yuptime -o wide
 
-      - name: Wait for check job
+      - name: Verify persistent check result
         timeout-minutes: 3
         run: |
-          echo "Waiting for check job to complete..."
+          echo "Waiting for the persistent Check Engine to publish a result..."
 
-          max_retries=20
+          max_retries=30
           retry_count=0
           while [ $retry_count -lt $max_retries ]; do
-            # Look for completed jobs
-            completed=$(kubectl get jobs -n yuptime -l yuptime.io/monitor=httpbin-test --no-headers 2>/dev/null | grep -c "1/1" || echo "0")
-            if [ "$completed" -gt 0 ]; then
-              echo "✓ Check job completed"
-              kubectl get jobs -n yuptime -l yuptime.io/monitor=httpbin-test
+            checked_at=$(kubectl get monitor httpbin-test -n yuptime -o jsonpath='{.status.lastResult.checkedAt}' 2>/dev/null || true)
+            if [ -n "$checked_at" ]; then
+              scheduled_at=$(kubectl get monitor httpbin-test -n yuptime -o jsonpath='{.status.lastResult.scheduledAt}')
+              started_at=$(kubectl get monitor httpbin-test -n yuptime -o jsonpath='{.status.lastResult.startedAt}')
+              execution_id=$(kubectl get monitor httpbin-test -n yuptime -o jsonpath='{.status.lastResult.executionId}')
+              test -n "$scheduled_at"
+              test -n "$started_at"
+              test -n "$execution_id"
+              test -z "$(kubectl get jobs -n yuptime -l app.kubernetes.io/component=checker --no-headers 2>/dev/null || true)"
+              test -z "$(kubectl get pods -n yuptime -l app.kubernetes.io/component=checker --no-headers 2>/dev/null || true)"
+              echo "✓ Persistent checker published a structured result without creating Jobs"
               break
-            fi
-
-            # Check for running jobs
-            jobs=$(kubectl get jobs -n yuptime -l yuptime.io/monitor=httpbin-test --no-headers 2>/dev/null | wc -l)
-            if [ "$jobs" -gt 0 ]; then
-              echo "Jobs found: $jobs"
             fi
 
             retry_count=$((retry_count + 1))
             echo "Waiting... ($retry_count/$max_retries)"
-            sleep 5
+            sleep 3
           done
 
           if [ $retry_count -eq $max_retries ]; then
-            echo "Warning: No completed jobs found in time, checking status..."
+            echo "No persistent checker result was published in time"
+            kubectl get monitor httpbin-test -n yuptime -o yaml
             kubectl get jobs -n yuptime
             kubectl get pods -n yuptime
+            exit 1
           fi
 
       - name: Verify API endpoints

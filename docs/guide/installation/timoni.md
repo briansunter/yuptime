@@ -1,6 +1,6 @@
 # Installing with Timoni
 
-[Timoni](https://timoni.sh) is a CUE-based Kubernetes package manager. It's the recommended way to install Yuptime because it provides the most flexibility and best GitOps integration.
+[Timoni](https://timoni.sh) is Yuptime's type-safe, advanced installation option. It provides CUE validation, rich customization, OCI distribution, and GitOps-oriented lifecycle management. For the most widely supported installation route, use [Helm](./helm.md).
 
 ## Prerequisites
 
@@ -99,7 +99,10 @@ values: {
   crds: install: true
 
   // Network policy
-  networkPolicy: enabled: true
+  networkPolicy: {
+    enabled:    true
+    egressMode: "all"
+  }
 
   // Pod disruption budget
   podDisruptionBudget: {
@@ -178,7 +181,10 @@ values: {
 ```cue
 values: {
   crds: install: true                   // Install CRDs (set false if pre-installed)
-  networkPolicy: enabled: true          // Create NetworkPolicy
+  networkPolicy: {
+    enabled:    true                    // Create NetworkPolicy
+    egressMode: "all"                  // commonPorts is a restrictive opt-in
+  }
   podDisruptionBudget: {
     enabled:      true
     minAvailable: 1

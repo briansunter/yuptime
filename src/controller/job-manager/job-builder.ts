@@ -4,7 +4,7 @@
  */
 
 import type { V1EnvVar, V1Job } from "@kubernetes/client-node";
-import type { Monitor } from "./types";
+import type { Monitor } from "../../types/crd";
 
 // Default checker image from environment or fallback
 const DEFAULT_CHECKER_IMAGE = process.env.CHECKER_IMAGE || "yuptime-checker:latest";

@@ -8,11 +8,11 @@ import {
   createMonitor,
   deleteMonitor,
   E2E_NAMESPACE,
+  getCheckerJobCount,
   getHttpUrl,
   getMetrics,
   getMonitor,
   uniqueTestName,
-  waitForJobCompletion,
   waitForMonitorStatus,
 } from "../lib";
 
@@ -36,21 +36,23 @@ describe("Monitor Lifecycle E2E", () => {
     return name;
   }
 
-  test("creates job when monitor created", async () => {
+  test("publishes a structured result without creating a checker Job", async () => {
     const monitor = createHttpMonitor({
-      name: "lifecycle-job",
+      name: "lifecycle-persistent",
       url: getHttpUrl("/health"),
     });
     const name = await createAndTrack(monitor);
 
-    // Wait for job to be created and complete
-    await waitForJobCompletion(name);
+    const status = await waitForMonitorStatus(name);
 
-    // If we get here, job was created and completed
-    expect(true).toBe(true);
-  }, 60000); // Allow time for job scheduling and completion
+    expect(status.lastResult?.executionId).toBeDefined();
+    expect(status.lastResult?.scheduledAt).toBeDefined();
+    expect(status.lastResult?.startedAt).toBeDefined();
+    expect(status.lastResult?.checkedAt).toBeDefined();
+    expect(await getCheckerJobCount(name)).toBe(0);
+  });
 
-  test("updates status after job completion", async () => {
+  test("updates status after check completion", async () => {
     const monitor = createHttpMonitor({
       name: "lifecycle-status",
       url: getHttpUrl("/health"),

@@ -39,20 +39,20 @@ features:
 
 ## Quick Start
 
-The Timoni module under `timoni/yuptime/` is the authoritative packaging source for this repository. The checked-in `k8s/`, `helm/yuptime/`, and `manifests/` trees are mirrors kept aligned from that CUE-first workflow.
+Helm is the default installation route. For maintainers, the Timoni/CUE module under `timoni/yuptime/` is the authoritative packaging source; `k8s/`, `helm/yuptime/`, and `manifests/` are generated mirrors protected by semantic parity checks.
 
 ::: code-group
 
-```bash [Timoni]
-timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
-  --version latest \
-  --namespace yuptime
-```
-
-```bash [Helm]
+```bash [Helm (Recommended)]
 helm install yuptime oci://ghcr.io/briansunter/yuptime/charts/yuptime \
   --namespace yuptime \
   --create-namespace
+```
+
+```bash [Timoni (Advanced)]
+timoni apply yuptime oci://ghcr.io/briansunter/yuptime/timoni-module \
+  --version latest \
+  --namespace yuptime
 ```
 
 ```bash [kubectl]

@@ -53,7 +53,12 @@ import (
 						{name: "CHECKER_IMAGE", value: #config.checkerImage.reference},
 						{name: "CHECKER_IMAGE_PULL_POLICY", value: #config.checkerImage.pullPolicy},
 						{name: "CHECKER_SERVICE_ACCOUNT", value: #config.metadata.name + "-checker"},
-						{name: "JOB_TTL_SECONDS", value: "\(#config.jobTTLSeconds)"},
+							{name: "JOB_TTL_SECONDS", value: "\(#config.jobTTLSeconds)"},
+							{name: "EXECUTION_MODE", value: #config.execution.mode},
+							{name: "EXECUTION_CONCURRENCY", value: "\(#config.execution.concurrency)"},
+							{name: "EXECUTION_QUEUE_CAPACITY", value: "\(#config.execution.queueCapacity)"},
+							{name: "EXECUTION_SHUTDOWN_GRACE_SECONDS", value: "\(#config.execution.shutdownGraceSeconds)"},
+							{name: "CHECKER_URL", value: "http://127.0.0.1:3001"},
 						{
 							name: "KUBE_NAMESPACE"
 							valueFrom: fieldRef: fieldPath: "metadata.namespace"
@@ -64,6 +69,14 @@ import (
 
 					// Health probes
 					if #config.probes.liveness.enabled {
+						startupProbe: {
+							httpGet: {
+								path: "/health"
+								port: #config.service.port
+							}
+							periodSeconds:    2
+							failureThreshold: 30
+						}
 						livenessProbe: {
 							httpGet: {
 								path: "/health"
@@ -78,7 +91,7 @@ import (
 					if #config.probes.readiness.enabled {
 						readinessProbe: {
 							httpGet: {
-								path: "/health"
+								path: "/ready"
 								port: #config.service.port
 							}
 							initialDelaySeconds: #config.probes.readiness.initialDelaySeconds
@@ -91,6 +104,45 @@ import (
 					volumeMounts: [
 						{name: "tmp", mountPath: "/tmp"},
 					]
+				}, if #config.execution.mode == "sidecar" {
+					name:            "checker"
+					image:           #config.checkerImage.reference
+					imagePullPolicy: #config.checkerImage.pullPolicy
+					command: ["bun", "src/checker-sidecar/server.ts"]
+					env: [
+						{name: "NODE_ENV", value: #config.mode},
+						{name: "LOG_LEVEL", value: #config.logging.level},
+						{name: "CHECKER_PORT", value: "3001"},
+						{name: "CHECKER_CONCURRENCY", value: "\(#config.execution.concurrency)"},
+						{name: "CHECKER_SHUTDOWN_GRACE_MS", value: "\(#config.execution.shutdownGraceSeconds * 1000)"},
+					]
+					securityContext: #config.securityContext & {
+						capabilities: {
+							drop: ["ALL"]
+							add:  ["NET_RAW"]
+						}
+					}
+					resources: #config.checkerResources
+					livenessProbe: exec: command: [
+						"bun",
+						"-e",
+						"const r=await fetch('http://127.0.0.1:3001/health');process.exit(r.ok?0:1)",
+					]
+					startupProbe: {
+						exec: command: [
+							"bun",
+							"-e",
+							"const r=await fetch('http://127.0.0.1:3001/health');process.exit(r.ok?0:1)",
+						]
+						periodSeconds:    2
+						failureThreshold: 30
+					}
+					readinessProbe: exec: command: [
+						"bun",
+						"-e",
+						"const r=await fetch('http://127.0.0.1:3001/ready');process.exit(r.ok?0:1)",
+					]
+					volumeMounts: [{name: "tmp", mountPath: "/tmp"}]
 				}]
 				volumes: [
 					{name: "tmp", emptyDir: {}},

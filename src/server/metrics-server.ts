@@ -12,6 +12,7 @@ import { getMetrics } from "../lib/prometheus";
 export interface MetricsServerConfig {
   port: number;
   host: string;
+  ready?: () => boolean;
 }
 
 /**
@@ -37,9 +38,9 @@ export function createMetricsServer(config: MetricsServerConfig) {
       res.writeHead(200, { "Content-Type": "text/plain" });
       res.end("OK\n");
     } else if (req.url === "/ready" || req.url === "/readyz") {
-      // Readiness probe endpoint
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("OK\n");
+      const ready = config.ready?.() ?? true;
+      res.writeHead(ready ? 200 : 503, { "Content-Type": "text/plain" });
+      res.end(ready ? "OK\n" : "Not Ready\n");
     } else {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Not Found\n");

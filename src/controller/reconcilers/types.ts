@@ -1,5 +1,5 @@
 import type { ZodSchema } from "zod";
-import type { JobManager } from "../job-manager";
+import type { CheckEngine } from "../../check-engine";
 
 /**
  * Validation result
@@ -13,7 +13,7 @@ export interface ValidationResult {
  * Reconciliation context - passed to reconcilers
  */
 export interface ReconcileContext {
-  jobManager?: JobManager | null;
+  checkEngine?: CheckEngine | null;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface TypeSafeReconciler<T extends object> {
   zodSchema: ZodSchema<T>;
   validator: (resource: T) => ValidationResult | Promise<ValidationResult>;
   reconciler: (resource: T, ctx: ReconcileContext) => Promise<void>;
-  deleteHandler?: (namespace: string, name: string) => Promise<void>;
+  deleteHandler?: (namespace: string, name: string, ctx?: ReconcileContext) => Promise<void>;
 }
 
 /**

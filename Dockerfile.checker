@@ -1,5 +1,5 @@
-# Checker-executor container image
-# This image runs individual monitor checks in Kubernetes Jobs
+# Persistent checker container image. The same image runs the sidecar server by
+# command override and the temporary checker-executor CLI in rollback Jobs.
 
 FROM oven/bun:latest
 
@@ -32,5 +32,5 @@ USER bun
 # Set environment
 ENV NODE_ENV=production
 
-# The checker-executor CLI - run TypeScript directly with Bun
+# Rollback Jobs use the CLI entrypoint; the sidecar Deployment overrides it.
 ENTRYPOINT ["bun", "src/checker-executor/cli.ts"]
