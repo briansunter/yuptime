@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.31](https://github.com/briansunter/yuptime/compare/v0.0.30...v0.0.31) (2026-07-17)
+
+
+### Features
+
+* replace checker Jobs with persistent check engine ([#67](https://github.com/briansunter/yuptime/issues/67)) ([c1ba3d2](https://github.com/briansunter/yuptime/commit/c1ba3d2b8198b6da3b7246bb6840f83fedb1ea61))
+
+
+### Bug Fixes
+
+* reduce completed checker job retention ([efa1772](https://github.com/briansunter/yuptime/commit/efa17720c98788e0b7e73ba5e1b584e247c8910f))
+
 ## [0.0.30](https://github.com/briansunter/yuptime/compare/v0.0.29...v0.0.30) (2026-07-16)
 
 
